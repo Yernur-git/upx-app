@@ -1,7 +1,58 @@
 import type { Task, UserConfig, ChatMessage, ParsedAction } from '../types';
 import { minutesToTime } from './scheduler';
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
+
+export interface AIConfig {
+  apiKey: string;
+  provider: AIProvider;
+  baseURL?: string;   // for custom / openrouter
+  model?: string;     // override model
+}
+
+// Auto-detect provider from key prefix
+export function detectProvider(apiKey: string, customBaseURL?: string): AIProvider {
+  if (customBaseURL?.includes('openrouter.ai')) return 'openrouter';
+  if (customBaseURL && customBaseURL.length > 0) return 'custom';
+  if (apiKey.startsWith('sk-ant-')) return 'anthropic';
+  if (apiKey.startsWith('sk-or-')) return 'openrouter';
+  if (apiKey.startsWith('gsk_')) return 'groq';
+  if (apiKey.startsWith('sk-')) return 'openai';
+  return 'custom';
+}
+
+export function providerLabel(provider: AIProvider): string {
+  return {
+    anthropic:  '✓ Claude (Anthropic)',
+    openai:     '✓ GPT-4o (OpenAI)',
+    openrouter: '✓ OpenRouter',
+    groq:       '✓ Groq (free)',
+    custom:     '✓ Custom endpoint',
+  }[provider];
+}
+
+// Default model per provider
+function defaultModel(provider: AIProvider): string {
+  return {
+    anthropic:  'claude-sonnet-4-20250514',
+    openai:     'gpt-4o-mini',
+    openrouter: 'openai/gpt-4o-mini',
+    groq:       'llama-3.3-70b-versatile',
+    custom:     'gpt-4o-mini',
+  }[provider];
+}
+
+// Base URL per provider
+function getBaseURL(provider: AIProvider, customBaseURL?: string): string {
+  if (customBaseURL) return customBaseURL.replace(/\/$/, '');
+  return {
+    anthropic:  '', // handled separately
+    openai:     'https://api.openai.com/v1',
+    openrouter: 'https://openrouter.ai/api/v1',
+    groq:       'https://api.groq.com/openai/v1',
+    custom:     '',
+  }[provider];
+}
 
 export interface AIResponse {
   message: string;
@@ -26,7 +77,7 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
 
 ## User Settings
 - Wake: ${config.wake}
-- Sleep: ${config.sleep}  
+- Sleep: ${config.sleep}
 - Default break between tasks: ${config.buffer} min
 - Gym/workout travel: ${config.gym_travel_minutes} min each way
 - Known contexts: ${JSON.stringify(config.known_contexts)}
@@ -38,25 +89,22 @@ ${taskList}
 ${tmrwList}
 
 ## Your capabilities
-1. **Parse tasks from natural language** — user writes "edit video 60min" → create a task
-2. **Build the day schedule** — arrange tasks optimally considering travel, breaks, energy
-3. **Advise and reschedule** — help when user is overloaded, suggest what to move
-4. **Answer questions** — general productivity advice
+1. Parse tasks from natural language — "edit video 60min" → create a task
+2. Build the day schedule — arrange tasks optimally considering travel, breaks, energy
+3. Advise and reschedule — help when user is overloaded, suggest what to move
+4. Answer questions — general productivity advice
 
 ## Rules
 - Always respond in the SAME language the user writes in (Russian or English)
 - Be concise and friendly, not verbose
-- When creating tasks, extract: title, duration, travel_time (if location-based like gym/office), priority, break_after
 - For workout/gym tasks: automatically add travel_minutes = gym_travel_minutes from config
-- When you perform actions, include them in your JSON actions array
 - Current time: ${minutesToTime(new Date().getHours() * 60 + new Date().getMinutes())}
 
-## Response format
-Always respond with valid JSON:
+## IMPORTANT: Response format
+You MUST always respond with ONLY valid JSON. No markdown, no text outside JSON:
 {
   "message": "your friendly response to the user",
   "actions": [
-    // optional array of actions to perform
     {
       "type": "create_task",
       "payload": {
@@ -66,69 +114,128 @@ Always respond with valid JSON:
         "break_after": number,
         "priority": "low|medium|high",
         "category": "string",
-        "fixed_time": "HH:MM or null",
+        "fixed_time": null,
         "day": "today|tomorrow"
       }
-    },
-    {
-      "type": "update_task",
-      "payload": { "id": "task-id", ...fieldsToUpdate }
-    },
-    {
-      "type": "delete_task", 
-      "payload": { "id": "task-id" }
-    },
-    {
-      "type": "move_task",
-      "payload": { "id": "task-id", "day": "today|tomorrow" }
-    },
-    {
-      "type": "reschedule",
-      "payload": { "order": ["task-id-1", "task-id-2", ...] }
     }
   ]
-}`;
+}
+Other action types: update_task {id, ...fields}, delete_task {id}, move_task {id, day}, reschedule {order: [id1, id2, ...]}.
+If no actions needed, use empty array [].`;
 }
 
-export async function sendChatMessage(
+// ── ANTHROPIC ────────────────────────────────────────────────────────────────
+async function callAnthropic(
   userMessage: string,
   history: ChatMessage[],
-  tasks: Task[],
-  config: UserConfig,
-  apiKey: string
-): Promise<AIResponse> {
-  const systemPrompt = buildSystemPrompt(tasks, config);
-
+  systemPrompt: string,
+  cfg: AIConfig
+): Promise<string> {
   const messages = [
-    ...history.slice(-10).map(m => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    })),
+    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
 
-  const response = await fetch(ANTHROPIC_API, {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': apiKey,
+      'x-api-key': cfg.apiKey,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: cfg.model || defaultModel('anthropic'),
       max_tokens: 1000,
       system: systemPrompt,
       messages,
     }),
   });
 
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Anthropic ${res.status}: ${err?.error?.message || res.statusText}`);
   }
 
-  const data = await response.json();
-  const rawText = data.content?.[0]?.text || '{}';
+  const data = await res.json();
+  return data.content?.[0]?.text || '{}';
+}
+
+// ── OPENAI-COMPATIBLE (OpenAI, OpenRouter, Groq, Ollama, custom) ─────────────
+async function callOpenAICompat(
+  userMessage: string,
+  history: ChatMessage[],
+  systemPrompt: string,
+  cfg: AIConfig
+): Promise<string> {
+  const provider = cfg.provider;
+  const baseURL = getBaseURL(provider, cfg.baseURL);
+  const model = cfg.model || defaultModel(provider);
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user', content: userMessage },
+  ];
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${cfg.apiKey}`,
+  };
+
+  // OpenRouter requires these extra headers
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://upx-app.vercel.app';
+    headers['X-Title'] = 'UpX Planner';
+  }
+
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: 1000,
+    messages,
+  };
+
+  // JSON mode — supported by OpenAI, OpenRouter, Groq
+  if (provider !== 'custom') {
+    body.response_format = { type: 'json_object' };
+  }
+
+  const res = await fetch(`${baseURL}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`${provider} ${res.status}: ${err?.error?.message || res.statusText}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '{}';
+}
+
+// ── MAIN EXPORT ──────────────────────────────────────────────────────────────
+export async function sendChatMessage(
+  userMessage: string,
+  history: ChatMessage[],
+  tasks: Task[],
+  config: UserConfig,
+  apiKey: string,
+  customBaseURL?: string,
+  customModel?: string
+): Promise<AIResponse> {
+  const provider = detectProvider(apiKey, customBaseURL);
+  const cfg: AIConfig = { apiKey, provider, baseURL: customBaseURL, model: customModel };
+  const systemPrompt = buildSystemPrompt(tasks, config);
+
+  let rawText: string;
+
+  if (provider === 'anthropic') {
+    rawText = await callAnthropic(userMessage, history, systemPrompt, cfg);
+  } else {
+    rawText = await callOpenAICompat(userMessage, history, systemPrompt, cfg);
+  }
 
   try {
     const clean = rawText.replace(/```json|```/g, '').trim();
@@ -140,25 +247,4 @@ export async function sendChatMessage(
   } catch {
     return { message: rawText, actions: [] };
   }
-}
-
-export function parseNaturalTask(text: string): Partial<Task> | null {
-  // Quick client-side parse as fallback
-  const durationMatch = text.match(/(\d+)\s*(?:min|м|мин|минут|hour|h|час)/i);
-  if (!durationMatch) return null;
-
-  const duration = durationMatch[1];
-  const title = text.replace(durationMatch[0], '').trim().replace(/\s+/g, ' ');
-
-  return {
-    title: title || text,
-    duration_minutes: parseInt(duration),
-    priority: 'medium',
-    break_after: 0,
-    travel_minutes: 0,
-    category: 'general',
-    is_starred: false,
-    is_done: false,
-    day: 'today',
-  };
 }
