@@ -113,7 +113,7 @@ You MUST always respond with ONLY valid JSON. No markdown, no text outside JSON:
         "travel_minutes": number,
         "break_after": number,
         "priority": "low|medium|high",
-        "category": "string",
+        "category": "workout|deep work|meetings|meals|creative|admin|general — pick the best fit",
         "fixed_time": null,
         "day": "today|tomorrow"
       }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '../../store';
 import { formatDuration } from '../../lib/scheduler';
+import { detectCategory } from '../../lib/categories';
 
 export function StatsPanel() {
   const { tasks, dayHistory, config } = useStore();
@@ -36,9 +37,12 @@ export function StatsPanel() {
   // Category goals progress this week
   const categoryProgress = useMemo(() => {
     return config.category_goals.map(goal => {
-      // Count done minutes from today matching this category
+      // Match by category field OR auto-detect from title
       const todayMinutes = tasks
-        .filter(t => t.day === 'today' && t.is_done && t.category.toLowerCase() === goal.category.toLowerCase())
+        .filter(t => t.day === 'today' && t.is_done && (
+          t.category.toLowerCase() === goal.category.toLowerCase() ||
+          detectCategory(t.title) === goal.category.toLowerCase()
+        ))
         .reduce((s, t) => s + t.duration_minutes, 0);
 
       // Count from last 7 days history (approximate — history stores totals not per-category)

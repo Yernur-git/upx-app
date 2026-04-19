@@ -10,6 +10,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
+import { detectCategory, getAllCategories } from '../../lib/categories';
 import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
 
@@ -159,18 +160,43 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const [priority, setPriority] = useState<Priority>('medium');
   const [travel, setTravel] = useState('0');
   const [recurrence, setRecurrence] = useState<Recurrence>('none');
+  const [category, setCategory] = useState('general');
+  const [categoryEdited, setCategoryEdited] = useState(false);
+
+  const handleTitleChange = (val: string) => {
+    setTitle(val);
+    // Auto-detect category from title unless user manually changed it
+    if (!categoryEdited) {
+      setCategory(detectCategory(val));
+    }
+  };
 
   const handleAdd = async () => {
     if (!title.trim()) return;
-    await addTask({ title: title.trim(), duration_minutes: parseInt(duration) || 30, break_after: config.buffer, travel_minutes: parseInt(travel) || 0, priority, category: 'general', is_starred: false, is_done: false, day, recurrence, sort_order: 0 });
+    await addTask({
+      title: title.trim(),
+      duration_minutes: parseInt(duration) || 30,
+      break_after: config.buffer,
+      travel_minutes: parseInt(travel) || 0,
+      priority,
+      category,
+      is_starred: false,
+      is_done: false,
+      day,
+      recurrence,
+      sort_order: 0,
+    });
     onDone();
   };
+
+  const allCategories = getAllCategories(config.category_goals);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <input autoFocus placeholder="Task title…" value={title}
-        onChange={e => setTitle(e.target.value)}
+        onChange={e => handleTitleChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onDone(); }} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Duration (min)</div>
@@ -189,15 +215,33 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           </select>
         </div>
       </div>
-      <div>
-        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Repeat</div>
-        <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)}>
-          <option value="none">No repeat</option>
-          <option value="daily">Every day</option>
-          <option value="weekdays">Weekdays only</option>
-          <option value="weekly">Every week</option>
-        </select>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>
+            Category
+            {!categoryEdited && category !== 'general' && (
+              <span style={{ marginLeft: 4, color: 'var(--ind)', fontWeight: 600 }}>auto</span>
+            )}
+          </div>
+          <select value={category}
+            onChange={e => { setCategory(e.target.value); setCategoryEdited(true); }}>
+            {allCategories.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Repeat</div>
+          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)}>
+            <option value="none">No repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekdays">Weekdays</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
       </div>
+
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}>Add</button>
         <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
