@@ -49,7 +49,8 @@ export function buildSchedule(tasks: Task[], config: UserConfig): ScheduleResult
 
   const blocks: TimelineBlock[] = [];
   const overflow: Task[] = [];
-  let cursor = wake + (config.morning_buffer ?? 0);
+  const nowMins = getNowMinutes();
+  let cursor = Math.max(wake + (config.morning_buffer ?? 0), nowMins);
 
   for (const task of sorted) {
     const travelTime = task.travel_minutes;

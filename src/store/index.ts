@@ -169,26 +169,43 @@ export const useStore = create<Store>()(
 
       applyActions: async (actions) => {
         for (const action of actions) {
+          if (!action?.type || action?.payload === undefined) continue;
           const { addTask, updateTask, deleteTask, moveTask, reorderTasks } = get();
-          switch (action.type) {
-            case 'create_task': {
-              const p = action.payload as Omit<Task, 'id' | 'created_at'>;
-              await addTask({ ...p, recurrence: p.recurrence ?? 'none', sort_order: p.sort_order ?? 0, is_done: false });
-              break;
+          try {
+            switch (action.type) {
+              case 'create_task': {
+                const p = action.payload as Omit<Task, 'id' | 'created_at'>;
+                if (!p?.title) break;
+                await addTask({ ...p, recurrence: p.recurrence ?? 'none', sort_order: p.sort_order ?? 0, is_done: false });
+                break;
+              }
+              case 'update_task': {
+                const pl = action.payload as { id?: string } & Partial<Task>;
+                if (!pl?.id) break;
+                const { id, ...updates } = pl;
+                await updateTask(id, updates);
+                break;
+              }
+              case 'delete_task': {
+                const pl = action.payload as { id?: string };
+                if (!pl?.id) break;
+                await deleteTask(pl.id);
+                break;
+              }
+              case 'move_task': {
+                const pl = action.payload as { id?: string; day?: 'today' | 'tomorrow' };
+                if (!pl?.id || !pl?.day) break;
+                await moveTask(pl.id, pl.day);
+                break;
+              }
+              case 'reschedule': {
+                const pl = action.payload as { order?: string[] };
+                if (!pl?.order?.length) break;
+                reorderTasks(pl.order);
+                break;
+              }
             }
-            case 'update_task': {
-              const { id, ...updates } = action.payload as { id: string } & Partial<Task>;
-              await updateTask(id, updates);
-              break;
-            }
-            case 'delete_task': await deleteTask((action.payload as { id: string }).id); break;
-            case 'move_task': {
-              const { id, day } = action.payload as { id: string; day: 'today' | 'tomorrow' };
-              await moveTask(id, day);
-              break;
-            }
-            case 'reschedule': reorderTasks((action.payload as { order: string[] }).order); break;
-          }
+          } catch(e) { console.error('Action failed:', action.type, e); }
         }
       },
 

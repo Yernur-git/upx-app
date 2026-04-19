@@ -36,25 +36,17 @@ export function StatsPanel() {
   // Category goals progress this week
   const categoryProgress = useMemo(() => {
     return config.category_goals.map(goal => {
-      // Count from history + today
-      const historyMinutes = dayHistory
-        .filter(d => {
-          const date = new Date(d.date);
-          const weekAgo = new Date();
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          return date >= weekAgo;
-        })
-        .reduce((s, _d) => s, 0); // simplified — full impl needs per-category history
-
-      const todayMinutes = doneTasks
-        .filter(t => t.category.toLowerCase() === goal.category.toLowerCase())
+      // Count done minutes from today matching this category
+      const todayMinutes = tasks
+        .filter(t => t.day === 'today' && t.is_done && t.category.toLowerCase() === goal.category.toLowerCase())
         .reduce((s, t) => s + t.duration_minutes, 0);
 
-      const total = historyMinutes + todayMinutes;
-      const pct = Math.min(100, Math.round((total / goal.weekly_goal_minutes) * 100));
-      return { ...goal, done_minutes: total, pct };
+      // Count from last 7 days history (approximate — history stores totals not per-category)
+      // For now use today only; full per-category history is a future enhancement
+      const pct = Math.min(100, Math.round((todayMinutes / goal.weekly_goal_minutes) * 100));
+      return { ...goal, done_minutes: todayMinutes, pct };
     });
-  }, [config.category_goals, doneTasks, dayHistory]);
+  }, [config.category_goals, tasks]);
 
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const maxBar = Math.max(...weekStats.map(d => d.total), 1);
