@@ -1,11 +1,20 @@
 import { useState } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical } from 'lucide-react';
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
-import type { Task, Priority } from '../../types';
+import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
 
 export function TaskList() {
-  const { tasks, updateTask, deleteTask, toggleDone, moveTask } = useStore();
+  const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [activeDay, setActiveDay] = useState<'today' | 'tomorrow'>('today');
 
@@ -13,65 +22,68 @@ export function TaskList() {
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
   const displayTasks = activeDay === 'today' ? todayTasks : tomorrowTasks;
 
-  const doneTasks = displayTasks.filter(t => t.is_done);
-  const pendingTasks = displayTasks.filter(t => !t.is_done);
+  const doneTasks = displayTasks.filter(t => t.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const pendingTasks = displayTasks.filter(t => !t.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = pendingTasks.map(t => t.id);
+    const oldIndex = ids.indexOf(active.id as string);
+    const newIndex = ids.indexOf(over.id as string);
+    reorderTasks(arrayMove(ids, oldIndex, newIndex));
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Day tabs */}
       <div style={{ display: 'flex', gap: 4, padding: '0 18px 12px', flexShrink: 0 }}>
         {(['today', 'tomorrow'] as const).map(day => (
           <button key={day} className="btn btn-ghost"
-            style={{
-              flex: 1, justifyContent: 'center', fontSize: 12,
-              background: activeDay === day ? 'var(--ind-l)' : 'transparent',
-              color: activeDay === day ? 'var(--ind)' : 'var(--tx3)',
-              borderColor: activeDay === day ? 'var(--ind-m)' : 'var(--bdr2)',
-            }}
+            style={{ flex: 1, justifyContent: 'center', fontSize: 12, background: activeDay === day ? 'var(--ind-l)' : 'transparent', color: activeDay === day ? 'var(--ind)' : 'var(--tx3)', borderColor: activeDay === day ? 'var(--ind-m)' : 'var(--bdr2)' }}
             onClick={() => setActiveDay(day)}>
             {day === 'today' ? 'Today' : 'Tomorrow'}
-            <span style={{
-              fontSize: 10, fontWeight: 700,
-              background: activeDay === day ? 'var(--ind)' : 'var(--sf3)',
-              color: activeDay === day ? '#fff' : 'var(--tx3)',
-              padding: '1px 6px', borderRadius: 10, marginLeft: 4,
-            }}>
+            <span style={{ fontSize: 10, fontWeight: 700, background: activeDay === day ? 'var(--ind)' : 'var(--sf3)', color: activeDay === day ? '#fff' : 'var(--tx3)', padding: '1px 6px', borderRadius: 10, marginLeft: 4 }}>
               {(day === 'today' ? todayTasks : tomorrowTasks).filter(t => !t.is_done).length}
             </span>
           </button>
         ))}
       </div>
 
-      {/* Task list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px' }}>
         {pendingTasks.length === 0 && doneTasks.length === 0 && (
-          <div style={{
-            textAlign: 'center', padding: '32px 16px',
-            color: 'var(--tx3)', fontSize: 13, lineHeight: 1.7,
-            border: '1.5px dashed var(--bdr2)', borderRadius: 'var(--rs)', marginTop: 8,
-          }}>
-            No tasks yet.<br />
-            <span style={{ fontSize: 12 }}>Add one below or ask the AI ✨</span>
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--tx3)', fontSize: 13, lineHeight: 1.7, border: '1.5px dashed var(--bdr2)', borderRadius: 'var(--rs)', marginTop: 8 }}>
+            No tasks yet.<br /><span style={{ fontSize: 12 }}>Add one below or ask the AI ✨</span>
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {pendingTasks.map(task => (
-            <TaskCard key={task.id} task={task} onToggle={() => toggleDone(task.id)}
-              onDelete={() => deleteTask(task.id)}
-              onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-              onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
-          ))}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={pendingTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {pendingTasks.map(task => (
+                <SortableTaskCard key={task.id} task={task}
+                  onToggle={() => toggleDone(task.id)}
+                  onDelete={() => deleteTask(task.id)}
+                  onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
+                  onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
 
         {doneTasks.length > 0 && (
           <>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--tx3)', margin: '16px 0 8px' }}>
               Done · {doneTasks.length}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, opacity: 0.6 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, opacity: 0.55 }}>
               {doneTasks.map(task => (
-                <TaskCard key={task.id} task={task} onToggle={() => toggleDone(task.id)}
+                <SortableTaskCard key={task.id} task={task} isDone
+                  onToggle={() => toggleDone(task.id)}
                   onDelete={() => deleteTask(task.id)}
                   onMove={() => {}} onStar={() => {}} />
               ))}
@@ -80,12 +92,10 @@ export function TaskList() {
         )}
       </div>
 
-      {/* Add task */}
       <div style={{ padding: '10px 18px 18px', borderTop: '1px solid var(--bdr2)', flexShrink: 0 }}>
         {showAdd
           ? <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
-          : <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--ind)' }}
-              onClick={() => setShowAdd(true)}>
+          : <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--ind)' }} onClick={() => setShowAdd(true)}>
               <Plus size={15} /> Add task
             </button>
         }
@@ -94,110 +104,80 @@ export function TaskList() {
   );
 }
 
-function TaskCard({ task, onToggle, onDelete, onMove, onStar }: {
-  task: Task;
-  onToggle: () => void;
-  onDelete: () => void;
-  onMove: () => void;
-  onStar: () => void;
+function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: {
+  task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: 'var(--sf)', border: '1px solid var(--bdr2)',
-        borderRadius: 'var(--rs)', padding: '10px 12px',
-        display: 'flex', alignItems: 'flex-start', gap: 9,
-        transition: 'border-color .14s',
-        borderColor: hovered ? 'var(--bdr2)' : 'var(--bdr)',
-      }}>
-
-      <button onClick={onToggle} className="btn-icon" style={{ padding: 2, marginTop: 1 }}>
-        {task.is_done
-          ? <CheckCircle size={16} color="var(--sage)" />
-          : <Circle size={16} color="var(--tx3)" />}
-      </button>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 500,
-          textDecoration: task.is_done ? 'line-through' : 'none',
-          color: task.is_done ? 'var(--tx3)' : 'var(--tx)',
-          display: 'flex', alignItems: 'center', gap: 5,
-        }}>
-          <span className={`dot ${task.priority}`} style={{ flexShrink: 0 }} />
-          {task.is_starred && <Star size={11} fill="var(--must)" color="var(--must)" />}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {task.title}
-          </span>
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <div style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : 'var(--bdr)'}`, borderRadius: 'var(--rs)', padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        {!isDone && (
+          <div {...attributes} {...listeners} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--tx3)', marginTop: 2, flexShrink: 0, touchAction: 'none' }}>
+            <GripVertical size={13} />
+          </div>
+        )}
+        <button onClick={onToggle} className="btn-icon" style={{ padding: 2, marginTop: 1, flexShrink: 0 }}>
+          {task.is_done ? <CheckCircle size={15} color="var(--sage)" /> : <Circle size={15} color="var(--tx3)" />}
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, textDecoration: task.is_done ? 'line-through' : 'none', color: task.is_done ? 'var(--tx3)' : 'var(--tx)', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span className={`dot ${task.priority}`} style={{ flexShrink: 0 }} />
+            {task.is_starred && <Star size={10} fill="var(--must)" color="var(--must)" />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+            {task.recurrence !== 'none' && (
+              <span style={{ fontSize: 9, background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>🔁</span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
+            {formatDuration(task.duration_minutes)}
+            {task.travel_minutes > 0 && ` · +${task.travel_minutes}m road`}
+            {task.break_after > 0 && ` · +${task.break_after}m break`}
+            {task.fixed_time && ` · @${task.fixed_time}`}
+          </div>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
-          {formatDuration(task.duration_minutes)}
-          {task.travel_minutes > 0 && ` · +${task.travel_minutes}m travel`}
-          {task.break_after > 0 && ` · +${task.break_after}m break`}
-          {task.fixed_time && ` · @${task.fixed_time}`}
-        </div>
+        {hovered && !isDone && (
+          <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+            <button className="btn-icon" onClick={onStar} style={{ padding: 4 }}>
+              <Star size={12} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
+            </button>
+            <button className="btn-icon" onClick={onMove} style={{ padding: 4 }}><ArrowRight size={12} /></button>
+            <button className="btn-icon" onClick={onDelete} style={{ padding: 4 }}><Trash2 size={12} /></button>
+          </div>
+        )}
       </div>
-
-      {hovered && (
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          <button className="btn-icon" onClick={onStar} title="Star">
-            <Star size={13} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
-          </button>
-          <button className="btn-icon" onClick={onMove} title={`Move to ${task.day === 'today' ? 'tomorrow' : 'today'}`}>
-            <ArrowRight size={13} />
-          </button>
-          <button className="btn-icon" onClick={onDelete} title="Delete">
-            <Trash2 size={13} />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
 
 function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () => void }) {
-  const { addTask } = useStore();
+  const { addTask, config } = useStore();
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
   const [priority, setPriority] = useState<Priority>('medium');
   const [travel, setTravel] = useState('0');
+  const [recurrence, setRecurrence] = useState<Recurrence>('none');
 
   const handleAdd = async () => {
     if (!title.trim()) return;
-    await addTask({
-      title: title.trim(),
-      duration_minutes: parseInt(duration) || 30,
-      break_after: 0,
-      travel_minutes: parseInt(travel) || 0,
-      priority,
-      category: 'general',
-      is_starred: false,
-      is_done: false,
-      day,
-    });
+    await addTask({ title: title.trim(), duration_minutes: parseInt(duration) || 30, break_after: config.buffer, travel_minutes: parseInt(travel) || 0, priority, category: 'general', is_starred: false, is_done: false, day, recurrence, sort_order: 0 });
     onDone();
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <input
-        autoFocus
-        placeholder="Task title…"
-        value={title}
+      <input autoFocus placeholder="Task title…" value={title}
         onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onDone(); }}
-      />
+        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onDone(); }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Duration (min)</div>
           <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" />
         </div>
         <div>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Travel (min)</div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Road (min)</div>
           <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" />
         </div>
         <div>
@@ -208,6 +188,15 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             <option value="low">Low</option>
           </select>
         </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Repeat</div>
+        <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)}>
+          <option value="none">No repeat</option>
+          <option value="daily">Every day</option>
+          <option value="weekdays">Weekdays only</option>
+          <option value="weekly">Every week</option>
+        </select>
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}>Add</button>

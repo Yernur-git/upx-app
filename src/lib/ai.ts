@@ -79,7 +79,7 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
 - Wake: ${config.wake}
 - Sleep: ${config.sleep}
 - Default break between tasks: ${config.buffer} min
-- Gym/workout travel: ${config.gym_travel_minutes} min each way
+- Gym/workout travel: ${config.road_time_minutes} min each way
 - Known contexts: ${JSON.stringify(config.known_contexts)}
 
 ## Today's Tasks

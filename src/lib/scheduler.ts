@@ -33,92 +33,53 @@ export interface ScheduleResult {
 export function buildSchedule(tasks: Task[], config: UserConfig): ScheduleResult {
   const wake = timeToMinutes(config.wake);
   const sleep = timeToMinutes(config.sleep);
-  const availableMinutes = sleep - wake;
+  const availableMinutes = sleep - wake - (config.morning_buffer ?? 0);
 
-  const doneTasks = tasks.filter(t => t.is_done && t.day === 'today');
   const pendingTasks = tasks.filter(t => !t.is_done && t.day === 'today');
 
-  // Fixed-time tasks first, then by priority, then by creation order
   const priorityOrder = { high: 0, medium: 1, low: 2 };
   const sorted = [...pendingTasks].sort((a, b) => {
     if (a.fixed_time && !b.fixed_time) return -1;
     if (!a.fixed_time && b.fixed_time) return 1;
-    if (a.fixed_time && b.fixed_time) {
-      return timeToMinutes(a.fixed_time) - timeToMinutes(b.fixed_time);
-    }
+    if (a.fixed_time && b.fixed_time) return timeToMinutes(a.fixed_time) - timeToMinutes(b.fixed_time);
+    if (a.sort_order !== b.sort_order) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
     if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
     return priorityOrder[a.priority] - priorityOrder[b.priority];
   });
 
   const blocks: TimelineBlock[] = [];
   const overflow: Task[] = [];
-  let cursor = wake;
-
-  // Place done tasks at the beginning (visual only)
-  for (const task of doneTasks) {
-    const totalDuration = task.travel_minutes + task.duration_minutes + task.travel_minutes;
-    blocks.push({
-      task,
-      start_minutes: wake,
-      end_minutes: wake + totalDuration,
-      is_overflow: false,
-    });
-  }
+  let cursor = wake + (config.morning_buffer ?? 0);
 
   for (const task of sorted) {
-    const travelBefore = task.travel_minutes;
-    const travelAfter = task.travel_minutes > 0 ? task.travel_minutes : 0;
-    const totalSlot = travelBefore + task.duration_minutes + travelAfter;
+    const travelTime = task.travel_minutes;
+    const totalSlot = travelTime + task.duration_minutes + travelTime;
     const breakAfter = task.break_after ?? config.buffer;
 
-    // Handle fixed time
     if (task.fixed_time) {
       const fixedStart = timeToMinutes(task.fixed_time);
       if (fixedStart >= cursor && fixedStart + totalSlot <= sleep) {
-        // Add idle gap if needed
         if (fixedStart > cursor) {
-          blocks.push({
-            type: 'break',
-            start_minutes: cursor,
-            end_minutes: fixedStart,
-            label: 'Free time',
-          });
+          blocks.push({ type: 'break', start_minutes: cursor, end_minutes: fixedStart, label: 'Free time' });
         }
         cursor = fixedStart;
       }
     }
 
-    if (cursor + totalSlot > sleep) {
-      overflow.push(task);
-      continue;
-    }
+    if (cursor + totalSlot > sleep) { overflow.push(task); continue; }
 
-    blocks.push({
-      task,
-      start_minutes: cursor,
-      end_minutes: cursor + totalSlot,
-      is_overflow: false,
-    });
-
+    blocks.push({ task, start_minutes: cursor, end_minutes: cursor + totalSlot, is_overflow: false });
     cursor += totalSlot;
 
     if (breakAfter > 0 && cursor + breakAfter <= sleep) {
-      blocks.push({
-        type: 'break',
-        start_minutes: cursor,
-        end_minutes: cursor + breakAfter,
-        label: '☕ Break',
-      });
+      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + breakAfter, label: '☕ Break' });
       cursor += breakAfter;
     }
   }
 
-  const totalMinutes = sorted.reduce((s, t) => {
-    if (!overflow.find(o => o.id === t.id)) {
-      return s + t.travel_minutes + t.duration_minutes + t.travel_minutes;
-    }
-    return s;
-  }, 0);
+  const totalMinutes = sorted
+    .filter(t => !overflow.find(o => o.id === t.id))
+    .reduce((s, t) => s + t.travel_minutes + t.duration_minutes + t.travel_minutes, 0);
 
   return { blocks, overflow, totalMinutes, availableMinutes };
 }

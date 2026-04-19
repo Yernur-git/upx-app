@@ -1,27 +1,37 @@
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskDay = 'today' | 'tomorrow';
 export type Theme = 'light' | 'dark';
+export type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly';
+export type AppPanel = 'plan' | 'stats' | 'profile';
 
 export interface Task {
   id: string;
   title: string;
   duration_minutes: number;
   break_after: number;
-  travel_minutes: number; // travel time before task (e.g. gym commute)
+  travel_minutes: number;
   priority: Priority;
   category: string;
   is_starred: boolean;
   is_done: boolean;
   day: TaskDay;
-  fixed_time?: string; // HH:MM if user pinned a time
+  fixed_time?: string;
   notes?: string;
+  recurrence: Recurrence;
+  sort_order: number;
   created_at: string;
   user_id?: string;
 }
 
+export interface CategoryGoal {
+  category: string;
+  weekly_goal_minutes: number;
+  color: string;
+}
+
 export interface ScheduledBlock {
   task: Task;
-  start_minutes: number; // minutes from midnight
+  start_minutes: number;
   end_minutes: number;
   is_overflow: boolean;
 }
@@ -36,12 +46,14 @@ export interface BreakBlock {
 export type TimelineBlock = ScheduledBlock | BreakBlock;
 
 export interface UserConfig {
-  wake: string;      // "07:00"
-  sleep: string;     // "23:00"
-  buffer: number;    // default break minutes between tasks
+  wake: string;
+  sleep: string;
+  buffer: number;
+  morning_buffer: number;
   theme: Theme;
-  gym_travel_minutes: number;
-  known_contexts: Record<string, number>; // "gym" -> 20min travel etc
+  road_time_minutes: number;
+  known_contexts: Record<string, number>;
+  category_goals: CategoryGoal[];
 }
 
 export interface ChatMessage {
@@ -57,10 +69,10 @@ export interface ParsedAction {
   payload: unknown;
 }
 
-export interface AppState {
-  tasks: Task[];
-  config: UserConfig;
-  chatMessages: ChatMessage[];
-  isLoading: boolean;
-  userId: string | null;
+export interface DayStats {
+  date: string;
+  total_minutes: number;
+  done_minutes: number;
+  done_count: number;
+  total_count: number;
 }
