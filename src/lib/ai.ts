@@ -62,11 +62,10 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
 
   const taskList = todayTasks.length
     ? todayTasks.map(t =>
-        `- [${t.is_done ? 'done' : t.priority}] "${t.title}" ${t.duration_minutes}min` +
+        `- [id:${t.id}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
         `${t.travel_minutes ? ` (+${t.travel_minutes}min travel each way)` : ''}` +
         `${t.break_after ? ` +${t.break_after}min break after` : ''}` +
-        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
-        `${t.is_starred ? ' ★' : ''} (id:${t.id})`
+        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}`
       ).join('\n')
     : 'No tasks yet.';
 
@@ -150,7 +149,19 @@ Other action types:
 - move_task: { "id": "task-id", "day": "today|tomorrow" }
 - reschedule: { "order": ["id1", "id2", ...] }
 
-Always use empty array [] for actions if no task operations needed.`;
+Always use empty array [] for actions if no task operations needed.
+
+## TASK IDs — CRITICAL
+Each task starts with [id:UUID]. Copy the UUID exactly — do not shorten, paraphrase, or invent IDs.
+When using update_task, delete_task, move_task, or reschedule — always use the exact [id:UUID] value.
+
+## OVERLOAD HANDLING
+If user says they are overwhelmed, overloaded, or have too many tasks:
+- DO NOT use reschedule — it only reorders, does not free up time.
+- Use move_task to push low-priority non-starred tasks to tomorrow.
+- Keep ★ starred and high-priority tasks for today.
+- Example:
+  { "type": "move_task", "payload": { "id": "<exact-uuid>", "day": "tomorrow" } }`;
 }
 
 async function callAnthropic(

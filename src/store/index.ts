@@ -48,7 +48,7 @@ interface Store {
 
   updateConfig: (updates: Partial<UserConfig>) => Promise<void>;
   addChatMessage: (msg: Omit<ChatMessage, 'id' | 'created_at'>) => void;
-  applyActions: (actions: ParsedAction[]) => Promise<void>;
+  applyActions: (actions: ParsedAction[]) => Promise<number>;
   saveDayStats: () => void;
 
   loadFromSupabase: () => Promise<void>;
@@ -169,6 +169,7 @@ export const useStore = create<Store>()(
 
       applyActions: async (actions) => {
         // FIX: AI Build My Day crash — robust null-guards before destructuring
+        let applied = 0;
         for (const action of actions) {
           if (!action?.type || action?.payload == null) continue;
           const { addTask, updateTask, deleteTask, moveTask, reorderTasks } = get();
@@ -193,36 +194,48 @@ export const useStore = create<Store>()(
                   notes: p.notes,
                 };
                 await addTask(safeTask);
+                applied++;
                 break;
               }
               case 'update_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
+                const taskExists = get().tasks.find(t => t.id === pl.id);
+                if (!taskExists) { console.warn('update_task: unknown id', pl.id); break; }
                 const { id, ...updates } = pl;
                 await updateTask(id as string, updates as Partial<Task>);
+                applied++;
                 break;
               }
               case 'delete_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
+                const taskExists = get().tasks.find(t => t.id === pl.id);
+                if (!taskExists) { console.warn('delete_task: unknown id', pl.id); break; }
                 await deleteTask(pl.id as string);
+                applied++;
                 break;
               }
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string' || !pl?.day) break;
+                const taskExists = get().tasks.find(t => t.id === pl.id);
+                if (!taskExists) { console.warn('move_task: unknown id', pl.id); break; }
                 await moveTask(pl.id as string, pl.day as 'today' | 'tomorrow');
+                applied++;
                 break;
               }
               case 'reschedule': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
                 reorderTasks(pl.order as string[]);
+                applied++;
                 break;
               }
             }
           } catch(e) { console.error('Action failed:', action.type, e); }
         }
+        return applied;
       },
 
       saveDayStats: () => {

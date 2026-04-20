@@ -37,11 +37,17 @@ export function ChatPanel() {
       }
 
       const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, customBaseURL, customModel);
-      addChatMessage({ role: 'assistant', content: result.message, actions: result.actions });
 
+      let applied = 0;
       if (result.actions.length > 0) {
-        await applyActions(result.actions);
+        applied = await applyActions(result.actions);
       }
+
+      addChatMessage({
+        role: 'assistant',
+        content: result.message,
+        actions: applied > 0 ? result.actions.slice(0, applied) : [],
+      });
     } catch (err) {
       addChatMessage({
         role: 'assistant',
