@@ -30,6 +30,8 @@ interface Store {
   customModel: string;
   chatOpen: boolean;
   activePanel: AppPanel;
+  lastRolloverDate: string | null;
+  aiUndoSnapshot: Task[] | null;
 
   setUserId: (id: string | null) => void;
   setUserEmail: (email: string | null) => void;
@@ -43,13 +45,15 @@ interface Store {
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   toggleDone: (id: string) => Promise<void>;
-  reorderTasks: (ids: string[]) => void;
+  reorderTasks: (ids: string[]) => Promise<void>;
   moveTask: (id: string, day: 'today' | 'tomorrow') => Promise<void>;
 
   updateConfig: (updates: Partial<UserConfig>) => Promise<void>;
   addChatMessage: (msg: Omit<ChatMessage, 'id' | 'created_at'>) => void;
   applyActions: (actions: ParsedAction[]) => Promise<number>;
+  undoLastAI: () => Promise<void>;
   saveDayStats: () => void;
+  checkAndRollover: () => void;
 
   loadFromSupabase: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -59,20 +63,33 @@ function generateId(): string {
   return crypto.randomUUID?.() || Math.random().toString(36).slice(2);
 }
 
-// Roll over recurring tasks at start of new day
+function todayDateStr(): string {
+  return new Date().toDateString();
+}
+
 function rolloverRecurring(tasks: Task[]): Task[] {
-  const todayTasks = tasks.filter(t => t.day === 'today');
-  const needsRollover = todayTasks.length === 0;
-
-  if (!needsRollover) return tasks;
-
-  const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat
+  const dayOfWeek = new Date().getDay();
   const isWeekday = dayOfWeek > 0 && dayOfWeek < 6;
 
   return tasks.map(t => {
-    if (t.day !== 'tomorrow' || t.recurrence === 'none') return t;
-    if (t.recurrence === 'weekdays' && !isWeekday) return t;
-    return { ...t, day: 'today' as const, is_done: false };
+    // Unfinished today non-recurring tasks → push to tomorrow
+    if (t.day === 'today' && !t.is_done && t.recurrence === 'none') {
+      return { ...t, day: 'tomorrow' as const };
+    }
+    // Unfinished today recurring tasks → reset for today
+    if (t.day === 'today' && !t.is_done && t.recurrence !== 'none') {
+      return { ...t, is_done: false };
+    }
+    // Tomorrow recurring tasks → promote to today
+    if (t.day === 'tomorrow' && t.recurrence !== 'none') {
+      if (t.recurrence === 'weekdays' && !isWeekday) return t;
+      if (t.recurrence === 'weekly') {
+        const created = new Date(t.created_at).getDay();
+        if (created !== dayOfWeek) return t;
+      }
+      return { ...t, day: 'today' as const, is_done: false };
+    }
+    return t;
   });
 }
 
@@ -91,6 +108,8 @@ export const useStore = create<Store>()(
       customModel: '',
       chatOpen: false,
       activePanel: 'plan',
+      lastRolloverDate: null,
+      aiUndoSnapshot: null,
 
       setUserId: (id) => set({ userId: id }),
       setUserEmail: (email) => set({ userEmail: email }),
@@ -99,6 +118,15 @@ export const useStore = create<Store>()(
       setCustomModel: (model) => set({ customModel: model }),
       setChatOpen: (open) => set({ chatOpen: open }),
       setActivePanel: (panel) => set({ activePanel: panel }),
+
+      checkAndRollover: () => {
+        const today = todayDateStr();
+        const { lastRolloverDate, tasks } = get();
+        if (lastRolloverDate === today) return;
+        get().saveDayStats(); // save yesterday's stats before rollover
+        const rolled = rolloverRecurring(tasks);
+        set({ tasks: rolled, lastRolloverDate: today });
+      },
 
       addTask: async (taskData) => {
         const tasks = get().tasks.filter(t => t.day === taskData.day);
@@ -112,24 +140,40 @@ export const useStore = create<Store>()(
         set(s => ({ tasks: [...s.tasks, task] }));
         const { userId } = get();
         if (userId) {
-          await supabase.from('tasks').insert({ ...task, user_id: userId });
+          const { error } = await supabase.from('tasks').insert({ ...task, user_id: userId });
+          if (error) {
+            set(s => ({ tasks: s.tasks.filter(t => t.id !== task.id) }));
+            throw new Error(error.message);
+          }
         }
         return task;
       },
 
       updateTask: async (id, updates) => {
+        const prev = get().tasks.find(t => t.id === id);
+        if (!prev) return;
         set(s => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
         const { userId } = get();
         if (userId) {
-          await supabase.from('tasks').update(updates).eq('id', id).eq('user_id', userId);
+          const { error } = await supabase.from('tasks').update(updates).eq('id', id).eq('user_id', userId);
+          if (error) {
+            set(s => ({ tasks: s.tasks.map(t => t.id === id ? prev : t) }));
+            throw new Error(error.message);
+          }
         }
       },
 
       deleteTask: async (id) => {
+        const prev = get().tasks.find(t => t.id === id);
+        if (!prev) return;
         set(s => ({ tasks: s.tasks.filter(t => t.id !== id) }));
         const { userId } = get();
         if (userId) {
-          await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId);
+          const { error } = await supabase.from('tasks').delete().eq('id', id).eq('user_id', userId);
+          if (error) {
+            set(s => ({ tasks: [...s.tasks, prev] }));
+            throw new Error(error.message);
+          }
         }
       },
 
@@ -139,7 +183,8 @@ export const useStore = create<Store>()(
         await get().updateTask(id, { is_done: !task.is_done });
       },
 
-      reorderTasks: (orderedIds) => {
+      reorderTasks: async (orderedIds) => {
+        const prevTasks = get().tasks;
         set(s => {
           const taskMap = new Map(s.tasks.map(t => [t.id, t]));
           const reordered = orderedIds
@@ -148,6 +193,19 @@ export const useStore = create<Store>()(
           const rest = s.tasks.filter(t => !orderedIds.includes(t.id));
           return { tasks: [...reordered, ...rest] };
         });
+        const { userId } = get();
+        if (userId) {
+          const results = await Promise.all(
+            orderedIds.map((id, i) =>
+              supabase.from('tasks').update({ sort_order: i }).eq('id', id).eq('user_id', userId)
+            )
+          );
+          const failed = results.find(r => r.error);
+          if (failed?.error) {
+            set({ tasks: prevTasks }); // rollback
+            console.error('reorderTasks failed, rolled back:', failed.error.message);
+          }
+        }
       },
 
       moveTask: async (id, day) => {
@@ -168,7 +226,7 @@ export const useStore = create<Store>()(
       },
 
       applyActions: async (actions) => {
-        // FIX: AI Build My Day crash — robust null-guards before destructuring
+        set({ aiUndoSnapshot: get().tasks });
         let applied = 0;
         for (const action of actions) {
           if (!action?.type || action?.payload == null) continue;
@@ -178,7 +236,7 @@ export const useStore = create<Store>()(
               case 'create_task': {
                 const p = action.payload as Partial<Omit<Task, 'id' | 'created_at'>>;
                 if (!p?.title) break;
-                const safeTask: Omit<Task, 'id' | 'created_at'> = {
+                await addTask({
                   title: p.title ?? 'Untitled',
                   duration_minutes: p.duration_minutes ?? 30,
                   break_after: p.break_after ?? get().config.buffer,
@@ -192,16 +250,14 @@ export const useStore = create<Store>()(
                   sort_order: p.sort_order ?? 0,
                   fixed_time: p.fixed_time,
                   notes: p.notes,
-                };
-                await addTask(safeTask);
+                });
                 applied++;
                 break;
               }
               case 'update_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
-                const taskExists = get().tasks.find(t => t.id === pl.id);
-                if (!taskExists) { console.warn('update_task: unknown id', pl.id); break; }
+                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('update_task: unknown id', pl.id); break; }
                 const { id, ...updates } = pl;
                 await updateTask(id as string, updates as Partial<Task>);
                 applied++;
@@ -210,8 +266,7 @@ export const useStore = create<Store>()(
               case 'delete_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
-                const taskExists = get().tasks.find(t => t.id === pl.id);
-                if (!taskExists) { console.warn('delete_task: unknown id', pl.id); break; }
+                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('delete_task: unknown id', pl.id); break; }
                 await deleteTask(pl.id as string);
                 applied++;
                 break;
@@ -219,8 +274,7 @@ export const useStore = create<Store>()(
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string' || !pl?.day) break;
-                const taskExists = get().tasks.find(t => t.id === pl.id);
-                if (!taskExists) { console.warn('move_task: unknown id', pl.id); break; }
+                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('move_task: unknown id', pl.id); break; }
                 await moveTask(pl.id as string, pl.day as 'today' | 'tomorrow');
                 applied++;
                 break;
@@ -228,7 +282,7 @@ export const useStore = create<Store>()(
               case 'reschedule': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
-                reorderTasks(pl.order as string[]);
+                await reorderTasks(pl.order as string[]);
                 applied++;
                 break;
               }
@@ -238,9 +292,23 @@ export const useStore = create<Store>()(
         return applied;
       },
 
+      undoLastAI: async () => {
+        const { aiUndoSnapshot, userId } = get();
+        if (!aiUndoSnapshot) return;
+        set({ tasks: aiUndoSnapshot, aiUndoSnapshot: null });
+        if (userId) {
+          await supabase.from('tasks').delete().eq('user_id', userId);
+          if (aiUndoSnapshot.length > 0) {
+            await supabase.from('tasks').insert(
+              aiUndoSnapshot.map(t => ({ ...t, user_id: userId }))
+            );
+          }
+        }
+      },
+
       saveDayStats: () => {
         const { tasks, dayHistory } = get();
-        const todayStr = new Date().toDateString();
+        const todayStr = todayDateStr();
         const todayTasks = tasks.filter(t => t.day === 'today');
         const stat: DayStats = {
           date: todayStr,
@@ -261,21 +329,22 @@ export const useStore = create<Store>()(
           supabase.from('tasks').select('*').eq('user_id', userId).order('sort_order'),
           supabase.from('user_config').select('*').eq('user_id', userId).single(),
         ]);
-        if (tasksRes.data) set({ tasks: rolloverRecurring(tasksRes.data) });
+        if (tasksRes.data) set({ tasks: tasksRes.data });
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
           set({ config: { ...DEFAULT_CONFIG, ...cfg } });
         }
         set({ isLoading: false });
+        get().checkAndRollover();
       },
 
       signOut: async () => {
         await supabase.auth.signOut();
-        set({ userId: null, userEmail: null, tasks: [], chatMessages: [] });
+        set({ userId: null, userEmail: null, tasks: [], chatMessages: [], aiUndoSnapshot: null });
       },
     }),
     {
-      name: 'upx-store-v2',
+      name: 'upx-store-v3',
       partialize: (s) => ({
         tasks: s.tasks,
         config: s.config,
@@ -284,6 +353,7 @@ export const useStore = create<Store>()(
         apiKey: s.apiKey,
         customBaseURL: s.customBaseURL,
         customModel: s.customModel,
+        lastRolloverDate: s.lastRolloverDate,
       }),
     }
   )

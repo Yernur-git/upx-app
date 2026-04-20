@@ -204,7 +204,7 @@ async function callAnthropic(
     },
     body: JSON.stringify({
       model: cfg.model || defaultModel('anthropic'),
-      max_tokens: 1000,
+      max_tokens: 2000,
       system: systemPrompt,
       messages,
     }),
@@ -242,7 +242,7 @@ async function callOpenAICompat(
     headers['X-Title'] = 'UpX Planner';
   }
 
-  const body: Record<string, unknown> = { model, max_tokens: 1000, messages };
+  const body: Record<string, unknown> = { model, max_tokens: 2000, messages };
   if (provider !== 'custom') body.response_format = { type: 'json_object' };
 
   const res = await fetch(`${baseURL}/chat/completions`, {

@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Sparkles } from 'lucide-react';
+import { Send, X, Bot, Sparkles, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 
 export function ChatPanel() {
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, tasks, config, apiKey, customBaseURL, customModel } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -99,6 +99,26 @@ export function ChatPanel() {
           </button>
         </div>
 
+        {/* Undo banner — shown after AI applies actions */}
+        {aiUndoSnapshot && (
+          <div style={{
+            padding: '8px 14px', background: 'var(--ind-l)',
+            borderBottom: '1px solid var(--ind-m)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            fontSize: 12, color: 'var(--ind)', flexShrink: 0,
+          }}>
+            <span>AI made changes to your tasks</span>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: 11, padding: '3px 10px', color: 'var(--ind)', borderColor: 'var(--ind-m)', gap: 4 }}
+              onClick={async () => {
+                await undoLastAI();
+                addChatMessage({ role: 'assistant', content: '↩️ Changes undone.', actions: [] });
+              }}>
+              <Undo2 size={11} /> Undo
+            </button>
+          </div>
+        )}
         {/* Messages */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 

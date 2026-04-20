@@ -31,6 +31,7 @@ export default function App() {
     config, userId, userEmail,
     setUserId, setUserEmail, loadFromSupabase,
     activePanel, setActivePanel,
+    checkAndRollover, saveDayStats,
   } = useStore();
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -60,7 +61,15 @@ export default function App() {
 
   useEffect(() => {
     if (userId && userId !== 'local-user') loadFromSupabase();
+    else checkAndRollover(); // offline mode still needs rollover
   }, [userId]);
+
+  // saveDayStats every 5 minutes so it's not lost on tab close
+  useEffect(() => {
+    saveDayStats();
+    const interval = setInterval(saveDayStats, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (!authChecked) return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
