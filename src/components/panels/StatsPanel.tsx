@@ -57,7 +57,7 @@ export function StatsPanel() {
   const maxBar = Math.max(...weekStats.map(d => d.total), 1);
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px' }}>
+    <div className="panel-scroll">
 
       {/* Today */}
       <Section title="Today">

@@ -41,7 +41,7 @@ export function ProfilePanel() {
   ];
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 24px' }}>
+    <div className="panel-scroll">
 
       {/* Account */}
       <Section title="Account">

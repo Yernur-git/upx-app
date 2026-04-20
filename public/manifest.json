@@ -1,12 +1,16 @@
 {
-  "name": "UpX",
+  "name": "UpX — Daily Planner",
   "short_name": "UpX",
+  "description": "Smart AI-powered daily planner",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
   ],
-  "theme_color": "#5C6B9C",
-  "background_color": "#F5F6FA",
+  "theme_color": "#4C5EE8",
+  "background_color": "#F4F5FB",
   "display": "standalone",
-  "start_url": "/"
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/"
 }
