@@ -56,7 +56,7 @@ export interface AIResponse {
   actions: ParsedAction[];
 }
 
-function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
+function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow'): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
@@ -98,6 +98,7 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
 - Road time for gym/workout: ${config.road_time_minutes} min each way
 - Current time: ${nowStr}
 - Earliest task start: ${earliestStartStr} (now + ${bufferMinutes}min buffer)
+- **User is currently viewing: ${activeDay.toUpperCase()} tab** — when adding tasks without explicit day, use "${activeDay}"
 
 ## Today's Tasks
 ${taskList}
@@ -112,6 +113,12 @@ ${tmrwList}
 - Free remaining: ${formatDuration(freeMinutes)}
 - Tasks in overflow (don't fit today):
 ${overflowList}
+
+## CLEAR SCHEDULE INSTRUCTION
+If user says "clear", "delete all", "start over", or "remove all tasks":
+- Send one delete_task action per task in the ACTIVE TAB (${activeDay})
+- Use the exact [id:UUID] for each task
+- Example for 3 tasks: actions: [ {type:"delete_task", payload:{id:"uuid1"}}, {type:"delete_task", payload:{id:"uuid2"}}, {type:"delete_task", payload:{id:"uuid3"}} ]
 
 Use this to make smart decisions: if overloaded, move overflow tasks to tomorrow. If free time > 30min, suggest adding productive tasks.
 
@@ -264,13 +271,14 @@ export async function sendChatMessage(
   tasks: Task[],
   config: UserConfig,
   apiKey: string,
+  activeDay: 'today' | 'tomorrow',
   customBaseURL?: string,
   customModel?: string
 ): Promise<AIResponse> {
   const effectiveKey = apiKey;
   const provider = detectProvider(effectiveKey, customBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: customBaseURL, model: customModel };
-  const systemPrompt = buildSystemPrompt(tasks, config);
+  const systemPrompt = buildSystemPrompt(tasks, config, activeDay);
 
   const rawText = provider === 'anthropic'
     ? await callAnthropic(userMessage, history, systemPrompt, cfg)

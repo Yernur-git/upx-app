@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Trash2, LogOut } from 'lucide-react';
+import { Plus, Trash2, LogOut, Bell, BellOff } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
+import { requestNotificationPermission, canNotify } from '../../lib/notifications';
 import type { CategoryGoal } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
@@ -33,7 +34,27 @@ export function ProfilePanel() {
     updateConfig({ category_goals: config.category_goals.filter(g => g.category !== cat) });
   };
 
-  const PRESETS = [
+  const [notifGranted, setNotifGranted] = useState(() => canNotify());
+
+  const handleRequestNotif = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifGranted(granted);
+    if (granted) {
+      new Notification('✅ UpX notifications enabled', {
+        body: 'You\'ll get reminders before each task starts.',
+        icon: '/icon-192.png',
+      });
+    }
+  };
+
+  const handleTestNotif = () => {
+    if (!canNotify()) return;
+    new Notification('⏰ Starting in 10 min', {
+      body: 'Deep Work Session',
+      icon: '/icon-192.png',
+      tag: 'upx-test',
+    });
+  };
     { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
     { label: 'Groq (free)', url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
     { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
@@ -171,6 +192,37 @@ export function ProfilePanel() {
             </div>
           </div>
         )}
+      </Section>
+
+      {/* Notifications */}
+      <Section title="Notifications">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Row label="Task reminders">
+            {notifGranted ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600 }}>✓ Enabled</span>
+                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={handleTestNotif}>
+                  Test
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
+                onClick={handleRequestNotif}>
+                <Bell size={12} /> Enable
+              </button>
+            )}
+          </Row>
+          {notifGranted && (
+            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.6 }}>
+              You'll get a reminder 10 min before each task and at start time. Notifications only work while the app is open.
+            </div>
+          )}
+          {!notifGranted && (
+            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.6 }}>
+              Enable to get reminders before your tasks start.
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* Appearance */}

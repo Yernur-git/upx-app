@@ -30,6 +30,7 @@ interface Store {
   customModel: string;
   chatOpen: boolean;
   activePanel: AppPanel;
+  activeChatDay: 'today' | 'tomorrow';
   lastRolloverDate: string | null;
   aiUndoSnapshot: Task[] | null;
 
@@ -40,6 +41,7 @@ interface Store {
   setCustomModel: (model: string) => void;
   setChatOpen: (open: boolean) => void;
   setActivePanel: (panel: AppPanel) => void;
+  setActiveChatDay: (day: 'today' | 'tomorrow') => void;
 
   addTask: (task: Omit<Task, 'id' | 'created_at'>) => Promise<Task>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -108,6 +110,7 @@ export const useStore = create<Store>()(
       customModel: '',
       chatOpen: false,
       activePanel: 'plan',
+      activeChatDay: 'today',
       lastRolloverDate: null,
       aiUndoSnapshot: null,
 
@@ -118,6 +121,7 @@ export const useStore = create<Store>()(
       setCustomModel: (model) => set({ customModel: model }),
       setChatOpen: (open) => set({ chatOpen: open }),
       setActivePanel: (panel) => set({ activePanel: panel }),
+      setActiveChatDay: (day) => set({ activeChatDay: day }),
 
       checkAndRollover: () => {
         const today = todayDateStr();

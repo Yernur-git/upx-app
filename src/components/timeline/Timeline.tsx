@@ -265,8 +265,98 @@ function ScheduleCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
-  const compact = height < 40;
-  const tiny = height < 26;
+  const tiny = height < 28;
+  const compact = height < 46;
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        height: '100%',
+        borderRadius: tiny ? 4 : compact ? 6 : 9,
+        background: `rgba(${rgb}, 0.10)`,
+        border: `1px solid rgba(${rgb}, 0.20)`,
+        borderLeft: `3px solid ${catColor}`,
+        boxShadow: isCurrent ? `0 0 0 1.5px ${catColor}` : hovered ? `0 3px 10px rgba(${rgb}, 0.16)` : 'none',
+        display: 'flex',
+        overflow: 'hidden',
+        opacity: isPast && !task.is_done ? 0.45 : 1,
+        transition: 'box-shadow 0.15s, opacity 0.2s',
+        cursor: 'default',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div style={{
+        flex: 1,
+        minWidth: 0,
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: tiny ? '1px 6px' : compact ? '3px 8px' : '5px 10px',
+        gap: 1,
+      }}>
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' }}>
+          {!tiny && (
+            <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1 }}>{catEmoji}</span>
+          )}
+          <span style={{
+            flex: 1,
+            fontSize: compact ? 11 : 12,
+            fontWeight: 600,
+            color: task.is_done ? 'var(--tx3)' : 'var(--tx)',
+            textDecoration: task.is_done ? 'line-through' : 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            lineHeight: 1.25,
+          }}>
+            {task.is_starred && '★ '}{task.title}
+          </span>
+          {!compact && (
+            <span style={{
+              flexShrink: 0,
+              fontSize: 10,
+              fontWeight: 600,
+              color: catColor,
+              background: `rgba(${rgb}, 0.15)`,
+              borderRadius: 20,
+              padding: '1px 5px',
+              fontFamily: "'DM Mono', monospace",
+            }}>
+              {formatDuration(durationMin)}
+            </span>
+          )}
+        </div>
+
+        {/* Subtitle — only normal cards */}
+        {!compact && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 10,
+            color: 'var(--tx3)',
+            paddingLeft: 15,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+          }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>{startTime}</span>
+            <span style={{ flexShrink: 0 }}>·</span>
+            <span style={{ textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {task.category || 'general'}
+            </span>
+            {task.travel_minutes > 0 && (
+              <span style={{ flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
   return (
     <div

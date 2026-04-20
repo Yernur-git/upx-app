@@ -4,7 +4,7 @@ import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 
 export function ChatPanel() {
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, activeChatDay } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -36,7 +36,7 @@ export function ChatPanel() {
         return;
       }
 
-      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, customBaseURL, customModel);
+      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel);
 
       let applied = 0;
       if (result.actions.length > 0) {

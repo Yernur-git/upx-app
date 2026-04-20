@@ -15,9 +15,10 @@ import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
 
 export function TaskList() {
-  const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks } = useStore();
+  const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks, activeChatDay, setActiveChatDay } = useStore();
   const [showAdd, setShowAdd] = useState(false);
-  const [activeDay, setActiveDay] = useState<'today' | 'tomorrow'>('today');
+  const activeDay = activeChatDay;
+  const setActiveDay = setActiveChatDay;
 
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
@@ -41,7 +42,7 @@ export function TaskList() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{ display: 'flex', gap: 4, padding: '0 18px 12px', flexShrink: 0 }}>
         {(['today', 'tomorrow'] as const).map(day => (
           <button key={day} className="btn btn-ghost"
@@ -55,7 +56,7 @@ export function TaskList() {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px', minHeight: 0 }}>
         {pendingTasks.length === 0 && doneTasks.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--tx3)', fontSize: 13, lineHeight: 1.7, border: '1.5px dashed var(--bdr2)', borderRadius: 'var(--rs)', marginTop: 8 }}>
             No tasks yet.<br /><span style={{ fontSize: 12 }}>Add one below or ask the AI ✨</span>
@@ -91,6 +92,8 @@ export function TaskList() {
             </div>
           </>
         )}
+        {/* Bottom padding so last card isn't clipped */}
+        <div style={{ height: 12 }} />
       </div>
 
       <div style={{ padding: '10px 18px 18px', borderTop: '1px solid var(--bdr2)', flexShrink: 0 }}>
@@ -205,7 +208,6 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
       <input autoFocus placeholder="Task title…" value={title}
         onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onDone(); }} />
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Duration (min)</div>
@@ -224,30 +226,18 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           </select>
         </div>
       </div>
-
       <div>
         <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 30].map(mins => (
             <button key={mins} type="button"
               onClick={() => setBreakAfter(String(mins))}
-              style={{
-                padding: '4px 10px', fontSize: 11, borderRadius: 20,
-                border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`,
-                background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent',
-                color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>
+              style={{ padding: '4px 10px', fontSize: 11, borderRadius: 20, border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`, background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent', color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
               {mins === 0 ? 'None' : `${mins}m`}
             </button>
           ))}
-          <input type="number" min="0" placeholder="custom"
-            value={![0,5,10,15,30].includes(parseInt(breakAfter)) && breakAfter !== '0' ? breakAfter : ''}
-            onChange={e => setBreakAfter(e.target.value)}
-            style={{ width: 64, fontSize: 11, padding: '4px 8px' }} />
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Category</div>
@@ -266,32 +256,23 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           </select>
         </div>
       </div>
-
       <div>
         <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Fixed time (optional)</div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)} />
       </div>
-
       {recurrence === 'custom' && (
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
           <div style={{ display: 'flex', gap: 5 }}>
             {DAY_LABELS.map((label, i) => (
               <button key={i} type="button" onClick={() => toggleDay(i)}
-                style={{
-                  width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600,
-                  border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`,
-                  background: customDays.includes(i) ? 'var(--ind)' : 'transparent',
-                  color: customDays.includes(i) ? '#fff' : 'var(--tx3)',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+                style={{ width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600, border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`, background: customDays.includes(i) ? 'var(--ind)' : 'transparent', color: customDays.includes(i) ? '#fff' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
           </div>
         </div>
       )}
-
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave}>Save</button>
         <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
@@ -308,7 +289,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const [travel, setTravel] = useState('0');
   const [breakAfter, setBreakAfter] = useState(String(config.buffer));
   const [recurrence, setRecurrence] = useState<Recurrence>('none');
-  const [customDays, setCustomDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri default
+  const [customDays, setCustomDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [category, setCategory] = useState('general');
   const [categoryEdited, setCategoryEdited] = useState(false);
 
@@ -347,7 +328,6 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
       <input autoFocus placeholder="Task title…" value={title}
         onChange={e => handleTitleChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onDone(); }} />
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Duration (min)</div>
@@ -366,21 +346,13 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           </select>
         </div>
       </div>
-
-      {/* Break after */}
       <div>
         <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 30].map(mins => (
             <button key={mins} type="button"
               onClick={() => setBreakAfter(String(mins))}
-              style={{
-                padding: '4px 10px', fontSize: 11, borderRadius: 20,
-                border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`,
-                background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent',
-                color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>
+              style={{ padding: '4px 10px', fontSize: 11, borderRadius: 20, border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`, background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent', color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
               {mins === 0 ? 'None' : `${mins}m`}
             </button>
           ))}
@@ -390,7 +362,6 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             style={{ width: 64, fontSize: 11, padding: '4px 8px' }} />
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>
@@ -414,28 +385,19 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           </select>
         </div>
       </div>
-
-      {/* Custom day picker */}
       {recurrence === 'custom' && (
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
           <div style={{ display: 'flex', gap: 5 }}>
             {DAY_LABELS.map((label, i) => (
               <button key={i} type="button" onClick={() => toggleDay(i)}
-                style={{
-                  width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600,
-                  border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`,
-                  background: customDays.includes(i) ? 'var(--ind)' : 'transparent',
-                  color: customDays.includes(i) ? '#fff' : 'var(--tx3)',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>
+                style={{ width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600, border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`, background: customDays.includes(i) ? 'var(--ind)' : 'transparent', color: customDays.includes(i) ? '#fff' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 {label}
               </button>
             ))}
           </div>
         </div>
       )}
-
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}>Add</button>
         <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
