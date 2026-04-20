@@ -34,21 +34,22 @@ export function StatsPanel() {
   const weekTotalDone = weekStats.reduce((s, d) => s + d.done, 0);
   const weekTotalPlanned = weekStats.reduce((s, d) => s + d.total, 0);
 
-  // Category goals progress this week
+  // FIX: stats not updating — count all today's tasks (scheduled + done), not just is_done
   const categoryProgress = useMemo(() => {
     return config.category_goals.map(goal => {
-      // Match by category field OR auto-detect from title
-      const todayMinutes = tasks
-        .filter(t => t.day === 'today' && t.is_done && (
+      const matchingTasks = tasks.filter(t =>
+        t.day === 'today' && (
           t.category.toLowerCase() === goal.category.toLowerCase() ||
           detectCategory(t.title) === goal.category.toLowerCase()
-        ))
-        .reduce((s, t) => s + t.duration_minutes, 0);
-
-      // Count from last 7 days history (approximate — history stores totals not per-category)
-      // For now use today only; full per-category history is a future enhancement
-      const pct = Math.min(100, Math.round((todayMinutes / goal.weekly_goal_minutes) * 100));
-      return { ...goal, done_minutes: todayMinutes, pct };
+        )
+      );
+      // Count scheduled (all tasks) toward weekly goal; done tasks get full credit
+      const scheduledMinutes = matchingTasks.reduce((s, t) => s + t.duration_minutes, 0);
+      const doneMinutes = matchingTasks.filter(t => t.is_done).reduce((s, t) => s + t.duration_minutes, 0);
+      // Show done minutes as progress; scheduled as max
+      const displayMinutes = doneMinutes > 0 ? doneMinutes : scheduledMinutes;
+      const pct = Math.min(100, Math.round((displayMinutes / goal.weekly_goal_minutes) * 100));
+      return { ...goal, done_minutes: displayMinutes, scheduled_minutes: scheduledMinutes, pct };
     });
   }, [config.category_goals, tasks]);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, BarChart2, User, Clock } from 'lucide-react';
+import { CalendarDays, BarChart2, User } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { TaskList } from './components/tasks/TaskList';
@@ -7,6 +7,7 @@ import { Timeline } from './components/timeline/Timeline';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { StatsPanel } from './components/panels/StatsPanel';
 import { ProfilePanel } from './components/panels/ProfilePanel';
+import { SplashScreen } from './components/SplashScreen';
 import { supabase } from './lib/supabase';
 import './styles/globals.css';
 
@@ -21,7 +22,11 @@ function greeting() {
 export default function App() {
   const { config, userId, userEmail, setUserId, setUserEmail, loadFromSupabase, activePanel, setActivePanel } = useStore();
   const [authChecked, setAuthChecked] = useState(false);
-  const [showTimeline, setShowTimeline] = useState(false); // mobile toggle
+
+  // FIX: splash screen — once per session
+  const [showSplash, setShowSplash] = useState(() => {
+    try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
+  });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', config.theme);
@@ -58,43 +63,30 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
+      {/* FIX: splash screen */}
+      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
 
       {/* Content area */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
         {activePanel === 'plan' && (
-          <div className={`shell${showTimeline ? ' show-timeline' : ''}`} style={{ flex: 1 }}>
+          <div className="shell" style={{ flex: 1 }}>
             <aside className="sidebar">
-              {/* Header */}
               <div style={{ padding: '14px 18px 10px', flexShrink: 0, borderBottom: '1px solid var(--bdr)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)' }}>UpX</div>
-                    <div style={{ fontSize: 17, fontWeight: 700, marginTop: 1 }}>{greeting()} 👋</div>
-                    <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
-                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)' }}>UpX</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, marginTop: 1 }}>{greeting()} 👋</div>
+                  <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
+                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </div>
-                  {/* Mobile: toggle timeline button */}
-                  <button
-                    className="btn btn-ghost"
-                    style={{ fontSize: 11, padding: '6px 10px', display: 'none' }}
-                    id="timeline-toggle"
-                    onClick={() => setShowTimeline(true)}>
-                    <Clock size={13} /> Schedule
-                  </button>
                 </div>
               </div>
+              {/* FIX: sidebar padding-bottom ensures Add Task button is above nav */}
               <TaskList />
             </aside>
 
+            {/* FIX: Today's Schedule always visible; on mobile appears below task list */}
             <main className="main">
-              {/* Mobile back button */}
-              <div style={{ padding: '10px 16px 0', display: 'none' }} id="back-to-tasks">
-                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => setShowTimeline(false)}>
-                  ← Tasks
-                </button>
-              </div>
               <Timeline />
             </main>
           </div>
@@ -124,7 +116,7 @@ export default function App() {
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
-            <button key={id} onClick={() => { setActivePanel(id); setShowTimeline(false); }}
+            <button key={id} onClick={() => setActivePanel(id)}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 8px 6px', background: 'none', border: 'none', cursor: 'pointer', color: active ? 'var(--ind)' : 'var(--tx3)', transition: 'color .15s' }}>
               <Icon size={20} strokeWidth={active ? 2.2 : 1.7} />
               <span style={{ fontSize: 10, fontWeight: active ? 600 : 400 }}>{label}</span>
@@ -134,14 +126,6 @@ export default function App() {
       </nav>
 
       <ChatPanel />
-
-      {/* Mobile CSS injection for show/hide */}
-      <style>{`
-        @media (max-width: 767px) {
-          #timeline-toggle { display: flex !important; }
-          #back-to-tasks { display: block !important; }
-        }
-      `}</style>
     </div>
   );
 }

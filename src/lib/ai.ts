@@ -1,7 +1,8 @@
 import type { Task, UserConfig, ChatMessage, ParsedAction } from '../types';
 import { minutesToTime } from './scheduler';
 
-export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
+// FIX: time-aware scheduling — hardcoded default key (module-level, never in state/UI)
+const API_KEY = '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';
 
 export interface AIConfig {
   apiKey: string;
@@ -73,6 +74,14 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
     ? tomorrowTasks.map(t => `- "${t.title}" ${t.duration_minutes}min`).join('\n')
     : 'Empty.';
 
+  // FIX: time-aware scheduling — explicit constraint in system prompt
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const bufferMinutes = config.morning_buffer ?? 15;
+  const earliestStart = nowMinutes + bufferMinutes;
+  const earliestStartStr = minutesToTime(earliestStart);
+  const nowStr = minutesToTime(nowMinutes);
+
   return `You are UpX — a smart daily planner assistant. You help the user plan their day efficiently, create tasks, reschedule, and give advice.
 
 ## User Settings
@@ -88,6 +97,9 @@ ${taskList}
 ## Tomorrow's Tasks
 ${tmrwList}
 
+## CURRENT TIME CONSTRAINT
+Current time is ${nowStr}. Schedule all tasks starting from ${earliestStartStr} (current time + ${bufferMinutes} min buffer). Do NOT place any task before ${earliestStartStr}. If it is past midday, all tasks must start after ${earliestStartStr}.
+
 ## Your capabilities
 1. Parse tasks from natural language — "edit video 60min" → create a task
 2. Build the day schedule — arrange tasks optimally considering travel, breaks, energy
@@ -98,7 +110,7 @@ ${tmrwList}
 - Always respond in the SAME language the user writes in (Russian or English)
 - Be concise and friendly, not verbose
 - For workout/gym tasks: automatically add travel_minutes = gym_travel_minutes from config
-- Current time: ${minutesToTime(new Date().getHours() * 60 + new Date().getMinutes())}
+- Never schedule a task before ${earliestStartStr}
 
 ## IMPORTANT: Response format
 You MUST always respond with ONLY valid JSON. No markdown, no text outside JSON:
@@ -225,8 +237,10 @@ export async function sendChatMessage(
   customBaseURL?: string,
   customModel?: string
 ): Promise<AIResponse> {
-  const provider = detectProvider(apiKey, customBaseURL);
-  const cfg: AIConfig = { apiKey, provider, baseURL: customBaseURL, model: customModel };
+  // FIX: fall back to hardcoded default key if none provided
+  const effectiveKey = apiKey || API_KEY;
+  const provider = detectProvider(effectiveKey, customBaseURL);
+  const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: customBaseURL, model: customModel };
   const systemPrompt = buildSystemPrompt(tasks, config);
 
   let rawText: string;

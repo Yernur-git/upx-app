@@ -116,30 +116,42 @@ input::placeholder { color: var(--tx3); }
 }
 
 /* ── MOBILE ── */
+/* FIX: Today's Schedule visible on mobile — stacked below task list */
 @media (max-width: 767px) {
   .shell {
     flex-direction: column;
     height: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
-  /* On mobile Plan panel: show sidebar (task list) by default */
   .sidebar {
     width: 100%;
     border-right: none;
-    flex: 1;
-    min-height: 0;
+    flex: 0 0 auto;
+    /* FIX: Add Task button — ensure bottom padding accounts for nav */
+    padding-bottom: calc(var(--nav-h) + 16px);
+    min-height: 280px;
+    max-height: 55vh;
     overflow: hidden;
   }
-  /* Hide timeline on mobile by default, show via toggle */
+  /* FIX: Always show timeline below task list on mobile */
   .main {
-    display: none;
+    display: flex !important;
+    flex: 0 0 auto;
+    width: 100%;
+    /* max-height ensures independent scroll: calc(100vh - navbar - ~60px header) */
+    max-height: calc(100vh - var(--nav-h) - 60px);
+    min-height: 340px;
+    border-top: 2px solid var(--bdr2);
   }
-  .shell.show-timeline .sidebar { display: none; }
-  .shell.show-timeline .main { display: flex; flex: 1; }
 }
 
 @media (min-width: 768px) {
-  .sidebar { display: flex !important; }
+  .sidebar {
+    display: flex !important;
+    /* FIX: Add Task button — pad bottom so it clears the nav bar at all screen sizes */
+    padding-bottom: calc(var(--nav-h) + 16px);
+  }
   .main { display: flex !important; }
 }
 

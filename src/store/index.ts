@@ -168,40 +168,56 @@ export const useStore = create<Store>()(
       },
 
       applyActions: async (actions) => {
+        // FIX: AI Build My Day crash — robust null-guards before destructuring
         for (const action of actions) {
-          if (!action?.type || action?.payload === undefined) continue;
+          if (!action?.type || action?.payload == null) continue;
           const { addTask, updateTask, deleteTask, moveTask, reorderTasks } = get();
           try {
             switch (action.type) {
               case 'create_task': {
-                const p = action.payload as Omit<Task, 'id' | 'created_at'>;
+                const p = action.payload as Partial<Omit<Task, 'id' | 'created_at'>>;
                 if (!p?.title) break;
-                await addTask({ ...p, recurrence: p.recurrence ?? 'none', sort_order: p.sort_order ?? 0, is_done: false });
+                const safeTask: Omit<Task, 'id' | 'created_at'> = {
+                  title: p.title ?? 'Untitled',
+                  duration_minutes: p.duration_minutes ?? 30,
+                  break_after: p.break_after ?? get().config.buffer,
+                  travel_minutes: p.travel_minutes ?? 0,
+                  priority: p.priority ?? 'medium',
+                  category: p.category ?? 'general',
+                  is_starred: p.is_starred ?? false,
+                  is_done: false,
+                  day: p.day ?? 'today',
+                  recurrence: p.recurrence ?? 'none',
+                  sort_order: p.sort_order ?? 0,
+                  fixed_time: p.fixed_time,
+                  notes: p.notes,
+                };
+                await addTask(safeTask);
                 break;
               }
               case 'update_task': {
-                const pl = action.payload as { id?: string } & Partial<Task>;
-                if (!pl?.id) break;
+                const pl = action.payload as Record<string, unknown>;
+                if (!pl?.id || typeof pl.id !== 'string') break;
                 const { id, ...updates } = pl;
-                await updateTask(id, updates);
+                await updateTask(id as string, updates as Partial<Task>);
                 break;
               }
               case 'delete_task': {
-                const pl = action.payload as { id?: string };
-                if (!pl?.id) break;
-                await deleteTask(pl.id);
+                const pl = action.payload as Record<string, unknown>;
+                if (!pl?.id || typeof pl.id !== 'string') break;
+                await deleteTask(pl.id as string);
                 break;
               }
               case 'move_task': {
-                const pl = action.payload as { id?: string; day?: 'today' | 'tomorrow' };
-                if (!pl?.id || !pl?.day) break;
-                await moveTask(pl.id, pl.day);
+                const pl = action.payload as Record<string, unknown>;
+                if (!pl?.id || typeof pl.id !== 'string' || !pl?.day) break;
+                await moveTask(pl.id as string, pl.day as 'today' | 'tomorrow');
                 break;
               }
               case 'reschedule': {
-                const pl = action.payload as { order?: string[] };
-                if (!pl?.order?.length) break;
-                reorderTasks(pl.order);
+                const pl = action.payload as Record<string, unknown>;
+                if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
+                reorderTasks(pl.order as string[]);
                 break;
               }
             }
