@@ -1,7 +1,7 @@
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskDay = 'today' | 'tomorrow';
 export type Theme = 'light' | 'dark';
-export type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly';
+export type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly' | 'custom';
 export type AppPanel = 'plan' | 'stats' | 'profile';
 
 export interface Task {
@@ -18,6 +18,7 @@ export interface Task {
   fixed_time?: string;
   notes?: string;
   recurrence: Recurrence;
+  recurrence_days?: number[]; // 0=Sun,1=Mon,...,6=Sat for 'custom'
   sort_order: number;
   created_at: string;
   user_id?: string;

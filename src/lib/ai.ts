@@ -3,16 +3,13 @@ import { minutesToTime } from './scheduler';
 
 export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
 
-// FIX: time-aware scheduling — hardcoded default key (module-level, never in state/UI)
-
 export interface AIConfig {
   apiKey: string;
   provider: AIProvider;
-  baseURL?: string;   // for custom / openrouter
-  model?: string;     // override model
+  baseURL?: string;
+  model?: string;
 }
 
-// Auto-detect provider from key prefix
 export function detectProvider(apiKey: string, customBaseURL?: string): AIProvider {
   if (customBaseURL?.includes('openrouter.ai')) return 'openrouter';
   if (customBaseURL && customBaseURL.length > 0) return 'custom';
@@ -33,7 +30,6 @@ export function providerLabel(provider: AIProvider): string {
   }[provider];
 }
 
-// Default model per provider
 function defaultModel(provider: AIProvider): string {
   return {
     anthropic:  'claude-sonnet-4-20250514',
@@ -44,11 +40,10 @@ function defaultModel(provider: AIProvider): string {
   }[provider];
 }
 
-// Base URL per provider
 function getBaseURL(provider: AIProvider, customBaseURL?: string): string {
   if (customBaseURL) return customBaseURL.replace(/\/$/, '');
   return {
-    anthropic:  '', // handled separately
+    anthropic:  '',
     openai:     'https://api.openai.com/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     groq:       'https://api.groq.com/openai/v1',
@@ -67,30 +62,33 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
 
   const taskList = todayTasks.length
     ? todayTasks.map(t =>
-        `- [${t.is_done ? 'done' : t.priority}] "${t.title}" ${t.duration_minutes}min${t.travel_minutes ? ` (+${t.travel_minutes}min travel each way)` : ''}${t.break_after ? ` +${t.break_after}min break` : ''}${t.fixed_time ? ` @ ${t.fixed_time}` : ''}${t.is_starred ? ' ★' : ''} (id:${t.id})`
+        `- [${t.is_done ? 'done' : t.priority}] "${t.title}" ${t.duration_minutes}min` +
+        `${t.travel_minutes ? ` (+${t.travel_minutes}min travel each way)` : ''}` +
+        `${t.break_after ? ` +${t.break_after}min break after` : ''}` +
+        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
+        `${t.is_starred ? ' ★' : ''} (id:${t.id})`
       ).join('\n')
     : 'No tasks yet.';
 
   const tmrwList = tomorrowTasks.length
-    ? tomorrowTasks.map(t => `- "${t.title}" ${t.duration_minutes}min`).join('\n')
+    ? tomorrowTasks.map(t => `- "${t.title}" ${t.duration_minutes}min (id:${t.id})`).join('\n')
     : 'Empty.';
 
-  // FIX: time-aware scheduling — explicit constraint in system prompt
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const bufferMinutes = config.morning_buffer ?? 15;
   const earliestStart = nowMinutes + bufferMinutes;
-  const earliestStartStr = minutesToTime(earliestStart);
   const nowStr = minutesToTime(nowMinutes);
+  const earliestStartStr = minutesToTime(earliestStart);
 
-  return `You are UpX — a smart daily planner assistant. You help the user plan their day efficiently, create tasks, reschedule, and give advice.
+  return `You are UpX — a smart daily planner assistant. You help the user plan their day, create tasks, reschedule, and give advice.
 
 ## User Settings
-- Wake: ${config.wake}
-- Sleep: ${config.sleep}
+- Wake: ${config.wake} | Sleep: ${config.sleep}
 - Default break between tasks: ${config.buffer} min
-- Gym/workout travel: ${config.road_time_minutes} min each way
-- Known contexts: ${JSON.stringify(config.known_contexts)}
+- Road time for gym/workout: ${config.road_time_minutes} min each way
+- Current time: ${nowStr}
+- Earliest task start: ${earliestStartStr} (now + ${bufferMinutes}min buffer)
 
 ## Today's Tasks
 ${taskList}
@@ -98,46 +96,63 @@ ${taskList}
 ## Tomorrow's Tasks
 ${tmrwList}
 
-## CURRENT TIME CONSTRAINT
-Current time is ${nowStr}. Schedule all tasks starting from ${earliestStartStr} (current time + ${bufferMinutes} min buffer). Do NOT place any task before ${earliestStartStr}. If it is past midday, all tasks must start after ${earliestStartStr}.
+## DURATION PARSING — CRITICAL
+Always convert duration to MINUTES (integer):
+- "2 hours" or "2h" → duration_minutes: 120
+- "1.5 hours" or "1.5h" or "90 min" → duration_minutes: 90
+- "30 min" or "30m" or "half hour" → duration_minutes: 30
+- "45 min" → duration_minutes: 45
+- NEVER set duration_minutes to 2 when user says "2 hours" — that would be 2 minutes!
+- break_after is also in MINUTES (e.g. 10 for a 10-minute break)
 
-## Your capabilities
-1. Parse tasks from natural language — "edit video 60min" → create a task
-2. Build the day schedule — arrange tasks optimally considering travel, breaks, energy
-3. Advise and reschedule — help when user is overloaded, suggest what to move
-4. Answer questions — general productivity advice
+## TRAVEL TIME
+- For workout/gym/pool/run tasks: set travel_minutes = ${config.road_time_minutes} (from user settings)
+- For office/work tasks: check known_contexts: ${JSON.stringify(config.known_contexts)}
+- For home tasks: travel_minutes = 0
 
-## Rules
-- Always respond in the SAME language the user writes in (Russian or English)
-- Be concise and friendly, not verbose
-- For workout/gym tasks: automatically add travel_minutes = gym_travel_minutes from config
+## SCHEDULING RULES
 - Never schedule a task before ${earliestStartStr}
+- Respect fixed_time if user specifies a time (e.g. "meeting at 3pm" → fixed_time: "15:00")
+- Use fixed_time: null if no specific time mentioned
 
-## IMPORTANT: Response format
-You MUST always respond with ONLY valid JSON. No markdown, no text outside JSON:
+## CAPABILITIES
+1. Parse tasks from natural language → create_task action
+2. Build/optimize the day schedule → reschedule action  
+3. Move/delete/update tasks
+4. Give productivity advice
+
+## RESPONSE FORMAT — STRICT JSON ONLY
+No markdown, no text outside JSON:
 {
-  "message": "your friendly response to the user",
+  "message": "friendly response in same language as user",
   "actions": [
     {
       "type": "create_task",
       "payload": {
-        "title": "string",
-        "duration_minutes": number,
-        "travel_minutes": number,
-        "break_after": number,
+        "title": "Clean title without duration",
+        "duration_minutes": 120,
+        "travel_minutes": 0,
+        "break_after": 10,
         "priority": "low|medium|high",
-        "category": "workout|deep work|meetings|meals|creative|admin|general — pick the best fit",
+        "category": "workout|deep work|meetings|meals|creative|admin|general",
         "fixed_time": null,
-        "day": "today|tomorrow"
+        "day": "today|tomorrow",
+        "recurrence": "none|daily|weekdays|weekly",
+        "sort_order": 0
       }
     }
   ]
 }
-Other action types: update_task {id, ...fields}, delete_task {id}, move_task {id, day}, reschedule {order: [id1, id2, ...]}.
-If no actions needed, use empty array [].`;
+
+Other action types:
+- update_task: { "id": "task-id", ...fieldsToUpdate }
+- delete_task: { "id": "task-id" }
+- move_task: { "id": "task-id", "day": "today|tomorrow" }
+- reschedule: { "order": ["id1", "id2", ...] }
+
+Always use empty array [] for actions if no task operations needed.`;
 }
 
-// ── ANTHROPIC ────────────────────────────────────────────────────────────────
 async function callAnthropic(
   userMessage: string,
   history: ChatMessage[],
@@ -148,7 +163,6 @@ async function callAnthropic(
     ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
-
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -164,17 +178,14 @@ async function callAnthropic(
       messages,
     }),
   });
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`Anthropic ${res.status}: ${err?.error?.message || res.statusText}`);
+    throw new Error(`Anthropic ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
   }
-
   const data = await res.json();
   return data.content?.[0]?.text || '{}';
 }
 
-// ── OPENAI-COMPATIBLE (OpenAI, OpenRouter, Groq, Ollama, custom) ─────────────
 async function callOpenAICompat(
   userMessage: string,
   history: ChatMessage[],
@@ -195,40 +206,27 @@ async function callOpenAICompat(
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${cfg.apiKey}`,
   };
-
-  // OpenRouter requires these extra headers
   if (provider === 'openrouter') {
     headers['HTTP-Referer'] = 'https://upx-app.vercel.app';
     headers['X-Title'] = 'UpX Planner';
   }
 
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: 1000,
-    messages,
-  };
-
-  // JSON mode — supported by OpenAI, OpenRouter, Groq
-  if (provider !== 'custom') {
-    body.response_format = { type: 'json_object' };
-  }
+  const body: Record<string, unknown> = { model, max_tokens: 1000, messages };
+  if (provider !== 'custom') body.response_format = { type: 'json_object' };
 
   const res = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
   });
-
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`${provider} ${res.status}: ${err?.error?.message || res.statusText}`);
+    throw new Error(`${provider} ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
   }
-
   const data = await res.json();
   return data.choices?.[0]?.message?.content || '{}';
 }
 
-// ── MAIN EXPORT ──────────────────────────────────────────────────────────────
 export async function sendChatMessage(
   userMessage: string,
   history: ChatMessage[],
@@ -238,27 +236,19 @@ export async function sendChatMessage(
   customBaseURL?: string,
   customModel?: string
 ): Promise<AIResponse> {
-  // FIX: fall back to hardcoded default key if none provided
   const effectiveKey = apiKey;
   const provider = detectProvider(effectiveKey, customBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: customBaseURL, model: customModel };
   const systemPrompt = buildSystemPrompt(tasks, config);
 
-  let rawText: string;
-
-  if (provider === 'anthropic') {
-    rawText = await callAnthropic(userMessage, history, systemPrompt, cfg);
-  } else {
-    rawText = await callOpenAICompat(userMessage, history, systemPrompt, cfg);
-  }
+  const rawText = provider === 'anthropic'
+    ? await callAnthropic(userMessage, history, systemPrompt, cfg)
+    : await callOpenAICompat(userMessage, history, systemPrompt, cfg);
 
   try {
     const clean = rawText.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
-    return {
-      message: parsed.message || 'Done!',
-      actions: parsed.actions || [],
-    };
+    return { message: parsed.message || 'Done!', actions: parsed.actions || [] };
   } catch {
     return { message: rawText, actions: [] };
   }

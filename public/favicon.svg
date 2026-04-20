@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#5C6B9C"/>
-  <text x="256" y="340" font-family="system-ui,sans-serif" font-weight="900" font-size="280" fill="white" text-anchor="middle">U</text>
-  <circle cx="390" cy="148" r="52" fill="#F5C842"/>
-  <line x1="372" y1="130" x2="408" y2="166" stroke="#5C6B9C" stroke-width="14" stroke-linecap="round"/>
-  <line x1="408" y1="130" x2="372" y2="166" stroke="#5C6B9C" stroke-width="14" stroke-linecap="round"/>
-</svg>

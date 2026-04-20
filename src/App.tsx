@@ -74,7 +74,7 @@ export default function App() {
             <aside className="sidebar">
               <div style={{ padding: '14px 18px 10px', flexShrink: 0, borderBottom: '1px solid var(--bdr)' }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)' }}>UpX</div>
+                  <img src="/logo.png" style={{ height: 20 }} alt="UpX" />
                   <div style={{ fontSize: 17, fontWeight: 700, marginTop: 1 }}>{greeting()} 👋</div>
                   <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
                     {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -133,7 +133,7 @@ export default function App() {
 function PanelHeader({ title }: { title: string }) {
   return (
     <div style={{ padding: '14px 18px 8px', flexShrink: 0, borderBottom: '1px solid var(--bdr)' }}>
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)', marginBottom: 2 }}>UpX</div>
+      <img src="/logo.png" style={{ height: 20 }} alt="UpX" />
       <div style={{ fontSize: 20, fontWeight: 700 }}>{title}</div>
     </div>
   );

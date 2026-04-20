@@ -153,22 +153,27 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: 
   );
 }
 
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
 function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () => void }) {
   const { addTask, config } = useStore();
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
   const [priority, setPriority] = useState<Priority>('medium');
   const [travel, setTravel] = useState('0');
+  const [breakAfter, setBreakAfter] = useState(String(config.buffer));
   const [recurrence, setRecurrence] = useState<Recurrence>('none');
+  const [customDays, setCustomDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri default
   const [category, setCategory] = useState('general');
   const [categoryEdited, setCategoryEdited] = useState(false);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
-    // Auto-detect category from title unless user manually changed it
-    if (!categoryEdited) {
-      setCategory(detectCategory(val));
-    }
+    if (!categoryEdited) setCategory(detectCategory(val));
+  };
+
+  const toggleDay = (d: number) => {
+    setCustomDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   };
 
   const handleAdd = async () => {
@@ -176,7 +181,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
     await addTask({
       title: title.trim(),
       duration_minutes: parseInt(duration) || 30,
-      break_after: config.buffer,
+      break_after: parseInt(breakAfter) || 0,
       travel_minutes: parseInt(travel) || 0,
       priority,
       category,
@@ -184,6 +189,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
       is_done: false,
       day,
       recurrence,
+      recurrence_days: recurrence === 'custom' ? customDays : undefined,
       sort_order: 0,
     });
     onDone();
@@ -216,6 +222,30 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         </div>
       </div>
 
+      {/* Break after */}
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {[0, 5, 10, 15, 30].map(mins => (
+            <button key={mins} type="button"
+              onClick={() => setBreakAfter(String(mins))}
+              style={{
+                padding: '4px 10px', fontSize: 11, borderRadius: 20,
+                border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`,
+                background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent',
+                color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              {mins === 0 ? 'None' : `${mins}m`}
+            </button>
+          ))}
+          <input type="number" min="0" placeholder="custom"
+            value={![0,5,10,15,30].includes(parseInt(breakAfter)) && breakAfter !== '0' ? breakAfter : ''}
+            onChange={e => setBreakAfter(e.target.value)}
+            style={{ width: 64, fontSize: 11, padding: '4px 8px' }} />
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>
@@ -224,11 +254,8 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
               <span style={{ marginLeft: 4, color: 'var(--ind)', fontWeight: 600 }}>auto</span>
             )}
           </div>
-          <select value={category}
-            onChange={e => { setCategory(e.target.value); setCategoryEdited(true); }}>
-            {allCategories.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+          <select value={category} onChange={e => { setCategory(e.target.value); setCategoryEdited(true); }}>
+            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         <div>
@@ -238,9 +265,31 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             <option value="daily">Every day</option>
             <option value="weekdays">Weekdays</option>
             <option value="weekly">Weekly</option>
+            <option value="custom">Custom days…</option>
           </select>
         </div>
       </div>
+
+      {/* Custom day picker */}
+      {recurrence === 'custom' && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {DAY_LABELS.map((label, i) => (
+              <button key={i} type="button" onClick={() => toggleDay(i)}
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600,
+                  border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`,
+                  background: customDays.includes(i) ? 'var(--ind)' : 'transparent',
+                  color: customDays.includes(i) ? '#fff' : 'var(--tx3)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 6 }}>
         <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAdd}>Add</button>
