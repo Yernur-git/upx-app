@@ -1,8 +1,9 @@
 import type { Task, UserConfig, ChatMessage, ParsedAction } from '../types';
 import { minutesToTime } from './scheduler';
 
+export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
+
 // FIX: time-aware scheduling — hardcoded default key (module-level, never in state/UI)
-const API_KEY = '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';
 
 export interface AIConfig {
   apiKey: string;
@@ -238,7 +239,7 @@ export async function sendChatMessage(
   customModel?: string
 ): Promise<AIResponse> {
   // FIX: fall back to hardcoded default key if none provided
-  const effectiveKey = apiKey || API_KEY;
+  const effectiveKey = apiKey;
   const provider = detectProvider(effectiveKey, customBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: customBaseURL, model: customModel };
   const systemPrompt = buildSystemPrompt(tasks, config);
