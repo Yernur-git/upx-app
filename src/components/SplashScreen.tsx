@@ -1,33 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 
 export function SplashScreen({ onDone }: { onDone: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [fadeOut, setFadeOut] = useState(false);
   const [gone, setGone] = useState(false);
+  const doneRef = useRef(false);
 
   const finish = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
     setFadeOut(true);
     setTimeout(() => {
       setGone(true);
-      try { sessionStorage.setItem('splashShown', 'true'); } catch { /* ok */ }
+      try { sessionStorage.setItem('splashShown', 'true'); } catch { /**/ }
       onDone();
     }, 400);
   };
 
+  // Hard fallback — always fires after 4s no matter what
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    // When video ends → fade out
-    video.addEventListener('ended', finish);
-
-    // Fallback: if video fails to load or takes too long → skip after 3s
-    const fallback = setTimeout(finish, 3000);
-
-    return () => {
-      video.removeEventListener('ended', finish);
-      clearTimeout(fallback);
-    };
+    const t = setTimeout(finish, 4000);
+    return () => clearTimeout(t);
   }, []);
 
   if (gone) return null;
@@ -45,16 +37,13 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
       }}
     >
       <video
-        ref={videoRef}
         src="/splash.mp4"
         autoPlay
         muted
         playsInline
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
+        onEnded={finish}
+        onError={finish}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
     </div>
   );
