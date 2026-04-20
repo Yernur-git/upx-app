@@ -1,5 +1,5 @@
 import type { Task, UserConfig, ChatMessage, ParsedAction } from '../types';
-import { minutesToTime } from './scheduler';
+import { minutesToTime, buildSchedule, formatDuration } from './scheduler';
 
 export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
 
@@ -70,7 +70,7 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
     : 'No tasks yet.';
 
   const tmrwList = tomorrowTasks.length
-    ? tomorrowTasks.map(t => `- "${t.title}" ${t.duration_minutes}min (id:${t.id})`).join('\n')
+    ? tomorrowTasks.map(t => `- [id:${t.id}] "${t.title}" ${t.duration_minutes}min`).join('\n')
     : 'Empty.';
 
   const now = new Date();
@@ -79,6 +79,16 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig): string {
   const earliestStart = nowMinutes + bufferMinutes;
   const nowStr = minutesToTime(nowMinutes);
   const earliestStartStr = minutesToTime(earliestStart);
+
+  // Build live schedule context
+  const schedule = buildSchedule(tasks, config);
+  const freeMinutes = Math.max(0, schedule.availableMinutes - schedule.totalMinutes);
+  const overflowList = schedule.overflow.length
+    ? schedule.overflow.map(t => `- [id:${t.id}] "${t.title}" ${t.duration_minutes}min [${t.priority}]${t.is_starred ? ' ★' : ''}`).join('\n')
+    : 'None.';
+  const scheduleStatus = schedule.overflow.length > 0
+    ? `⚠️ OVERLOADED — ${schedule.overflow.length} task(s) do not fit today`
+    : `✓ Fits — ${formatDuration(freeMinutes)} free remaining`;
 
   return `You are UpX — a smart daily planner assistant. You help the user plan their day, create tasks, reschedule, and give advice.
 
@@ -94,6 +104,16 @@ ${taskList}
 
 ## Tomorrow's Tasks
 ${tmrwList}
+
+## Live Schedule Status
+- Status: ${scheduleStatus}
+- Available today: ${formatDuration(schedule.availableMinutes)}
+- Scheduled: ${formatDuration(schedule.totalMinutes)}
+- Free remaining: ${formatDuration(freeMinutes)}
+- Tasks in overflow (don't fit today):
+${overflowList}
+
+Use this to make smart decisions: if overloaded, move overflow tasks to tomorrow. If free time > 30min, suggest adding productive tasks.
 
 ## DURATION PARSING — CRITICAL
 Always convert duration to MINUTES (integer):
