@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '../../store';
 import { formatDuration } from '../../lib/scheduler';
-import { detectCategory } from '../../lib/categories';
+import { taskMatchesGoal } from '../../lib/categories';
 
 export function StatsPanel() {
   const { tasks, dayHistory, config } = useStore();
@@ -38,15 +38,10 @@ export function StatsPanel() {
   const categoryProgress = useMemo(() => {
     return config.category_goals.map(goal => {
       const matchingTasks = tasks.filter(t =>
-        t.day === 'today' && (
-          t.category.toLowerCase() === goal.category.toLowerCase() ||
-          detectCategory(t.title) === goal.category.toLowerCase()
-        )
+        t.day === 'today' && taskMatchesGoal(t.title, t.category, goal.category)
       );
-      // Count scheduled (all tasks) toward weekly goal; done tasks get full credit
       const scheduledMinutes = matchingTasks.reduce((s, t) => s + t.duration_minutes, 0);
       const doneMinutes = matchingTasks.filter(t => t.is_done).reduce((s, t) => s + t.duration_minutes, 0);
-      // Show done minutes as progress; scheduled as max
       const displayMinutes = doneMinutes > 0 ? doneMinutes : scheduledMinutes;
       const pct = Math.min(100, Math.round((displayMinutes / goal.weekly_goal_minutes) * 100));
       return { ...goal, done_minutes: displayMinutes, scheduled_minutes: scheduledMinutes, pct };

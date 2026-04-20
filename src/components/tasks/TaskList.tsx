@@ -169,7 +169,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
-    if (!categoryEdited) setCategory(detectCategory(val));
+    if (!categoryEdited) setCategory(detectCategory(val, config.category_goals));
   };
 
   const toggleDay = (d: number) => {
