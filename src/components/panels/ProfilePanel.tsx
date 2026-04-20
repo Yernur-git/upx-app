@@ -54,7 +54,7 @@ export function ProfilePanel() {
       icon: '/icon-192.png',
       tag: 'upx-test',
     });
-  };
+  }; const PRESETS = [
     { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
     { label: 'Groq (free)', url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
     { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
