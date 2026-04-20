@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -110,6 +110,15 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: 
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
+        <EditTaskForm task={task} onDone={() => setEditing(false)} />
+      </div>
+    );
+  }
 
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
@@ -144,6 +153,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: 
             <button className="btn-icon" onClick={onStar} style={{ padding: 4 }}>
               <Star size={12} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
             </button>
+            <button className="btn-icon" onClick={() => setEditing(true)} style={{ padding: 4 }}><Pencil size={12} /></button>
             <button className="btn-icon" onClick={onMove} style={{ padding: 4 }}><ArrowRight size={12} /></button>
             <button className="btn-icon" onClick={onDelete} style={{ padding: 4 }}><Trash2 size={12} /></button>
           </div>
@@ -154,6 +164,141 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: 
 }
 
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
+  const { updateTask, config } = useStore();
+  const [title, setTitle] = useState(task.title);
+  const [duration, setDuration] = useState(String(task.duration_minutes));
+  const [priority, setPriority] = useState<Priority>(task.priority);
+  const [travel, setTravel] = useState(String(task.travel_minutes));
+  const [breakAfter, setBreakAfter] = useState(String(task.break_after));
+  const [recurrence, setRecurrence] = useState<Recurrence>(task.recurrence);
+  const [customDays, setCustomDays] = useState<number[]>(task.recurrence_days ?? [1, 2, 3, 4, 5]);
+  const [category, setCategory] = useState(task.category);
+  const [fixedTime, setFixedTime] = useState(task.fixed_time ?? '');
+
+  const toggleDay = (d: number) => {
+    setCustomDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    await updateTask(task.id, {
+      title: title.trim(),
+      duration_minutes: parseInt(duration) || 30,
+      break_after: parseInt(breakAfter) || 0,
+      travel_minutes: parseInt(travel) || 0,
+      priority,
+      category,
+      recurrence,
+      recurrence_days: recurrence === 'custom' ? customDays : undefined,
+      fixed_time: fixedTime || undefined,
+    });
+    onDone();
+  };
+
+  const allCategories = getAllCategories(config.category_goals);
+
+  return (
+    <div style={{ background: 'var(--sf)', border: '1px solid var(--ind-m)', borderRadius: 'var(--rs)', padding: '12px 12px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: -2 }}>Edit task</div>
+      <input autoFocus placeholder="Task title…" value={title}
+        onChange={e => setTitle(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onDone(); }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Duration (min)</div>
+          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Road (min)</div>
+          <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" />
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Priority</div>
+          <select value={priority} onChange={e => setPriority(e.target.value as Priority)}>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {[0, 5, 10, 15, 30].map(mins => (
+            <button key={mins} type="button"
+              onClick={() => setBreakAfter(String(mins))}
+              style={{
+                padding: '4px 10px', fontSize: 11, borderRadius: 20,
+                border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`,
+                background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent',
+                color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              {mins === 0 ? 'None' : `${mins}m`}
+            </button>
+          ))}
+          <input type="number" min="0" placeholder="custom"
+            value={![0,5,10,15,30].includes(parseInt(breakAfter)) && breakAfter !== '0' ? breakAfter : ''}
+            onChange={e => setBreakAfter(e.target.value)}
+            style={{ width: 64, fontSize: 11, padding: '4px 8px' }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Category</div>
+          <select value={category} onChange={e => setCategory(e.target.value)}>
+            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Repeat</div>
+          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)}>
+            <option value="none">No repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekdays">Weekdays</option>
+            <option value="weekly">Weekly</option>
+            <option value="custom">Custom days…</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>Fixed time (optional)</div>
+        <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)} />
+      </div>
+
+      {recurrence === 'custom' && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
+          <div style={{ display: 'flex', gap: 5 }}>
+            {DAY_LABELS.map((label, i) => (
+              <button key={i} type="button" onClick={() => toggleDay(i)}
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', fontSize: 11, fontWeight: 600,
+                  border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`,
+                  background: customDays.includes(i) ? 'var(--ind)' : 'transparent',
+                  color: customDays.includes(i) ? '#fff' : 'var(--tx3)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave}>Save</button>
+        <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
+      </div>
+    </div>
+  );
+}
 
 function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () => void }) {
   const { addTask, config } = useStore();

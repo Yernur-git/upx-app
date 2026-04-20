@@ -30,7 +30,11 @@ export interface ScheduleResult {
   availableMinutes: number;
 }
 
-export function buildSchedule(tasks: Task[], config: UserConfig): ScheduleResult {
+/**
+ * ignoreNow=true → schedule from wake time (useful for full-day preview/testing).
+ * ignoreNow=false (default) → schedule from max(wake, now).
+ */
+export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = false): ScheduleResult {
   const wake = timeToMinutes(config.wake);
   const sleep = timeToMinutes(config.sleep);
   const availableMinutes = sleep - wake - (config.morning_buffer ?? 0);
@@ -50,7 +54,9 @@ export function buildSchedule(tasks: Task[], config: UserConfig): ScheduleResult
   const blocks: TimelineBlock[] = [];
   const overflow: Task[] = [];
   const nowMins = getNowMinutes();
-  let cursor = Math.max(wake + (config.morning_buffer ?? 0), nowMins);
+  let cursor = ignoreNow
+    ? wake + (config.morning_buffer ?? 0)
+    : Math.max(wake + (config.morning_buffer ?? 0), nowMins);
 
   for (const task of sorted) {
     const travelTime = task.travel_minutes;
@@ -59,12 +65,15 @@ export function buildSchedule(tasks: Task[], config: UserConfig): ScheduleResult
 
     if (task.fixed_time) {
       const fixedStart = timeToMinutes(task.fixed_time);
-      if (fixedStart >= cursor && fixedStart + totalSlot <= sleep) {
+      if (fixedStart >= cursor) {
+        // Fixed time is ahead — jump to it if task fits before sleep
+        if (fixedStart + totalSlot > sleep) { overflow.push(task); continue; }
         if (fixedStart > cursor) {
           blocks.push({ type: 'break', start_minutes: cursor, end_minutes: fixedStart, label: 'Free time' });
         }
         cursor = fixedStart;
       }
+      // fixedStart < cursor: time passed, fall through and place at cursor
     }
 
     if (cursor + totalSlot > sleep) { overflow.push(task); continue; }
