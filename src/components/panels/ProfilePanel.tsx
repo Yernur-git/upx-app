@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, LogOut, Bell, BellOff } from 'lucide-react';
+import { Plus, Trash2, LogOut, Bell } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { requestNotificationPermission, canNotify } from '../../lib/notifications';
