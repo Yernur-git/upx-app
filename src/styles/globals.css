@@ -33,27 +33,27 @@
 
 /* ── TOKENS DARK ── */
 [data-theme="dark"] {
-  --bg:      #0C0E1C;
-  --sf:      #141728;
-  --sf2:     #1C1F38;
-  --sf3:     #242848;
-  --sf4:     #2C3058;
-  --tx:      #E4E6F6;
-  --tx2:     #8688A8;
-  --tx3:     #4E5070;
-  --ind:     #7080F0;
-  --ind-l:   #18193A;
-  --ind-m:   #222450;
-  --ind-h:   #90A0F8;
-  --coral:   #E06868; --coral-l: #2A1010;
-  --must:    #D4A020; --must-l:  #241C04;
-  --sage:    #48B86A; --sage-l:  #0C1E10;
-  --now:     #F06060;
-  --brk-bg:  #161A3C; --brk-tx: #7080CC;
-  --bdr:     rgba(255,255,255,.05);
-  --bdr2:    rgba(255,255,255,.10);
-  --shd:     0 2px 12px rgba(0,0,0,.4);
-  --shd2:    0 8px 32px rgba(0,0,0,.5);
+  --bg:      #080A16;
+  --sf:      #111326;
+  --sf2:     #191C34;
+  --sf3:     #212440;
+  --sf4:     #2A2E52;
+  --tx:      #ECEEF8;
+  --tx2:     #9496BC;
+  --tx3:     #7880A8;
+  --ind:     #7B8CF5;
+  --ind-l:   #14163A;
+  --ind-m:   #1E2252;
+  --ind-h:   #9AABFF;
+  --coral:   #F07070; --coral-l: #2E0E0E;
+  --must:    #E0B030; --must-l:  #271E04;
+  --sage:    #52C47A; --sage-l:  #0A1E10;
+  --now:     #FF6B6B;
+  --brk-bg:  #13163A; --brk-tx: #8090E0;
+  --bdr:     rgba(255,255,255,.08);
+  --bdr2:    rgba(255,255,255,.14);
+  --shd:     0 2px 12px rgba(0,0,0,.5);
+  --shd2:    0 8px 32px rgba(0,0,0,.65);
 }
 
 /* ── RESET ── */
@@ -206,22 +206,16 @@ input::placeholder { color: var(--tx3); }
 .chat-panel.hidden { transform: translateY(110%); opacity: 0; pointer-events: none; }
 @media (max-width: 767px) { .chat-panel { width: 100%; left: 0; } }
 
-.chat-fab {
-  position: fixed;
-  bottom: calc(var(--nav-h) + var(--safe-b) + 14px);
-  right: 18px;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  background: var(--ind);
-  color: #fff; border: none; cursor: pointer;
-  box-shadow: 0 4px 16px rgba(76,94,232,.4);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 399;
-  transition: transform var(--tr), background var(--tr), box-shadow var(--tr);
+/* AI nav button */
+.nav-ai {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-end;
+  padding-bottom: calc(6px + var(--safe-b));
+  background: none; border: none; cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  padding-top: 0;
 }
-.chat-fab:hover { background: var(--ind-h); transform: scale(1.08); }
-.chat-fab:active { transform: scale(0.95); }
 
 /* ── CARD ── */
 .task-card {

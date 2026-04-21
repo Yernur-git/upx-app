@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, LogOut, Bell } from 'lucide-react';
+import { Plus, Trash2, LogOut, ChevronRight, Bell } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { requestNotificationPermission, canNotify } from '../../lib/notifications';
@@ -7,16 +7,35 @@ import type { CategoryGoal } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
 
+// Simple confirmation dialog
+function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 24px' }}>
+      <div style={{ width: '100%', maxWidth: 420, background: 'var(--sf)', borderRadius: 20, border: '1px solid var(--bdr2)', padding: '24px 20px', margin: '0 16px', boxShadow: 'var(--shd2)' }}>
+        <p style={{ fontSize: 14, color: 'var(--tx)', textAlign: 'center', lineHeight: 1.5, marginBottom: 20 }}>{message}</p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={onCancel}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'var(--coral)' }} onClick={onConfirm}>Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProfilePanel() {
-  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel } = useStore();
+  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, tasks, deleteTask } = useStore();
   const [localKey, setLocalKey] = useState(apiKey);
   const [localURL, setLocalURL] = useState(customBaseURL);
   const [localModel, setLocalModel] = useState(customModel);
   const [newGoalCat, setNewGoalCat] = useState('');
   const [newGoalHours, setNewGoalHours] = useState('5');
   const [showAI, setShowAI] = useState(false);
+  const [notifGranted, setNotifGranted] = useState(() => canNotify());
+  const [confirm, setConfirm] = useState<null | { message: string; onConfirm: () => void }>(null);
 
   const provider = detectProvider(localKey, localURL);
+
+  const ask = (message: string, onConfirm: () => void) => setConfirm({ message, onConfirm });
 
   const addGoal = () => {
     if (!newGoalCat.trim()) return;
@@ -26,229 +45,268 @@ export function ProfilePanel() {
       color: COLORS[config.category_goals.length % COLORS.length],
     };
     updateConfig({ category_goals: [...config.category_goals, goal] });
-    setNewGoalCat('');
-    setNewGoalHours('5');
+    setNewGoalCat(''); setNewGoalHours('5');
   };
 
-  const removeGoal = (cat: string) => {
-    updateConfig({ category_goals: config.category_goals.filter(g => g.category !== cat) });
-  };
-
-  const [notifGranted, setNotifGranted] = useState(() => canNotify());
-
-  const handleRequestNotif = async () => {
+  const handleNotif = async () => {
     const granted = await requestNotificationPermission();
     setNotifGranted(granted);
-    if (granted) {
-      new Notification('✅ UpX notifications enabled', {
-        body: 'You\'ll get reminders before each task starts.',
-        icon: '/icon-192.png',
-      });
-    }
+    if (granted) new Notification('✅ UpX notifications enabled', { body: 'You\'ll get reminders before each task.', icon: '/icon-192.png' });
   };
 
-  const handleTestNotif = () => {
-    if (!canNotify()) return;
-    new Notification('⏰ Starting in 10 min', {
-      body: 'Deep Work Session',
-      icon: '/icon-192.png',
-      tag: 'upx-test',
-    });
-  }; const PRESETS = [
-    { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini' },
+  const PRESETS = [
+    { label: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.0-flash-exp:free' },
     { label: 'Groq (free)', url: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile' },
     { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-    { label: 'Ollama', url: 'http://localhost:11434/v1', model: 'llama3' },
+    { label: 'Anthropic', url: '', model: 'claude-sonnet-4-20250514' },
   ];
 
   return (
     <div className="panel-scroll">
+      {confirm && (
+        <ConfirmDialog
+          message={confirm.message}
+          onConfirm={() => { confirm.onConfirm(); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
 
-      {/* Account */}
-      <Section title="Account">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: 'var(--sf2)', borderRadius: 'var(--rs)', border: '1px solid var(--bdr)' }}>
-          <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: 'var(--ind)' }}>
-            {userEmail && userEmail !== 'local' ? userEmail[0].toUpperCase() : '?'}
+      {/* ── ACCOUNT ── */}
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: 'var(--ind)', flexShrink: 0 }}>
+            {userEmail && userEmail !== 'local' ? userEmail[0].toUpperCase() : '👤'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {userEmail === 'local' ? 'Local account' : userEmail}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
-              {userEmail === 'local' ? 'No sync — data on this device only' : 'Synced across devices'}
+            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>
+              {userEmail === 'local' ? '⚠️ No sync — device only' : '✓ Synced across devices'}
             </div>
           </div>
-          <button className="btn-icon" onClick={signOut} title="Sign out"><LogOut size={15} /></button>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '8px 14px', fontSize: 13, color: 'var(--coral)', borderColor: 'var(--coral)', flexShrink: 0, gap: 6 }}
+            onClick={() => ask('Sign out of your account?', signOut)}>
+            <LogOut size={14} /> Sign out
+          </button>
         </div>
-      </Section>
+      </Card>
 
-      {/* Schedule */}
-      <Section title="Schedule">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* ── SCHEDULE ── */}
+      <SectionTitle>Schedule</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Row label="Wake up">
-            <input type="time" value={config.wake} onChange={e => updateConfig({ wake: e.target.value })} style={{ fontSize: 12, padding: '5px 8px', width: 100 }} />
+            <input type="time" value={config.wake} onChange={e => updateConfig({ wake: e.target.value })} style={timeInput} />
           </Row>
+          <Divider />
           <Row label="Sleep">
-            <input type="time" value={config.sleep} onChange={e => updateConfig({ sleep: e.target.value })} style={{ fontSize: 12, padding: '5px 8px', width: 100 }} />
+            <input type="time" value={config.sleep} onChange={e => updateConfig({ sleep: e.target.value })} style={timeInput} />
           </Row>
-          <Row label="Morning buffer (min)">
-            <input type="number" min="0" max="120" value={config.morning_buffer}
-              onChange={e => updateConfig({ morning_buffer: parseInt(e.target.value) || 0 })}
-              style={{ fontSize: 12, padding: '5px 8px', width: 70 }} />
+          <Divider />
+          <Row label="Morning buffer">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="number" min="0" max="120" value={config.morning_buffer}
+                onChange={e => updateConfig({ morning_buffer: parseInt(e.target.value) || 0 })}
+                style={numInput} />
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+            </div>
           </Row>
-          <Row label="Break between tasks (min)">
-            <input type="number" min="0" max="60" value={config.buffer}
-              onChange={e => updateConfig({ buffer: parseInt(e.target.value) || 0 })}
-              style={{ fontSize: 12, padding: '5px 8px', width: 70 }} />
+          <Divider />
+          <Row label="Break between tasks">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="number" min="0" max="60" value={config.buffer}
+                onChange={e => updateConfig({ buffer: parseInt(e.target.value) || 0 })}
+                style={numInput} />
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+            </div>
           </Row>
-          <Row label="Time on road (min)">
-            <input type="number" min="0" value={config.road_time_minutes}
-              onChange={e => updateConfig({ road_time_minutes: parseInt(e.target.value) || 0 })}
-              style={{ fontSize: 12, padding: '5px 8px', width: 70 }} />
+          <Divider />
+          <Row label="Road time (each way)">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="number" min="0" value={config.road_time_minutes}
+                onChange={e => updateConfig({ road_time_minutes: parseInt(e.target.value) || 0 })}
+                style={numInput} />
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+            </div>
           </Row>
-          <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: -4, lineHeight: 1.5 }}>
-            "Time on road" is added automatically to workout/gym tasks (each way).
-          </div>
         </div>
-      </Section>
+      </Card>
 
-      {/* Weekly goals */}
-      <Section title="Weekly goals">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-          {config.category_goals.map(goal => (
-            <div key={goal.category} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--sf2)', borderRadius: 'var(--rs)', border: '1px solid var(--bdr)' }}>
-              <div style={{ width: 10, height: 10, borderRadius: 3, background: goal.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: 13, textTransform: 'capitalize' }}>{goal.category}</span>
-              <span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: "'DM Mono', monospace" }}>
-                {Math.round(goal.weekly_goal_minutes / 60)}h/week
-              </span>
-              <button className="btn-icon" style={{ padding: 3 }} onClick={() => removeGoal(goal.category)}>
-                <Trash2 size={12} />
-              </button>
+      {/* ── WEEKLY GOALS ── */}
+      <SectionTitle>Weekly goals</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {config.category_goals.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--tx3)', textAlign: 'center', padding: '12px 0' }}>No goals yet</div>
+          )}
+          {config.category_goals.map((goal, idx) => (
+            <div key={goal.category}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0' }}>
+                <div style={{ width: 12, height: 12, borderRadius: 4, background: goal.color, flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 14, textTransform: 'capitalize', fontWeight: 500 }}>{goal.category}</span>
+                <span style={{ fontSize: 12, color: 'var(--tx3)', fontFamily: "'DM Mono', monospace" }}>
+                  {Math.round(goal.weekly_goal_minutes / 60)}h / week
+                </span>
+                <button className="btn-icon" style={{ padding: 6 }}
+                  onClick={() => ask(`Remove "${goal.category}" goal?`, () =>
+                    updateConfig({ category_goals: config.category_goals.filter(g => g.category !== goal.category) })
+                  )}>
+                  <Trash2 size={13} color="var(--coral)" />
+                </button>
+              </div>
+              {idx < config.category_goals.length - 1 && <Divider />}
             </div>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input placeholder="Category (e.g. workout)" value={newGoalCat}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <input placeholder="Category" value={newGoalCat}
             onChange={e => setNewGoalCat(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && addGoal()}
-            style={{ flex: 2, fontSize: 12, padding: '7px 10px' }} />
-          <input type="number" placeholder="hrs" value={newGoalHours}
+            style={{ flex: 2, fontSize: 13, padding: '9px 12px' }} />
+          <input type="number" placeholder="h" value={newGoalHours}
             onChange={e => setNewGoalHours(e.target.value)}
-            style={{ width: 56, fontSize: 12, padding: '7px 8px' }} />
-          <button className="btn btn-primary" style={{ padding: '7px 10px' }} onClick={addGoal}>
-            <Plus size={14} />
+            style={{ width: 60, fontSize: 13, padding: '9px 10px' }} />
+          <button className="btn btn-primary" style={{ padding: '9px 14px' }} onClick={addGoal}>
+            <Plus size={15} />
           </button>
         </div>
-        <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>
+        <p style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 8, lineHeight: 1.5 }}>
           Match category names with your tasks (case-insensitive).
-        </div>
-      </Section>
+        </p>
+      </Card>
 
-      {/* AI Provider */}
-      <Section title="AI Provider">
-        <button onClick={() => setShowAI(!showAI)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showAI ? 10 : 0 }}>
-          <span style={{ fontSize: 12, color: localKey ? 'var(--sage)' : 'var(--tx3)' }}>
-            {localKey ? providerLabel(provider) : 'Not configured — click to set up'}
+      {/* ── NOTIFICATIONS ── */}
+      <SectionTitle>Notifications</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Bell size={15} color="var(--ind)" /> Task reminders
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 3 }}>
+              {notifGranted ? '10 min before + at start time' : 'Get notified before tasks start'}
+            </div>
+          </div>
+          {notifGranted ? (
+            <button className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13, flexShrink: 0 }}
+              onClick={() => new Notification('⏰ Starting in 10 min', { body: 'Deep Work Session', icon: '/icon-192.png', tag: 'upx-test' })}>
+              Test 🔔
+            </button>
+          ) : (
+            <button className="btn btn-primary" style={{ padding: '10px 18px', fontSize: 13, flexShrink: 0 }} onClick={handleNotif}>
+              Enable
+            </button>
+          )}
+        </div>
+        {notifGranted && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sage)', fontWeight: 600 }}>✓ Enabled</div>
+        )}
+      </Card>
+
+      {/* ── AI PROVIDER ── */}
+      <SectionTitle>AI Provider</SectionTitle>
+      <Card>
+        <button onClick={() => setShowAI(!showAI)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <span style={{ fontSize: 13, color: localKey ? 'var(--sage)' : 'var(--tx3)', fontWeight: 500 }}>
+            {localKey ? providerLabel(provider) : 'Not configured — tap to set up'}
           </span>
-          <span style={{ fontSize: 11, color: 'var(--tx3)' }}>{showAI ? '▲' : '▼'}</span>
+          <ChevronRight size={16} color="var(--tx3)" style={{ transform: showAI ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
 
         {showAI && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {PRESETS.map(p => (
-                <button key={p.label} className="btn btn-ghost" style={{ fontSize: 10, padding: '3px 8px' }}
+                <button key={p.label} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}
                   onClick={() => { setLocalURL(p.url); setLocalModel(p.model); setCustomBaseURL(p.url); setCustomModel(p.model); }}>
                   {p.label}
                 </button>
               ))}
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 4 }}>API Key</div>
-              <input type="password" value={localKey} placeholder="sk-ant-...  /  sk-...  /  sk-or-...  /  gsk_..."
-                onChange={e => setLocalKey(e.target.value)}
-                onBlur={() => setApiKey(localKey)}
-                style={{ fontSize: 12, padding: '6px 8px' }} />
-              {localKey && <div style={{ fontSize: 10, color: 'var(--sage)', fontWeight: 600, marginTop: 4 }}>{providerLabel(provider)}</div>}
+              <label style={label}>API Key</label>
+              <input type="password" value={localKey} placeholder="sk-ant-…  /  sk-…  /  sk-or-…  /  gsk_…"
+                onChange={e => setLocalKey(e.target.value)} onBlur={() => setApiKey(localKey)}
+                style={{ fontSize: 13, padding: '10px 12px' }} />
+              {localKey && <div style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600, marginTop: 5 }}>{providerLabel(provider)}</div>}
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 4 }}>Base URL <span style={{ opacity: .6 }}>(leave empty for auto)</span></div>
+              <label style={label}>Base URL <span style={{ opacity: .6, fontWeight: 400 }}>(leave empty for auto)</span></label>
               <input value={localURL} placeholder="https://openrouter.ai/api/v1"
                 onChange={e => setLocalURL(e.target.value)} onBlur={() => setCustomBaseURL(localURL)}
-                style={{ fontSize: 12, padding: '6px 8px' }} />
+                style={{ fontSize: 13, padding: '10px 12px' }} />
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 4 }}>Model <span style={{ opacity: .6 }}>(leave empty for default)</span></div>
-              <input value={localModel} placeholder="openai/gpt-4o-mini"
+              <label style={label}>Model</label>
+              <input value={localModel} placeholder="google/gemini-2.0-flash-exp:free"
                 onChange={e => setLocalModel(e.target.value)} onBlur={() => setCustomModel(localModel)}
-                style={{ fontSize: 12, padding: '6px 8px' }} />
+                style={{ fontSize: 13, padding: '10px 12px' }} />
             </div>
-            <div style={{ fontSize: 10, color: 'var(--tx3)', lineHeight: 1.8 }}>
-              🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free •{' '}
-              🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> — any model •{' '}
+            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
+              🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
+              🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> — any model &nbsp;·&nbsp;
               🤖 <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
             </div>
           </div>
         )}
-      </Section>
+      </Card>
 
-      {/* Notifications */}
-      <Section title="Notifications">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Row label="Task reminders">
-            {notifGranted ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600 }}>✓ Enabled</span>
-                <button className="btn btn-ghost" style={{ fontSize: 11, padding: '4px 10px' }} onClick={handleTestNotif}>
-                  Test
-                </button>
-              </div>
-            ) : (
-              <button className="btn btn-ghost" style={{ fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
-                onClick={handleRequestNotif}>
-                <Bell size={12} /> Enable
-              </button>
-            )}
-          </Row>
-          {notifGranted && (
-            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.6 }}>
-              You'll get a reminder 10 min before each task and at start time. Notifications only work while the app is open.
-            </div>
-          )}
-          {!notifGranted && (
-            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.6 }}>
-              Enable to get reminders before your tasks start.
-            </div>
-          )}
+      {/* ── APPEARANCE ── */}
+      <SectionTitle>Appearance</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {(['light', 'dark'] as const).map(t => (
+            <button key={t} className="btn btn-ghost" style={{
+              flex: 1, justifyContent: 'center', padding: '12px',
+              fontSize: 14, fontWeight: 600,
+              background: config.theme === t ? 'var(--ind-l)' : 'transparent',
+              color: config.theme === t ? 'var(--ind)' : 'var(--tx3)',
+              borderColor: config.theme === t ? 'var(--ind-m)' : 'var(--bdr2)',
+            }}
+              onClick={() => { updateConfig({ theme: t }); document.documentElement.setAttribute('data-theme', t); }}>
+              {t === 'light' ? '☀️ Light' : '🌙 Dark'}
+            </button>
+          ))}
         </div>
-      </Section>
+      </Card>
 
-      {/* Appearance */}
-      <Section title="Appearance">
-        <Row label="Theme">
-          <div style={{ display: 'flex', gap: 6 }}>
-            {(['light', 'dark'] as const).map(t => (
-              <button key={t} className="btn btn-ghost"
-                style={{ fontSize: 12, padding: '5px 12px', background: config.theme === t ? 'var(--ind-l)' : 'transparent', color: config.theme === t ? 'var(--ind)' : 'var(--tx3)' }}
-                onClick={() => { updateConfig({ theme: t }); document.documentElement.setAttribute('data-theme', t); }}>
-                {t === 'light' ? '☀️ Light' : '🌙 Dark'}
-              </button>
-            ))}
-          </div>
-        </Row>
-      </Section>
+      {/* ── DANGER ── */}
+      <SectionTitle>Danger zone</SectionTitle>
+      <Card>
+        <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', padding: '12px', color: 'var(--coral)', borderColor: 'var(--coral)', fontSize: 13 }}
+          onClick={() => ask('Delete ALL tasks? This cannot be undone.', async () => {
+            const all = useStore.getState().tasks;
+            for (const t of all) await deleteTask(t.id);
+          })}>
+          🗑️ Delete all tasks
+        </button>
+      </Card>
+
+      <div style={{ height: 32 }} />
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// ── Shared components ──
+const timeInput: React.CSSProperties = { fontSize: 14, padding: '8px 12px', width: 110 };
+const numInput: React.CSSProperties = { fontSize: 14, padding: '8px 10px', width: 70 };
+const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 };
+
+function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--tx3)', marginBottom: 10 }}>
-        {title}
-      </div>
+    <div style={{ background: 'var(--sf)', border: '1px solid var(--bdr2)', borderRadius: 14, padding: '14px 16px', marginBottom: 2 }}>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--tx3)', padding: '18px 4px 8px' }}>
       {children}
     </div>
   );
@@ -257,8 +315,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-      <span style={{ fontSize: 12, color: 'var(--tx2)', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 14, color: 'var(--tx)' }}>{label}</span>
       {children}
     </div>
   );
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: 'var(--bdr)', margin: '0 -2px' }} />;
 }
