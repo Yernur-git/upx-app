@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Sparkles, Undo2 } from 'lucide-react';
+import { Send, X, Bot, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 
@@ -72,11 +72,6 @@ export function ChatPanel() {
 
   return (
     <>
-      {/* FAB */}
-      <button className="chat-fab" onClick={() => setChatOpen(!chatOpen)} title="AI Assistant">
-        {chatOpen ? <X size={20} /> : <Sparkles size={20} />}
-      </button>
-
       {/* Panel */}
       <div className={`chat-panel ${chatOpen ? '' : 'hidden'}`}>
         {/* Header */}

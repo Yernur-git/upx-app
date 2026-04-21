@@ -150,17 +150,15 @@ export function Timeline() {
             );
           })}
 
-          {/* Blocks — exact pixel heights, no minimum to prevent overlap */}
+          {/* Blocks */}
           {blocks.map((block, i) => {
             const top = minsToPx(block.start_minutes);
-            // Exact height from time slot, with gap subtracted so cards don't touch
             const rawHeight = ((block.end_minutes - block.start_minutes) / 60) * HOUR_HEIGHT;
-            const height = Math.max(rawHeight - CARD_GAP, 20);
+            const height = Math.max(rawHeight - CARD_GAP, 18);
 
             if (isBreakBlock(block)) {
               const breakDur = block.end_minutes - block.start_minutes;
-              // Only render break block if it's large enough to be visible
-              if (rawHeight < 16) return null;
+              if (rawHeight < 10) return null;
               return (
                 <div key={i} style={{
                   position: 'absolute',
@@ -172,12 +170,13 @@ export function Timeline() {
                   alignItems: 'center',
                   paddingLeft: 10,
                   background: 'var(--brk-bg)',
-                  borderRadius: 8,
-                  borderLeft: '2px solid var(--brk-tx)',
+                  borderRadius: 6,
+                  borderLeft: '2px dashed var(--brk-tx)',
+                  opacity: 0.75,
                 }}>
-                  {rawHeight > 24 && (
-                    <span style={{ fontSize: 11, color: 'var(--brk-tx)', fontWeight: 500 }}>
-                      {block.label} · {formatDuration(breakDur)}
+                  {rawHeight > 16 && (
+                    <span style={{ fontSize: 10, color: 'var(--brk-tx)', fontWeight: 500, userSelect: 'none' }}>
+                      ☕ {formatDuration(breakDur)}
                     </span>
                   )}
                 </div>
@@ -263,30 +262,30 @@ function ScheduleCard({
   catColor: string; catEmoji: string; startTime: string;
   durationMin: number; height: number; isPast: boolean; isCurrent: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
-  const tiny = height < 28;
-  const compact = height < 46;
+  const tiny = height < 26;
+  const compact = height < 52;
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        height: '100%',
-        borderRadius: tiny ? 4 : compact ? 6 : 9,
-        background: `rgba(${rgb}, 0.10)`,
-        border: `1px solid rgba(${rgb}, 0.20)`,
-        borderLeft: `3px solid ${catColor}`,
-        boxShadow: isCurrent ? `0 0 0 1.5px ${catColor}` : hovered ? `0 3px 10px rgba(${rgb}, 0.16)` : 'none',
-        display: 'flex',
-        overflow: 'hidden',
-        opacity: isPast && !task.is_done ? 0.45 : 1,
-        transition: 'box-shadow 0.15s, opacity 0.2s',
-        cursor: 'default',
-        boxSizing: 'border-box',
-      }}
-    >
+    <div style={{
+      height: '100%',
+      borderRadius: tiny ? 5 : compact ? 8 : 10,
+      background: isCurrent
+        ? `rgba(${rgb}, 0.16)`
+        : task.is_done
+          ? 'var(--sf2)'
+          : `rgba(${rgb}, 0.11)`,
+      border: `1px solid rgba(${rgb}, ${isCurrent ? '0.40' : '0.22'})`,
+      borderLeft: `3px solid ${task.is_done ? 'var(--tx3)' : catColor}`,
+      boxShadow: isCurrent
+        ? `0 0 0 1.5px rgba(${rgb}, 0.35), 0 2px 12px rgba(${rgb}, 0.18)`
+        : 'none',
+      display: 'flex',
+      overflow: 'hidden',
+      opacity: isPast && !task.is_done ? 0.4 : 1,
+      transition: 'opacity 0.2s',
+      boxSizing: 'border-box',
+    }}>
       <div style={{
         flex: 1,
         minWidth: 0,
@@ -294,17 +293,19 @@ function ScheduleCard({
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        padding: tiny ? '1px 6px' : compact ? '3px 8px' : '5px 10px',
-        gap: 1,
+        padding: tiny ? '0 6px' : compact ? '3px 8px' : '5px 10px',
+        gap: compact ? 1 : 2,
       }}>
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' }}>
           {!tiny && (
-            <span style={{ fontSize: 11, flexShrink: 0, lineHeight: 1 }}>{catEmoji}</span>
+            <span style={{ fontSize: compact ? 10 : 11, flexShrink: 0, lineHeight: 1 }}>
+              {task.is_done ? '✓' : catEmoji}
+            </span>
           )}
           <span style={{
             flex: 1,
-            fontSize: compact ? 11 : 12,
+            fontSize: tiny ? 10 : compact ? 11 : 12,
             fontWeight: 600,
             color: task.is_done ? 'var(--tx3)' : 'var(--tx)',
             textDecoration: task.is_done ? 'line-through' : 'none',
@@ -313,17 +314,14 @@ function ScheduleCard({
             whiteSpace: 'nowrap',
             lineHeight: 1.25,
           }}>
-            {task.is_starred && '★ '}{task.title}
+            {task.is_starred && !task.is_done && '★ '}{task.title}
           </span>
           {!compact && (
             <span style={{
-              flexShrink: 0,
-              fontSize: 10,
-              fontWeight: 600,
+              flexShrink: 0, fontSize: 10, fontWeight: 600,
               color: catColor,
               background: `rgba(${rgb}, 0.15)`,
-              borderRadius: 20,
-              padding: '1px 5px',
+              borderRadius: 20, padding: '1px 6px',
               fontFamily: "'DM Mono', monospace",
             }}>
               {formatDuration(durationMin)}
@@ -331,29 +329,39 @@ function ScheduleCard({
           )}
         </div>
 
-        {/* Subtitle — only normal cards */}
-        {!compact && (
+        {/* Subtitle row — compact shows time, normal shows time + category */}
+        {!tiny && (
           <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            fontSize: 10,
-            color: 'var(--tx3)',
-            paddingLeft: 15,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontSize: 10, color: 'var(--tx3)',
+            paddingLeft: compact ? 0 : 15,
+            overflow: 'hidden', whiteSpace: 'nowrap',
           }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>{startTime}</span>
-            <span style={{ flexShrink: 0 }}>·</span>
-            <span style={{ textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {task.category || 'general'}
+            <span style={{ fontFamily: "'DM Mono', monospace", flexShrink: 0, color: isCurrent ? catColor : 'var(--tx3)', fontWeight: isCurrent ? 600 : 400 }}>
+              {startTime}
             </span>
-            {task.travel_minutes > 0 && (
-              <span style={{ flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
+            {!compact && (
+              <>
+                <span style={{ flexShrink: 0 }}>·</span>
+                <span style={{ textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {task.category || 'general'}
+                </span>
+                {task.travel_minutes > 0 && (
+                  <span style={{ flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
+                )}
+              </>
             )}
           </div>
         )}
       </div>
+
+      {/* Current task indicator stripe */}
+      {isCurrent && (
+        <div style={{
+          width: 3, background: catColor,
+          opacity: 0.6, flexShrink: 0,
+        }} />
+      )}
     </div>
   );
 }

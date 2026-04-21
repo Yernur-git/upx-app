@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart2, CalendarDays, User } from 'lucide-react';
+import { BarChart2, CalendarDays, User, Sparkles } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { SplashScreen } from './components/SplashScreen';
@@ -10,13 +10,10 @@ import { ChatPanel } from './components/chat/ChatPanel';
 import { StatsPanel } from './components/panels/StatsPanel';
 import { ProfilePanel } from './components/panels/ProfilePanel';
 import { supabase } from './lib/supabase';
+import { buildSchedule } from './lib/scheduler';
+import { scheduleTaskNotifications, canNotify } from './lib/notifications';
 import './styles/globals.css';
 
-const NAV = [
-  { id: 'profile', label: 'Profile', Icon: User },
-  { id: 'plan',    label: 'Plan',    Icon: CalendarDays },
-  { id: 'stats',   label: 'Stats',   Icon: BarChart2 },
-] as const;
 
 function greeting() {
   const h = new Date().getHours();
@@ -29,7 +26,7 @@ function greeting() {
 
 export default function App() {
   const {
-    config, userId, userEmail,
+    config, userId, userEmail, tasks,
     setUserId, setUserEmail, loadFromSupabase,
     activePanel, setActivePanel,
     checkAndRollover, saveDayStats,
@@ -72,6 +69,17 @@ export default function App() {
     const interval = setInterval(saveDayStats, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Schedule task notifications whenever tasks/config change
+  useEffect(() => {
+    if (!canNotify()) return;
+    const todayTasks = tasks.filter(t => t.day === 'today');
+    const { blocks } = buildSchedule(todayTasks, config);
+    const taskBlocks = blocks
+      .filter(b => 'task' in b)
+      .map(b => ({ task: (b as any).task, start_minutes: b.start_minutes }));
+    scheduleTaskNotifications(taskBlocks, 10);
+  }, [tasks, config]);
 
   if (!authChecked) return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
@@ -169,7 +177,29 @@ export default function App() {
 
       {/* ── BOTTOM NAV ── */}
       <nav className="bottom-nav">
-        {NAV.map(({ id, label, Icon }) => {
+        {([
+          { id: 'profile', label: 'Profile', Icon: User },
+          { id: 'plan',    label: 'Plan',    Icon: CalendarDays },
+        ] as const).map(({ id, label, Icon }) => {
+          const active = activePanel === id;
+          return (
+            <button
+              key={id}
+              className={`nav-item${active ? ' active' : ''}`}
+              onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
+              <div className="nav-pill" />
+              <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+
+        {/* AI center button */}
+        <AIChatButton />
+
+        {([
+          { id: 'stats', label: 'Stats', Icon: BarChart2 },
+        ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
             <button
@@ -203,5 +233,34 @@ function PanelHeader({ title }: { title: string }) {
         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
       <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.3px' }}>{title}</div>
     </div>
+  );
+}
+
+function AIChatButton() {
+  const { chatOpen, setChatOpen } = useStore();
+  return (
+    <button
+      onClick={() => setChatOpen(!chatOpen)}
+      style={{
+        flex: 1,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        gap: 4, border: 'none', cursor: 'pointer',
+        background: 'none', padding: '8px 4px',
+        WebkitTapHighlightColor: 'transparent',
+        position: 'relative',
+      }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: 14,
+        background: chatOpen ? 'var(--ind)' : 'var(--ind-l)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: 'all .18s ease',
+        boxShadow: chatOpen ? '0 4px 16px rgba(76,94,232,.4)' : 'none',
+        transform: chatOpen ? 'scale(1.05)' : 'scale(1)',
+      }}>
+        <Sparkles size={20} color={chatOpen ? '#fff' : 'var(--ind)'} />
+      </div>
+      <span style={{ fontSize: 10, fontWeight: chatOpen ? 700 : 500, color: chatOpen ? 'var(--ind)' : 'var(--tx3)' }}>AI</span>
+    </button>
   );
 }
