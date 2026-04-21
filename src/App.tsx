@@ -3,6 +3,7 @@ import { BarChart2, CalendarDays, User } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { SplashScreen } from './components/SplashScreen';
+import { Onboarding } from './components/Onboarding';
 import { TaskList } from './components/tasks/TaskList';
 import { Timeline } from './components/timeline/Timeline';
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -36,6 +37,7 @@ export default function App() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
   });
@@ -84,6 +86,12 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      {showOnboarding && !showSplash && (
+        <Onboarding onDone={() => {
+          if (userId) localStorage.setItem(`upx_onboarded_${userId}`, 'true');
+          setShowOnboarding(false);
+        }} />
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

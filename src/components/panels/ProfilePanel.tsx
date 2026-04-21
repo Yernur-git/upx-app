@@ -23,7 +23,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 }
 
 export function ProfilePanel() {
-  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, tasks, deleteTask } = useStore();
+  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, deleteTask } = useStore();
   const [localKey, setLocalKey] = useState(apiKey);
   const [localURL, setLocalURL] = useState(customBaseURL);
   const [localModel, setLocalModel] = useState(customModel);

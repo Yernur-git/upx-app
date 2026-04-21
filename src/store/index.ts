@@ -73,26 +73,53 @@ function rolloverRecurring(tasks: Task[]): Task[] {
   const dayOfWeek = new Date().getDay();
   const isWeekday = dayOfWeek > 0 && dayOfWeek < 6;
 
-  return tasks.map(t => {
-    // Unfinished today non-recurring tasks → push to tomorrow
+  const result: Task[] = [];
+
+  for (const t of tasks) {
+    // Done today tasks → remove (they're in history, don't carry over)
+    if (t.day === 'today' && t.is_done && t.recurrence === 'none') {
+      continue; // drop completed one-time tasks
+    }
+
+    // Unfinished today non-recurring → push to tomorrow (missed tasks)
     if (t.day === 'today' && !t.is_done && t.recurrence === 'none') {
-      return { ...t, day: 'tomorrow' as const };
+      result.push({ ...t, day: 'tomorrow' as const });
+      continue;
     }
-    // Unfinished today recurring tasks → reset for today
-    if (t.day === 'today' && !t.is_done && t.recurrence !== 'none') {
-      return { ...t, is_done: false };
-    }
-    // Tomorrow recurring tasks → promote to today
-    if (t.day === 'tomorrow' && t.recurrence !== 'none') {
-      if (t.recurrence === 'weekdays' && !isWeekday) return t;
+
+    // Today recurring tasks (done or not) → reset and keep today
+    if (t.day === 'today' && t.recurrence !== 'none') {
+      // Check if this recurrence applies today
+      if (t.recurrence === 'weekdays' && !isWeekday) { result.push(t); continue; }
       if (t.recurrence === 'weekly') {
         const created = new Date(t.created_at).getDay();
-        if (created !== dayOfWeek) return t;
+        if (created !== dayOfWeek) { result.push(t); continue; }
       }
-      return { ...t, day: 'today' as const, is_done: false };
+      if (t.recurrence === 'custom' && t.recurrence_days) {
+        if (!t.recurrence_days.includes(dayOfWeek)) { result.push(t); continue; }
+      }
+      result.push({ ...t, is_done: false }); // reset for new day
+      continue;
     }
-    return t;
-  });
+
+    // Tomorrow recurring tasks → promote to today
+    if (t.day === 'tomorrow' && t.recurrence !== 'none') {
+      if (t.recurrence === 'weekdays' && !isWeekday) { result.push(t); continue; }
+      if (t.recurrence === 'weekly') {
+        const created = new Date(t.created_at).getDay();
+        if (created !== dayOfWeek) { result.push(t); continue; }
+      }
+      if (t.recurrence === 'custom' && t.recurrence_days) {
+        if (!t.recurrence_days.includes(dayOfWeek)) { result.push(t); continue; }
+      }
+      result.push({ ...t, day: 'today' as const, is_done: false });
+      continue;
+    }
+
+    result.push(t);
+  }
+
+  return result;
 }
 
 export const useStore = create<Store>()(

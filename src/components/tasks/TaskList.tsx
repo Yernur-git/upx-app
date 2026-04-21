@@ -10,6 +10,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
+import { SwipeableCard } from './SwipeableCard';
 import { detectCategory, getAllCategories } from '../../lib/categories';
 import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
@@ -70,8 +71,16 @@ export function TaskList() {
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px', minHeight: 0 }}>
         {pendingTasks.length === 0 && doneTasks.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--tx3)', fontSize: 13, lineHeight: 1.7, border: '1.5px dashed var(--bdr2)', borderRadius: 'var(--rs)', marginTop: 8 }}>
-            No tasks yet.<br /><span style={{ fontSize: 12 }}>Add one below or ask the AI ✨</span>
+          <div className="empty-state" style={{ marginTop: 16 }}>
+            <div className="empty-icon">
+              {activeDay === 'today' ? '🗓️' : '🌅'}
+            </div>
+            <h3>{activeDay === 'today' ? 'No tasks today' : 'Tomorrow is clear'}</h3>
+            <p>
+              {activeDay === 'today'
+                ? 'Add a task below or tell the AI what you need to do today.'
+                : 'Plan ahead — add tasks for tomorrow or ask the AI to help.'}
+            </p>
           </div>
         )}
 
@@ -79,11 +88,17 @@ export function TaskList() {
           <SortableContext items={pendingTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pendingTasks.map(task => (
-                <SortableTaskCard key={task.id} task={task}
-                  onToggle={() => toggleDone(task.id)}
+                <SwipeableCard
+                  key={task.id}
                   onDelete={() => setConfirmDelete(task.id)}
                   onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-                  onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
+                  moveLabel={task.day === 'today' ? 'Tomorrow' : 'Today'}>
+                  <SortableTaskCard task={task}
+                    onToggle={() => toggleDone(task.id)}
+                    onDelete={() => setConfirmDelete(task.id)}
+                    onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
+                    onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
+                </SwipeableCard>
               ))}
             </div>
           </SortableContext>
