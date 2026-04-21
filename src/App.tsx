@@ -177,9 +177,10 @@ export default function App() {
 
       {/* ── BOTTOM NAV ── */}
       <nav className="bottom-nav">
+        {/* Первая группа: Plan и Stats */}
         {([
-          { id: 'profile', label: 'Profile', Icon: User },
           { id: 'plan',    label: 'Plan',    Icon: CalendarDays },
+          { id: 'stats',   label: 'Stats',   Icon: BarChart2 },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
@@ -194,11 +195,12 @@ export default function App() {
           );
         })}
 
-        {/* AI center button */}
+        {/* AI кнопка по центру */}
         <AIChatButton />
 
+        {/* Вторая группа: Profile */}
         {([
-          { id: 'stats', label: 'Stats', Icon: BarChart2 },
+          { id: 'profile', label: 'Profile', Icon: User },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
