@@ -20,6 +20,12 @@ export function SwipeableCard({ onDelete, onMove, moveLabel = 'Tomorrow', childr
   const startY = useRef(0);
   const directionLocked = useRef<'horizontal' | 'vertical' | null>(null);
 
+  // Close swipe when drag starts (disabled becomes true)
+  if (disabled && (revealed || offset !== 0)) {
+    setRevealed(false);
+    setOffset(0);
+  }
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (disabled) return;
     startX.current = e.touches[0].clientX;

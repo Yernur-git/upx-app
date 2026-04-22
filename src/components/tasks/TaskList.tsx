@@ -19,6 +19,7 @@ export function TaskList() {
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks, activeChatDay, setActiveChatDay } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [isDraggingAny, setIsDraggingAny] = useState(false);
   const activeDay = activeChatDay;
   const setActiveDay = setActiveChatDay;
 
@@ -84,7 +85,7 @@ export function TaskList() {
           </div>
         )}
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => setIsDraggingAny(true)} onDragEnd={(event) => { setIsDraggingAny(false); handleDragEnd(event); }} onDragCancel={() => setIsDraggingAny(false)}>
           <SortableContext items={pendingTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pendingTasks.map(task => (
@@ -92,7 +93,8 @@ export function TaskList() {
                   key={task.id}
                   onDelete={() => setConfirmDelete(task.id)}
                   onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-                  moveLabel={task.day === 'today' ? 'Tomorrow' : 'Today'}>
+                  moveLabel={task.day === 'today' ? 'Tomorrow' : 'Today'}
+                  disabled={isDraggingAny}>
                   <SortableTaskCard task={task}
                     onToggle={() => toggleDone(task.id)}
                     onDelete={() => setConfirmDelete(task.id)}
