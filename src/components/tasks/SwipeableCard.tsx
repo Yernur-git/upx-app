@@ -83,11 +83,13 @@ export function SwipeableCard({ onDelete, onMove, moveLabel = 'Tomorrow', childr
 
   return (
     <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 10 }}>
-      {/* Action buttons behind the card */}
+      {/* Action buttons — hidden during DnD drag */}
       <div style={{
         position: 'absolute', right: 0, top: 0, bottom: 0,
         display: 'flex', alignItems: 'stretch',
         width: MAX_SWIPE,
+        visibility: disabled ? 'hidden' : 'visible',
+        pointerEvents: disabled ? 'none' : 'auto',
       }}>
         {/* Move button */}
         <button
