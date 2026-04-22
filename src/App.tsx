@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BarChart2, CalendarDays, User, Sparkles } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
+import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
 import { SplashScreen } from './components/SplashScreen';
 import { Onboarding } from './components/Onboarding';
 import { TaskList } from './components/tasks/TaskList';
@@ -35,6 +36,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
   });
@@ -51,7 +53,13 @@ export default function App() {
       }
       setAuthChecked(true);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User clicked reset link — show new password form
+        setShowPasswordReset(true);
+        setAuthChecked(true);
+        return;
+      }
       if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email ?? 'local'); }
       else { setUserId(null); setUserEmail(null); }
     });
@@ -87,8 +95,12 @@ export default function App() {
     </div>
   );
 
-  if (!userId && !userEmail) return (
+  if (!userId && !userEmail && !showPasswordReset) return (
     <AuthScreen onAuth={(id, email) => { setUserId(id); setUserEmail(email); }} />
+  );
+
+  if (showPasswordReset) return (
+    <PasswordResetScreen onDone={(id, email) => { setShowPasswordReset(false); setUserId(id); setUserEmail(email); }} />
   );
 
   return (
@@ -177,10 +189,9 @@ export default function App() {
 
       {/* ── BOTTOM NAV ── */}
       <nav className="bottom-nav">
-        {/* Первая группа: Plan и Stats */}
         {([
+          { id: 'profile', label: 'Profile', Icon: User },
           { id: 'plan',    label: 'Plan',    Icon: CalendarDays },
-          { id: 'stats',   label: 'Stats',   Icon: BarChart2 },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
@@ -195,12 +206,11 @@ export default function App() {
           );
         })}
 
-        {/* AI кнопка по центру */}
+        {/* AI center button */}
         <AIChatButton />
 
-        {/* Вторая группа: Profile */}
         {([
-          { id: 'profile', label: 'Profile', Icon: User },
+          { id: 'stats', label: 'Stats', Icon: BarChart2 },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (

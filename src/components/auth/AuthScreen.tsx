@@ -39,7 +39,9 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
         if (error) throw error;
         if (data.user) onAuth(data.user.id, data.user.email!);
       } else if (mode === 'forgot') {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
         if (error) throw error;
         setMode('forgot-sent');
       }

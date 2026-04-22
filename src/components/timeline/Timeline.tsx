@@ -3,10 +3,10 @@ import { useStore } from '../../store';
 import { buildSchedule, getNowMinutes, minutesToTime, formatDuration, isBreakBlock } from '../../lib/scheduler';
 import type { CategoryGoal } from '../../types';
 
-const HOUR_HEIGHT = 64;
+const HOUR_HEIGHT = 80;
 const PX_PER_MIN = HOUR_HEIGHT / 60;
-const LEFT_GUTTER = 44; // px for time labels
-const CARD_GAP = 2;     // px gap between cards
+const LEFT_GUTTER = 48;
+const CARD_GAP = 3;
 
 function getCategoryColor(category: string, goals: CategoryGoal[]): string {
   const found = goals.find(g => g.category.toLowerCase() === category?.toLowerCase());
@@ -263,104 +263,94 @@ function ScheduleCard({
   durationMin: number; height: number; isPast: boolean; isCurrent: boolean;
 }) {
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
-  const tiny = height < 26;
-  const compact = height < 52;
+  const tiny = height < 30;
+  const compact = height < 62;
 
   return (
     <div style={{
       height: '100%',
-      borderRadius: tiny ? 5 : compact ? 8 : 10,
-      background: isCurrent
-        ? `rgba(${rgb}, 0.16)`
-        : task.is_done
-          ? 'var(--sf2)'
-          : `rgba(${rgb}, 0.11)`,
-      border: `1px solid rgba(${rgb}, ${isCurrent ? '0.40' : '0.22'})`,
-      borderLeft: `3px solid ${task.is_done ? 'var(--tx3)' : catColor}`,
-      boxShadow: isCurrent
-        ? `0 0 0 1.5px rgba(${rgb}, 0.35), 0 2px 12px rgba(${rgb}, 0.18)`
-        : 'none',
+      borderRadius: tiny ? 6 : 11,
+      background: task.is_done
+        ? 'var(--sf2)'
+        : isCurrent
+          ? `rgba(${rgb}, 0.18)`
+          : `rgba(${rgb}, 0.10)`,
+      border: `1.5px solid rgba(${rgb}, ${isCurrent ? '0.45' : '0.18'})`,
+      borderLeft: `4px solid ${task.is_done ? 'var(--tx3)' : catColor}`,
+      boxShadow: isCurrent ? `0 2px 16px rgba(${rgb}, 0.20)` : 'none',
       display: 'flex',
       overflow: 'hidden',
-      opacity: isPast && !task.is_done ? 0.4 : 1,
+      opacity: isPast && !task.is_done ? 0.36 : 1,
       transition: 'opacity 0.2s',
       boxSizing: 'border-box',
     }}>
       <div style={{
-        flex: 1,
-        minWidth: 0,
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        padding: tiny ? '0 6px' : compact ? '3px 8px' : '5px 10px',
-        gap: compact ? 1 : 2,
+        flex: 1, minWidth: 0, overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: tiny ? '0 8px' : compact ? '5px 10px' : '7px 11px',
+        gap: 3,
       }}>
-        {/* Title row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflow: 'hidden' }}>
+        {/* Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
           {!tiny && (
-            <span style={{ fontSize: compact ? 10 : 11, flexShrink: 0, lineHeight: 1 }}>
+            <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1 }}>
               {task.is_done ? '✓' : catEmoji}
             </span>
           )}
           <span style={{
             flex: 1,
-            fontSize: tiny ? 10 : compact ? 11 : 12,
-            fontWeight: 600,
+            fontSize: tiny ? 11 : compact ? 13 : 14,
+            fontWeight: 650,
             color: task.is_done ? 'var(--tx3)' : 'var(--tx)',
             textDecoration: task.is_done ? 'line-through' : 'none',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            lineHeight: 1.25,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            lineHeight: 1.2,
           }}>
             {task.is_starred && !task.is_done && '★ '}{task.title}
           </span>
-          {!compact && (
-            <span style={{
-              flexShrink: 0, fontSize: 10, fontWeight: 600,
-              color: catColor,
-              background: `rgba(${rgb}, 0.15)`,
-              borderRadius: 20, padding: '1px 6px',
-              fontFamily: "'DM Mono', monospace",
-            }}>
-              {formatDuration(durationMin)}
-            </span>
-          )}
         </div>
 
-        {/* Subtitle row — compact shows time, normal shows time + category */}
+        {/* Meta */}
         {!tiny && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            fontSize: 10, color: 'var(--tx3)',
-            paddingLeft: compact ? 0 : 15,
-            overflow: 'hidden', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 5,
+            paddingLeft: 18, overflow: 'hidden', whiteSpace: 'nowrap',
           }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", flexShrink: 0, color: isCurrent ? catColor : 'var(--tx3)', fontWeight: isCurrent ? 600 : 400 }}>
+            <span style={{
+              fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0,
+              color: isCurrent ? catColor : 'var(--tx3)',
+              fontWeight: isCurrent ? 700 : 400,
+            }}>
               {startTime}
             </span>
             {!compact && (
               <>
-                <span style={{ flexShrink: 0 }}>·</span>
-                <span style={{ textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ color: 'var(--tx3)', fontSize: 9, flexShrink: 0 }}>·</span>
+                <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {task.category || 'general'}
                 </span>
                 {task.travel_minutes > 0 && (
-                  <span style={{ flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
+                  <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
                 )}
               </>
             )}
+            <span style={{ flexShrink: 0, marginLeft: 'auto' }}>
+              <span style={{
+                fontSize: 10, fontWeight: 600,
+                color: task.is_done ? 'var(--tx3)' : catColor,
+                background: `rgba(${rgb}, 0.15)`,
+                borderRadius: 20, padding: '1px 7px',
+                fontFamily: "'DM Mono', monospace",
+              }}>
+                {formatDuration(durationMin)}
+              </span>
+            </span>
           </div>
         )}
       </div>
 
-      {/* Current task indicator stripe */}
       {isCurrent && (
-        <div style={{
-          width: 3, background: catColor,
-          opacity: 0.6, flexShrink: 0,
-        }} />
+        <div style={{ width: 3, background: catColor, opacity: 0.55, flexShrink: 0 }} />
       )}
     </div>
   );
