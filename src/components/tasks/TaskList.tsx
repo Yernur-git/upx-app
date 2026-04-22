@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
@@ -10,7 +10,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
-import { SwipeableCard } from './SwipeableCard';
 import { detectCategory, getAllCategories } from '../../lib/categories';
 import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
@@ -89,18 +88,14 @@ export function TaskList() {
           <SortableContext items={pendingTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pendingTasks.map(task => (
-                <SwipeableCard
+                <SortableTaskCard
                   key={task.id}
+                  task={task}
+                  isDraggingAny={isDraggingAny}
+                  onToggle={() => toggleDone(task.id)}
                   onDelete={() => setConfirmDelete(task.id)}
                   onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-                  moveLabel={task.day === 'today' ? 'Tomorrow' : 'Today'}
-                  disabled={isDraggingAny}>
-                  <SortableTaskCard task={task}
-                    onToggle={() => toggleDone(task.id)}
-                    onDelete={() => setConfirmDelete(task.id)}
-                    onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-                    onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
-                </SwipeableCard>
+                  onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
               ))}
             </div>
           </SortableContext>
@@ -137,12 +132,66 @@ export function TaskList() {
   );
 }
 
-function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: {
-  task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean;
+const SWIPE_THRESHOLD = 60;
+const MAX_SWIPE = 130;
+const ACTION_W = 64;
+
+function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, isDraggingAny }: {
+  task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean; isDraggingAny?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [swipeRevealed, setSwipeRevealed] = useState(false);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dirLocked = useRef<'h'|'v'|null>(null);
+  const isSwiping = useRef(false);
+
+  // Reset swipe when drag starts
+  if (isDragging && (swipeRevealed || swipeOffset !== 0)) {
+    setSwipeOffset(0);
+    setSwipeRevealed(false);
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (isDone) return;
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    dirLocked.current = null;
+    isSwiping.current = true;
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isSwiping.current || isDone) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    if (!dirLocked.current) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8)
+        dirLocked.current = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      return;
+    }
+    if (dirLocked.current === 'v') return;
+    if (dx > 0 && !swipeRevealed) return;
+    const next = swipeRevealed
+      ? Math.max(-MAX_SWIPE, Math.min(0, -MAX_SWIPE + dx))
+      : Math.max(-MAX_SWIPE, Math.min(0, dx));
+    setSwipeOffset(next);
+    e.preventDefault();
+  };
+
+  const onTouchEnd = () => {
+    isSwiping.current = false;
+    dirLocked.current = null;
+    if (Math.abs(swipeOffset) > SWIPE_THRESHOLD) {
+      setSwipeRevealed(true); setSwipeOffset(-MAX_SWIPE);
+    } else {
+      setSwipeRevealed(false); setSwipeOffset(0);
+    }
+  };
+
+  const closeSwipe = () => { setSwipeRevealed(false); setSwipeOffset(0); };
 
   if (editing) {
     return (
@@ -153,43 +202,89 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone }: 
   }
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : 'var(--bdr)'}`, borderRadius: 'var(--rs)', padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        {!isDone && (
-          <div {...attributes} {...listeners} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--tx3)', marginTop: 2, flexShrink: 0, touchAction: 'none' }}>
-            <GripVertical size={13} />
-          </div>
-        )}
-        <button onClick={onToggle} className="btn-icon" style={{ padding: 2, marginTop: 1, flexShrink: 0 }}>
-          {task.is_done ? <CheckCircle size={15} color="var(--sage)" /> : <Circle size={15} color="var(--tx3)" />}
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, textDecoration: task.is_done ? 'line-through' : 'none', color: task.is_done ? 'var(--tx3)' : 'var(--tx)', display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span className={`dot ${task.priority}`} style={{ flexShrink: 0 }} />
-            {task.is_starred && <Star size={10} fill="var(--must)" color="var(--must)" />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-            {task.recurrence !== 'none' && (
-              <span style={{ fontSize: 9, background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>🔁</span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
-            {formatDuration(task.duration_minutes)}
-            {task.travel_minutes > 0 && ` · +${task.travel_minutes}m road`}
-            {task.break_after > 0 && ` · +${task.break_after}m break`}
-            {task.fixed_time && ` · @${task.fixed_time}`}
-          </div>
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, position: 'relative', borderRadius: 10, overflow: 'hidden' }}
+    >
+      {/* Swipe actions — only rendered when not dragging */}
+      {!isDragging && !isDraggingAny && (
+        <div style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0,
+          display: 'flex', alignItems: 'stretch', width: MAX_SWIPE,
+          borderRadius: '0 10px 10px 0', overflow: 'hidden',
+        }}>
+          <button onClick={() => { closeSwipe(); onMove(); }} style={{
+            width: ACTION_W, border: 'none', cursor: 'pointer',
+            background: 'var(--ind)', color: '#fff',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 3, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <ArrowRight size={16} />
+            {task.day === 'today' ? 'Tomorrow' : 'Today'}
+          </button>
+          <button onClick={() => { closeSwipe(); onDelete(); }} style={{
+            flex: 1, border: 'none', cursor: 'pointer',
+            background: 'var(--coral)', color: '#fff',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 3, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
+          }}>
+            <Trash2 size={16} />
+            Delete
+          </button>
         </div>
-        {hovered && !isDone && (
-          <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-            <button className="btn-icon" onClick={onStar} style={{ padding: 4 }}>
-              <Star size={12} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
-            </button>
-            <button className="btn-icon" onClick={() => setEditing(true)} style={{ padding: 4 }}><Pencil size={12} /></button>
-            <button className="btn-icon" onClick={onMove} style={{ padding: 4 }}><ArrowRight size={12} /></button>
-            <button className="btn-icon" onClick={onDelete} style={{ padding: 4 }}><Trash2 size={12} /></button>
+      )}
+
+      {/* Card — slides to reveal actions */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onClick={swipeRevealed ? closeSwipe : undefined}
+        style={{
+          transform: `translateX(${isDragging || isDraggingAny ? 0 : swipeOffset}px)`,
+          transition: isSwiping.current ? 'none' : 'transform .25s cubic-bezier(.4,0,.2,1)',
+          position: 'relative', zIndex: 1,
+        }}
+      >
+        <div
+          style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : 'var(--bdr)'}`, borderRadius: 10, padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8, opacity: isDragging ? 0.5 : 1 }}
+          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+        >
+          {!isDone && (
+            <div {...attributes} {...listeners} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--tx3)', marginTop: 2, flexShrink: 0, touchAction: 'none' }}>
+              <GripVertical size={13} />
+            </div>
+          )}
+          <button onClick={onToggle} className="btn-icon" style={{ padding: 2, marginTop: 1, flexShrink: 0 }}>
+            {task.is_done ? <CheckCircle size={15} color="var(--sage)" /> : <Circle size={15} color="var(--tx3)" />}
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, textDecoration: task.is_done ? 'line-through' : 'none', color: task.is_done ? 'var(--tx3)' : 'var(--tx)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span className={`dot ${task.priority}`} style={{ flexShrink: 0 }} />
+              {task.is_starred && <Star size={10} fill="var(--must)" color="var(--must)" />}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
+              {task.recurrence !== 'none' && (
+                <span style={{ fontSize: 9, background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>🔁</span>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
+              {formatDuration(task.duration_minutes)}
+              {task.travel_minutes > 0 && ` · +${task.travel_minutes}m road`}
+              {task.break_after > 0 && ` · +${task.break_after}m break`}
+              {task.fixed_time && ` · @${task.fixed_time}`}
+            </div>
           </div>
-        )}
+          {hovered && !isDone && (
+            <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+              <button className="btn-icon" onClick={onStar} style={{ padding: 4 }}>
+                <Star size={12} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
+              </button>
+              <button className="btn-icon" onClick={() => setEditing(true)} style={{ padding: 4 }}><Pencil size={12} /></button>
+              <button className="btn-icon" onClick={onMove} style={{ padding: 4 }}><ArrowRight size={12} /></button>
+              <button className="btn-icon" onClick={onDelete} style={{ padding: 4 }}><Trash2 size={12} /></button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
