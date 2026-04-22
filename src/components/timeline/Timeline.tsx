@@ -154,28 +154,30 @@ export function Timeline() {
           {blocks.map((block, i) => {
             const top = minsToPx(block.start_minutes);
             const rawHeight = ((block.end_minutes - block.start_minutes) / 60) * HOUR_HEIGHT;
-            const height = Math.max(rawHeight - CARD_GAP, 18);
 
             if (isBreakBlock(block)) {
+              // Break blocks use EXACT height — no minimum — to prevent overlap with next card
+              const breakHeight = Math.max(rawHeight - CARD_GAP, 2);
               const breakDur = block.end_minutes - block.start_minutes;
-              if (rawHeight < 10) return null;
+              if (rawHeight < 6) return null;
               return (
                 <div key={i} style={{
                   position: 'absolute',
                   top: top + CARD_GAP / 2,
                   left: LEFT_GUTTER,
-                  right: 0,
-                  height,
+                  right: 4,
+                  height: breakHeight,
                   display: 'flex',
                   alignItems: 'center',
-                  paddingLeft: 10,
+                  paddingLeft: 8,
                   background: 'var(--brk-bg)',
-                  borderRadius: 6,
+                  borderRadius: 5,
                   borderLeft: '2px dashed var(--brk-tx)',
-                  opacity: 0.75,
+                  opacity: 0.6,
+                  overflow: 'hidden',
                 }}>
-                  {rawHeight > 16 && (
-                    <span style={{ fontSize: 10, color: 'var(--brk-tx)', fontWeight: 500, userSelect: 'none' }}>
+                  {rawHeight >= 20 && (
+                    <span style={{ fontSize: 10, color: 'var(--brk-tx)', fontWeight: 500, userSelect: 'none', whiteSpace: 'nowrap' }}>
                       ☕ {formatDuration(breakDur)}
                     </span>
                   )}
@@ -183,6 +185,8 @@ export function Timeline() {
               );
             }
 
+            // Task cards: minimum 24px so title stays readable
+            const height = Math.max(rawHeight - CARD_GAP, 24);
             const { task } = block;
             const catColor = getCategoryColor(task.category, config.category_goals);
             const catEmoji = getCategoryEmoji(task.category);
@@ -197,7 +201,7 @@ export function Timeline() {
                   position: 'absolute',
                   top: top + CARD_GAP / 2,
                   left: LEFT_GUTTER,
-                  right: 0,
+                  right: 4,
                   height,
                 }}
               >
@@ -263,97 +267,147 @@ function ScheduleCard({
   durationMin: number; height: number; isPast: boolean; isCurrent: boolean;
 }) {
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
-  const tiny = height < 30;
-  const compact = height < 62;
+  // Size tiers
+  const micro   = height < 26;   // only title, no padding
+  const tiny    = height < 40;   // title + no meta
+  const compact = height < 70;   // title + time only
+
+  const done = task.is_done;
+  const accent = done ? 'var(--tx3)' : catColor;
+  const accentRgb = done ? '120,120,120' : rgb;
 
   return (
     <div style={{
       height: '100%',
-      borderRadius: tiny ? 6 : 11,
-      background: task.is_done
+      borderRadius: micro ? 5 : 10,
+      background: done
         ? 'var(--sf2)'
         : isCurrent
-          ? `rgba(${rgb}, 0.18)`
-          : `rgba(${rgb}, 0.10)`,
-      border: `1.5px solid rgba(${rgb}, ${isCurrent ? '0.45' : '0.18'})`,
-      borderLeft: `4px solid ${task.is_done ? 'var(--tx3)' : catColor}`,
-      boxShadow: isCurrent ? `0 2px 16px rgba(${rgb}, 0.20)` : 'none',
+          ? `rgba(${accentRgb}, 0.15)`
+          : `rgba(${accentRgb}, 0.08)`,
+      borderLeft: `3px solid ${accent}`,
+      border: `1px solid rgba(${accentRgb}, ${isCurrent ? '0.35' : '0.14'})`,
+      borderLeftWidth: 3,
+      borderLeftColor: accent,
+      boxShadow: isCurrent ? `0 1px 12px rgba(${accentRgb}, 0.18), inset 0 0 0 1px rgba(${accentRgb},0.08)` : 'none',
       display: 'flex',
       overflow: 'hidden',
-      opacity: isPast && !task.is_done ? 0.36 : 1,
-      transition: 'opacity 0.2s',
+      opacity: isPast && !done ? 0.4 : 1,
+      transition: 'opacity 0.2s, box-shadow 0.2s',
       boxSizing: 'border-box',
+      cursor: 'pointer',
     }}>
+      {/* Color stripe — left side */}
       <div style={{
-        flex: 1, minWidth: 0, overflow: 'hidden',
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        padding: tiny ? '0 8px' : compact ? '5px 10px' : '7px 11px',
-        gap: 3,
+        width: micro ? 3 : 4,
+        background: accent,
+        flexShrink: 0,
+        borderRadius: '0',
+        opacity: done ? 0.4 : isCurrent ? 1 : 0.7,
+      }} />
+
+      {/* Content */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        display: 'flex',
+        flexDirection: micro ? 'row' : 'column',
+        justifyContent: 'center',
+        alignItems: micro ? 'center' : 'stretch',
+        padding: micro ? '0 6px' : tiny ? '3px 8px' : compact ? '5px 9px' : '7px 10px',
+        gap: micro ? 4 : 2,
+        overflow: 'hidden',
       }}>
-        {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
-          {!tiny && (
-            <span style={{ fontSize: 13, flexShrink: 0, lineHeight: 1 }}>
-              {task.is_done ? '✓' : catEmoji}
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+          {!micro && (
+            <span style={{
+              fontSize: compact ? 12 : 13,
+              flexShrink: 0,
+              lineHeight: 1,
+              opacity: done ? 0.5 : 1,
+            }}>
+              {done ? '✓' : catEmoji}
             </span>
           )}
           <span style={{
             flex: 1,
-            fontSize: tiny ? 11 : compact ? 13 : 14,
-            fontWeight: 650,
-            color: task.is_done ? 'var(--tx3)' : 'var(--tx)',
-            textDecoration: task.is_done ? 'line-through' : 'none',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            lineHeight: 1.2,
+            fontSize: micro ? 10 : tiny ? 12 : compact ? 13 : 14,
+            fontWeight: 600,
+            color: done ? 'var(--tx3)' : 'var(--tx)',
+            textDecoration: done ? 'line-through' : 'none',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            lineHeight: 1.25,
+            letterSpacing: '-0.1px',
           }}>
-            {task.is_starred && !task.is_done && '★ '}{task.title}
+            {task.is_starred && !done && <span style={{ color: accent, marginRight: 2 }}>★</span>}
+            {task.title}
           </span>
+          {/* Duration badge — always visible on non-micro */}
+          {!micro && (
+            <span style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: done ? 'var(--tx3)' : accent,
+              background: `rgba(${accentRgb}, 0.12)`,
+              borderRadius: 20,
+              padding: '1px 6px',
+              flexShrink: 0,
+              fontFamily: "'DM Mono', monospace",
+              letterSpacing: '0',
+            }}>
+              {formatDuration(durationMin)}
+            </span>
+          )}
         </div>
 
-        {/* Meta */}
+        {/* Meta row — time + category */}
         {!tiny && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            paddingLeft: 18, overflow: 'hidden', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: 4,
+            paddingLeft: compact ? 0 : 17,
+            overflow: 'hidden', whiteSpace: 'nowrap',
           }}>
             <span style={{
-              fontSize: 11, fontFamily: "'DM Mono', monospace", flexShrink: 0,
-              color: isCurrent ? catColor : 'var(--tx3)',
-              fontWeight: isCurrent ? 700 : 400,
+              fontSize: 11,
+              fontFamily: "'DM Mono', monospace",
+              color: isCurrent ? accent : 'var(--tx3)',
+              fontWeight: isCurrent ? 600 : 400,
+              flexShrink: 0,
             }}>
               {startTime}
             </span>
             {!compact && (
               <>
-                <span style={{ color: 'var(--tx3)', fontSize: 9, flexShrink: 0 }}>·</span>
-                <span style={{ fontSize: 11, color: 'var(--tx3)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ color: 'var(--bdr2)', fontSize: 8, flexShrink: 0 }}>•</span>
+                <span style={{
+                  fontSize: 11, color: 'var(--tx3)',
+                  textTransform: 'capitalize',
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
                   {task.category || 'general'}
                 </span>
                 {task.travel_minutes > 0 && (
-                  <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>· 🚗 +{task.travel_minutes}m</span>
+                  <span style={{ fontSize: 10, color: 'var(--tx3)', flexShrink: 0 }}>
+                    · 🚗 {task.travel_minutes}m
+                  </span>
                 )}
               </>
             )}
-            <span style={{ flexShrink: 0, marginLeft: 'auto' }}>
-              <span style={{
-                fontSize: 10, fontWeight: 600,
-                color: task.is_done ? 'var(--tx3)' : catColor,
-                background: `rgba(${rgb}, 0.15)`,
-                borderRadius: 20, padding: '1px 7px',
-                fontFamily: "'DM Mono', monospace",
-              }}>
-                {formatDuration(durationMin)}
-              </span>
-            </span>
           </div>
         )}
       </div>
 
+      {/* Active pulse bar on right edge */}
       {isCurrent && (
-        <div style={{ width: 3, background: catColor, opacity: 0.55, flexShrink: 0 }} />
+        <div style={{
+          width: 2.5,
+          background: accent,
+          flexShrink: 0,
+          opacity: 0.6,
+        }} />
       )}
     </div>
   );
 }
-
-
