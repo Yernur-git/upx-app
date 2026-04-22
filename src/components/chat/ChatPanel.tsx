@@ -27,15 +27,6 @@ export function ChatPanel() {
     setIsTyping(true);
 
     try {
-      if (!apiKey) {
-        addChatMessage({
-          role: 'assistant',
-          content: '⚙️ Please add your Anthropic API key in Settings to use the AI assistant.',
-          actions: [],
-        });
-        return;
-      }
-
       const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel);
 
       let applied = 0;

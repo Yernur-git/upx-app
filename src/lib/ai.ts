@@ -191,6 +191,27 @@ If user says they are overwhelmed, overloaded, or have too many tasks:
   { "type": "move_task", "payload": { "id": "<exact-uuid>", "day": "tomorrow" } }`;
 }
 
+// Call via server-side proxy (no API key on client) or directly if user supplied key
+async function callViaProxy(
+  provider: AIProvider,
+  model: string,
+  system: string,
+  messages: Array<{ role: string; content: string }>
+): Promise<string> {
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, model, system, messages, max_tokens: 2000 }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Proxy ${res.status}: ${(err as { error?: string })?.error || res.statusText}`);
+  }
+  const data = await res.json();
+  // Normalize response shape from both Anthropic and OpenAI formats
+  return data.content?.[0]?.text || data.choices?.[0]?.message?.content || '{}';
+}
+
 async function callAnthropic(
   userMessage: string,
   history: ChatMessage[],
@@ -201,27 +222,34 @@ async function callAnthropic(
     ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': cfg.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: cfg.model || defaultModel('anthropic'),
-      max_tokens: 2000,
-      system: systemPrompt,
-      messages,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Anthropic ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
+
+  // If user provided their own key — call directly (dev/custom setup)
+  if (cfg.apiKey) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': cfg.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: cfg.model || defaultModel('anthropic'),
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Anthropic ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
+    }
+    const data = await res.json();
+    return data.content?.[0]?.text || '{}';
   }
-  const data = await res.json();
-  return data.content?.[0]?.text || '{}';
+
+  // No key — use server proxy
+  return callViaProxy('anthropic', cfg.model || defaultModel('anthropic'), systemPrompt, messages);
 }
 
 async function callOpenAICompat(
@@ -231,13 +259,21 @@ async function callOpenAICompat(
   cfg: AIConfig
 ): Promise<string> {
   const provider = cfg.provider;
-  const baseURL = getBaseURL(provider, cfg.baseURL);
   const model = cfg.model || defaultModel(provider);
+  const msgs = [
+    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user' as const, content: userMessage },
+  ];
 
+  // No key — use server proxy (only for known providers)
+  if (!cfg.apiKey && ['openai', 'openrouter', 'groq'].includes(provider)) {
+    return callViaProxy(provider, model, systemPrompt, msgs);
+  }
+
+  const baseURL = getBaseURL(provider, cfg.baseURL);
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    { role: 'user', content: userMessage },
+    ...msgs,
   ];
 
   const headers: Record<string, string> = {

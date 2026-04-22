@@ -226,15 +226,14 @@ export const useStore = create<Store>()(
         });
         const { userId } = get();
         if (userId) {
-          const results = await Promise.all(
-            orderedIds.map((id, i) =>
-              supabase.from('tasks').update({ sort_order: i }).eq('id', id).eq('user_id', userId)
-            )
-          );
-          const failed = results.find(r => r.error);
-          if (failed?.error) {
+          // Single upsert instead of N individual updates
+          const upsertRows = orderedIds.map((id, i) => ({ id, user_id: userId, sort_order: i }));
+          const { error } = await supabase
+            .from('tasks')
+            .upsert(upsertRows, { onConflict: 'id' });
+          if (error) {
             set({ tasks: prevTasks }); // rollback
-            console.error('reorderTasks failed, rolled back:', failed.error.message);
+            console.error('reorderTasks failed, rolled back:', error.message);
           }
         }
       },
