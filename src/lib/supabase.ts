@@ -21,9 +21,15 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 //   day text not null default 'today',
 //   fixed_time text,
 //   notes text,
+//   recurrence text not null default 'none',
+//   recurrence_days jsonb,
 //   sort_order integer not null default 0,
 //   created_at timestamptz not null default now()
 // );
+//
+// -- If table already exists, run these ALTER statements instead:
+// alter table public.tasks add column if not exists recurrence text not null default 'none';
+// alter table public.tasks add column if not exists recurrence_days jsonb;
 //
 // alter table public.tasks enable row level security;
 //
@@ -37,11 +43,19 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 //   wake text not null default '07:00',
 //   sleep text not null default '23:00',
 //   buffer integer not null default 5,
+//   morning_buffer integer not null default 30,
 //   theme text not null default 'light',
+//   road_time_minutes integer not null default 0,
 //   gym_travel_minutes integer not null default 0,
 //   known_contexts jsonb not null default '{}',
+//   category_goals jsonb not null default '[]',
 //   updated_at timestamptz not null default now()
 // );
+//
+// -- If user_config already exists, run these:
+// alter table public.user_config add column if not exists morning_buffer integer not null default 30;
+// alter table public.user_config add column if not exists road_time_minutes integer not null default 0;
+// alter table public.user_config add column if not exists category_goals jsonb not null default '[]';
 //
 // alter table public.user_config enable row level security;
 //

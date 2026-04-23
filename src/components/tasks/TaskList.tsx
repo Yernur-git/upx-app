@@ -418,6 +418,8 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const [customDays, setCustomDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [category, setCategory] = useState('general');
   const [categoryEdited, setCategoryEdited] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleTitleChange = (val: string) => {
     setTitle(val);
@@ -430,21 +432,28 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
 
   const handleAdd = async () => {
     if (!title.trim()) return;
-    await addTask({
-      title: title.trim(),
-      duration_minutes: parseInt(duration) || 30,
-      break_after: parseInt(breakAfter) || 0,
-      travel_minutes: parseInt(travel) || 0,
-      priority,
-      category,
-      is_starred: false,
-      is_done: false,
-      day,
-      recurrence,
-      recurrence_days: recurrence === 'custom' ? customDays : undefined,
-      sort_order: 0,
-    });
-    onDone();
+    setError('');
+    setLoading(true);
+    try {
+      await addTask({
+        title: title.trim(),
+        duration_minutes: parseInt(duration) || 30,
+        break_after: parseInt(breakAfter) || 0,
+        travel_minutes: parseInt(travel) || 0,
+        priority,
+        category,
+        is_starred: false,
+        is_done: false,
+        day,
+        recurrence,
+        recurrence_days: recurrence === 'custom' ? customDays : undefined,
+        sort_order: 0,
+      });
+      onDone();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to add task');
+      setLoading(false);
+    }
   };
 
   const allCategories = getAllCategories(config.category_goals);
@@ -523,9 +532,16 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px', fontSize: 14 }} onClick={handleAdd}>Add</button>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px', fontSize: 14 }} onClick={handleAdd} disabled={loading || !title.trim()}>
+          {loading ? 'Adding…' : 'Add'}
+        </button>
         <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>Cancel</button>
       </div>
+      {error && (
+        <div style={{ fontSize: 12, color: 'var(--coral)', padding: '8px 10px', background: 'var(--coral-l)', borderRadius: 8, lineHeight: 1.4 }}>
+          ⚠️ {error}
+        </div>
+      )}
     </div>
   );
 }

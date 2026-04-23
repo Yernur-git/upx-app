@@ -170,8 +170,28 @@ export const useStore = create<Store>()(
         };
         set(s => ({ tasks: [...s.tasks, task] }));
         const { userId } = get();
-        if (userId) {
-          const { error } = await supabase.from('tasks').insert({ ...task, user_id: userId });
+        if (userId && userId !== 'local-user') {
+          // Explicit column list to avoid schema mismatch errors
+          const row = {
+            id: task.id,
+            user_id: userId,
+            title: task.title,
+            duration_minutes: task.duration_minutes,
+            break_after: task.break_after,
+            travel_minutes: task.travel_minutes,
+            priority: task.priority,
+            category: task.category,
+            is_starred: task.is_starred,
+            is_done: task.is_done,
+            day: task.day,
+            fixed_time: task.fixed_time ?? null,
+            notes: task.notes ?? null,
+            sort_order: task.sort_order,
+            created_at: task.created_at,
+            recurrence: task.recurrence,
+            recurrence_days: task.recurrence_days ?? null,
+          };
+          const { error } = await supabase.from('tasks').insert(row);
           if (error) {
             set(s => ({ tasks: s.tasks.filter(t => t.id !== task.id) }));
             throw new Error(error.message);
@@ -185,8 +205,12 @@ export const useStore = create<Store>()(
         if (!prev) return;
         set(s => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates } : t) }));
         const { userId } = get();
-        if (userId) {
-          const { error } = await supabase.from('tasks').update(updates).eq('id', id).eq('user_id', userId);
+        if (userId && userId !== 'local-user') {
+          // Strip any undefined values before sending to Supabase
+          const safeUpdates = Object.fromEntries(
+            Object.entries(updates).filter(([, v]) => v !== undefined)
+          );
+          const { error } = await supabase.from('tasks').update(safeUpdates).eq('id', id).eq('user_id', userId);
           if (error) {
             set(s => ({ tasks: s.tasks.map(t => t.id === id ? prev : t) }));
             throw new Error(error.message);
