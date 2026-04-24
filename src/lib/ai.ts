@@ -17,7 +17,8 @@ export function detectProvider(apiKey: string, customBaseURL?: string): AIProvid
   if (apiKey.startsWith('sk-or-')) return 'openrouter';
   if (apiKey.startsWith('gsk_')) return 'groq';
   if (apiKey.startsWith('sk-')) return 'openai';
-  return 'custom';
+  // No key and no custom URL → use openai proxy via /api/chat
+  return 'openai';
 }
 
 export function providerLabel(provider: AIProvider): string {
