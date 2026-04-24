@@ -382,22 +382,20 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <span>Fixed time (optional)</span>
-          {fixedTime && (
-            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-              {(() => {
-                const [h, m] = fixedTime.split(':').map(Number);
-                const endMin = h * 60 + m + (parseInt(duration) || 30);
-                const eh = Math.floor(endMin / 60) % 24;
-                const em = endMin % 60;
-                return `→ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
-              })()}
-            </span>
-          )}
-        </div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Fixed time (optional)</div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
           style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 12px' }} />
+        {fixedTime && (
+          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ind)', padding: '7px 10px', background: 'var(--ind-l)', borderRadius: 8, textAlign: 'center', lineHeight: 1.3 }}>
+            {(() => {
+              const [h, m] = fixedTime.split(':').map(Number);
+              const endMin = h * 60 + m + (parseInt(duration) || 30);
+              const eh = Math.floor(endMin / 60) % 24;
+              const em = endMin % 60;
+              return `${fixedTime} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+            })()}
+          </div>
+        )}
       </div>
       {recurrence === 'custom' && (
         <div>
@@ -514,22 +512,20 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <span>Start time (optional)</span>
-          {fixedTime && (
-            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
-              {(() => {
-                const [h, m] = fixedTime.split(':').map(Number);
-                const endMin = h * 60 + m + (parseInt(duration) || 30);
-                const eh = Math.floor(endMin / 60) % 24;
-                const em = endMin % 60;
-                return `→ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
-              })()}
-            </span>
-          )}
-        </div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Start time (optional)</div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
           style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
+        {fixedTime && (
+          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ind)', padding: '7px 10px', background: 'var(--ind-l)', borderRadius: 8, textAlign: 'center', lineHeight: 1.3 }}>
+            {(() => {
+              const [h, m] = fixedTime.split(':').map(Number);
+              const endMin = h * 60 + m + (parseInt(duration) || 30);
+              const eh = Math.floor(endMin / 60) % 24;
+              const em = endMin % 60;
+              return `${fixedTime} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+            })()}
+          </div>
+        )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <div>
