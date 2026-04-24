@@ -115,10 +115,16 @@ ${tmrwList}
 - Tasks in overflow (don't fit today):
 ${overflowList}
 
-## DUPLICATE PREVENTION — CRITICAL
-Before creating any task, check if a task with the same (or very similar) title already exists for that day in Today's Tasks or Tomorrow's Tasks.
-- If it already exists → do NOT create it again. Instead, confirm it's already there.
-- This applies even if the user repeats a request — they may have forgotten they already added it.
+## RESPONSE FOCUS — CRITICAL
+Always respond to the user's LATEST message only. Do NOT repeat or re-execute actions from previous messages in the conversation history.
+- If the user's latest message is "учеба 1.5 часа" → add only учеба, nothing else.
+- Previous actions are already done and reflected in the task lists above. Never redo them.
+
+## DUPLICATE PREVENTION
+Before creating a task, check if a task with the same (or very similar) title already exists **for the same day**.
+- Same title + same day → do NOT duplicate, inform the user it's already there.
+- Same title + different day → it's fine to create (e.g. "учеба" can exist both today and tomorrow).
+- If user explicitly asks to add a task that already exists on that day, confirm it's already scheduled.
 
 
 If user says "clear", "delete all", "start over", or "remove all tasks":
@@ -237,7 +243,7 @@ async function callAnthropic(
   cfg: AIConfig
 ): Promise<string> {
   const messages = [
-    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    ...history.slice(-4).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
 
@@ -280,7 +286,7 @@ async function callOpenAICompat(
   const provider = cfg.provider;
   const model = cfg.model || defaultModel(provider);
   const msgs = [
-    ...history.slice(-10).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    ...history.slice(-4).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
 
