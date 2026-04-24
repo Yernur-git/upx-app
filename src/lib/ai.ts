@@ -194,6 +194,15 @@ If user says they are overwhelmed, overloaded, or have too many tasks:
   { "type": "move_task", "payload": { "id": "<exact-uuid>", "day": "tomorrow" } }`;
 }
 
+function assertASCII(value: string, label: string): void {
+  // HTTP headers only allow ISO-8859-1. API keys must be ASCII.
+  if (/[^\x00-\x7F]/.test(value)) {
+    throw new Error(
+      `Your ${label} contains non-ASCII characters. Please check your settings in Profile.`
+    );
+  }
+}
+
 // Call via server-side proxy (no API key on client) or directly if user supplied key
 async function callViaProxy(
   provider: AIProvider,
@@ -228,6 +237,7 @@ async function callAnthropic(
 
   // If user provided their own key — call directly (dev/custom setup)
   if (cfg.apiKey) {
+    assertASCII(cfg.apiKey, 'Anthropic API key');
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -279,6 +289,7 @@ async function callOpenAICompat(
     ...msgs,
   ];
 
+  assertASCII(cfg.apiKey, `${provider} API key`);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${cfg.apiKey}`,
@@ -298,7 +309,11 @@ async function callOpenAICompat(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`${provider} ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
+    const detail = (err as { error?: { message?: string } })?.error?.message || res.statusText;
+    if (res.status === 404) {
+      throw new Error(`${provider} 404: Model "${model}" not found. Go to Profile → AI Settings and update your model.`);
+    }
+    throw new Error(`${provider} ${res.status}: ${detail}`);
   }
   const data = await res.json();
   return data.choices?.[0]?.message?.content || '{}';
