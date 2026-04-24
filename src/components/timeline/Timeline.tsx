@@ -50,7 +50,8 @@ export function Timeline() {
 
   const { blocks, overflow, totalMinutes, availableMinutes } = useMemo(
     () => buildSchedule(tasks, config),
-    [tasks, config]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, config, nowMins]
   );
 
   const wakeMin = useMemo(() => {
