@@ -418,6 +418,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const [customDays, setCustomDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [category, setCategory] = useState('general');
   const [categoryEdited, setCategoryEdited] = useState(false);
+  const [fixedTime, setFixedTime] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -447,6 +448,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         day,
         recurrence,
         recurrence_days: recurrence === 'custom' ? customDays : undefined,
+        fixed_time: fixedTime || undefined,
         sort_order: 0,
       });
       onDone();
@@ -496,6 +498,26 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             value={![0,5,10,15,30].includes(parseInt(breakAfter)) && breakAfter !== '0' ? breakAfter : ''}
             onChange={e => setBreakAfter(e.target.value)}
             style={{ width: 68, fontSize: 12, padding: '5px 8px' }} />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Start time (optional)</div>
+          <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+          {fixedTime && (
+            <div style={{ fontSize: 12, color: 'var(--ind)', padding: '9px 10px', background: 'var(--ind-l)', borderRadius: 8, textAlign: 'center' }}>
+              {(() => {
+                const [h, m] = fixedTime.split(':').map(Number);
+                const endMin = h * 60 + m + (parseInt(duration) || 30);
+                const eh = Math.floor(endMin / 60) % 24;
+                const em = endMin % 60;
+                return `${fixedTime} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+              })()}
+            </div>
+          )}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

@@ -128,6 +128,8 @@ Always convert duration to MINUTES (integer):
 - "1.5 hours" or "1.5h" or "90 min" → duration_minutes: 90
 - "30 min" or "30m" or "half hour" → duration_minutes: 30
 - "45 min" → duration_minutes: 45
+- TIME RANGE: "from 8am to 1:10pm" → fixed_time: "08:00", duration_minutes: 310 (calculate end - start in minutes)
+- TIME RANGE: "9:00 to 10:30" → fixed_time: "09:00", duration_minutes: 90
 - NEVER set duration_minutes to 2 when user says "2 hours" — that would be 2 minutes!
 - break_after is also in MINUTES (e.g. 10 for a 10-minute break)
 
@@ -137,7 +139,8 @@ Always convert duration to MINUTES (integer):
 - For home tasks: travel_minutes = 0
 
 ## SCHEDULING RULES
-- Never schedule a task before ${earliestStartStr}
+- If the user specifies a time range (e.g. "school from 8am to 1:10pm"), ALWAYS use that exact start time as fixed_time and calculate duration from the range — NEVER override with current time or earliestStart.
+- Only apply the "never before ${earliestStartStr}" rule to tasks where the user did NOT specify a start time.
 - Respect fixed_time if user specifies a time (e.g. "meeting at 3pm" → fixed_time: "15:00")
 - Use fixed_time: null if no specific time mentioned
 
