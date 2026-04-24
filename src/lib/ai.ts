@@ -119,12 +119,7 @@ ${overflowList}
 Always respond to the user's LATEST message only. Do NOT repeat or re-execute actions from previous messages in the conversation history.
 - If the user's latest message is "учеба 1.5 часа" → add only учеба, nothing else.
 - Previous actions are already done and reflected in the task lists above. Never redo them.
-
-## DUPLICATE PREVENTION
-Before creating a task, check if a task with the same (or very similar) title already exists **for the same day**.
-- Same title + same day → do NOT duplicate, inform the user it's already there.
-- Same title + different day → it's fine to create (e.g. "учеба" can exist both today and tomorrow).
-- If user explicitly asks to add a task that already exists on that day, confirm it's already scheduled.
+- If the user repeats a similar request, treat it as a NEW request — add the task again. The user knows what they want.
 
 
 If user says "clear", "delete all", "start over", or "remove all tasks":
