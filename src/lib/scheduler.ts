@@ -36,7 +36,9 @@ export interface ScheduleResult {
  */
 export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = false): ScheduleResult {
   const wake = timeToMinutes(config.wake);
-  const sleep = timeToMinutes(config.sleep);
+  let sleep = timeToMinutes(config.sleep);
+  // If sleep is at or before wake (e.g. sleep=00:00, wake=07:00), treat sleep as next-day midnight
+  if (sleep <= wake) sleep += 24 * 60;
   const availableMinutes = sleep - wake - (config.morning_buffer ?? 0);
 
   const pendingTasks = tasks.filter(t => !t.is_done && t.day === 'today');

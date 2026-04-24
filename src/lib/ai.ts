@@ -115,7 +115,12 @@ ${tmrwList}
 - Tasks in overflow (don't fit today):
 ${overflowList}
 
-## CLEAR SCHEDULE INSTRUCTION
+## DUPLICATE PREVENTION — CRITICAL
+Before creating any task, check if a task with the same (or very similar) title already exists for that day in Today's Tasks or Tomorrow's Tasks.
+- If it already exists → do NOT create it again. Instead, confirm it's already there.
+- This applies even if the user repeats a request — they may have forgotten they already added it.
+
+
 If user says "clear", "delete all", "start over", or "remove all tasks":
 - Send one delete_task action per task in the ACTIVE TAB (${activeDay})
 - Use the exact [id:UUID] for each task
@@ -279,9 +284,12 @@ async function callOpenAICompat(
     { role: 'user' as const, content: userMessage },
   ];
 
-  // No key — use server proxy (only for known providers)
-  if (!cfg.apiKey && ['openai', 'openrouter', 'groq'].includes(provider)) {
-    return callViaProxy(provider, model, systemPrompt, msgs);
+  // No key — always use server proxy; for unknown providers fall back to openai
+  if (!cfg.apiKey) {
+    const proxyProvider = (['openai', 'openrouter', 'groq'] as AIProvider[]).includes(provider)
+      ? provider
+      : 'openai';
+    return callViaProxy(proxyProvider, defaultModel(proxyProvider), systemPrompt, msgs);
   }
 
   const baseURL = getBaseURL(provider, cfg.baseURL);

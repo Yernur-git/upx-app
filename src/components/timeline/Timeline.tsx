@@ -61,8 +61,10 @@ export function Timeline() {
 
   const sleepMin = useMemo(() => {
     const [h, m] = config.sleep.split(':').map(Number);
-    return h * 60 + m;
-  }, [config.sleep]);
+    const raw = h * 60 + m;
+    const wake = (() => { const [wh, wm] = config.wake.split(':').map(Number); return wh * 60 + wm; })();
+    return raw <= wake ? raw + 24 * 60 : raw;
+  }, [config.sleep, config.wake]);
 
   const totalPx = ((sleepMin - wakeMin) / 60) * HOUR_HEIGHT;
 
