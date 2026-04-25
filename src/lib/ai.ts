@@ -227,7 +227,7 @@ async function callViaProxy(
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider, model, system, messages, max_tokens: 2000 }),
+    body: JSON.stringify({ provider, model, system, messages, max_tokens: 4000 }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -262,7 +262,7 @@ async function callAnthropic(
       },
       body: JSON.stringify({
         model: cfg.model || defaultModel('anthropic'),
-        max_tokens: 2000,
+        max_tokens: 4000,
         system: systemPrompt,
         messages,
       }),
@@ -316,8 +316,7 @@ async function callOpenAICompat(
     headers['X-Title'] = 'UpX Planner';
   }
 
-  const body: Record<string, unknown> = { model, max_tokens: 2000, messages };
-  if (provider !== 'custom') body.response_format = { type: 'json_object' };
+  const body: Record<string, unknown> = { model, max_tokens: 4000, messages };
 
   const res = await fetch(`${baseURL}/chat/completions`, {
     method: 'POST',
@@ -360,6 +359,23 @@ export async function sendChatMessage(
     const parsed = JSON.parse(clean);
     return { message: parsed.message || 'Done!', actions: parsed.actions || [] };
   } catch {
-    return { message: rawText, actions: [] };
+    // JSON was truncated or malformed — try regex extraction
+    try {
+      const msgMatch = rawText.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      const actMatch = rawText.match(/"actions"\s*:\s*(\[[\s\S]*)/);
+      let actions: ParsedAction[] = [];
+      if (actMatch) {
+        // Try to close the truncated array
+        let arr = actMatch[1];
+        // Find last complete object and close the array
+        const lastClose = arr.lastIndexOf('}');
+        if (lastClose !== -1) arr = arr.slice(0, lastClose + 1) + ']';
+        try { actions = JSON.parse(arr); } catch { actions = []; }
+      }
+      const message = msgMatch ? msgMatch[1] : rawText;
+      return { message, actions };
+    } catch {
+      return { message: rawText, actions: [] };
+    }
   }
 }
