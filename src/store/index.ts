@@ -9,6 +9,7 @@ const DEFAULT_CONFIG: UserConfig = {
   buffer: 5,
   morning_buffer: 15,
   theme: 'light',
+  language: 'en',
   road_time_minutes: 20,
   known_contexts: { gym: 20, office: 30 },
   category_goals: [
@@ -66,7 +67,12 @@ function generateId(): string {
 }
 
 function todayDateStr(): string {
-  return new Date().toDateString();
+  // ISO date YYYY-MM-DD (locale-independent — was previously toDateString() which is locale-dependent)
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function rolloverRecurring(tasks: Task[]): Task[] {
@@ -370,8 +376,16 @@ export const useStore = create<Store>()(
           done_count: todayTasks.filter(t => t.is_done).length,
           total_minutes: todayTasks.reduce((s, t) => s + t.duration_minutes, 0),
           done_minutes: todayTasks.filter(t => t.is_done).reduce((s, t) => s + t.duration_minutes, 0),
+          tasks: todayTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category,
+            duration_minutes: t.duration_minutes,
+            is_done: t.is_done,
+          })),
         };
-        const filtered = dayHistory.filter(d => d.date !== todayStr);
+        // Keep only ISO-format entries (drop legacy toDateString entries which won't match anything)
+        const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== todayStr);
         set({ dayHistory: [...filtered.slice(-29), stat] });
       },
 

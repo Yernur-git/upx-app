@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -11,10 +11,12 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
 import { detectCategory, getAllCategories } from '../../lib/categories';
+import { useT } from '../../lib/i18n';
 import type { Task, Priority, Recurrence } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
 
 export function TaskList() {
+  const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks, activeChatDay, setActiveChatDay } = useStore();
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -22,12 +24,12 @@ export function TaskList() {
   const activeDay = activeChatDay;
   const setActiveDay = setActiveChatDay;
 
-  const todayTasks = tasks.filter(t => t.day === 'today');
-  const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
+  const todayTasks = tasks.filter(t2 => t2.day === 'today');
+  const tomorrowTasks = tasks.filter(t2 => t2.day === 'tomorrow');
   const displayTasks = activeDay === 'today' ? todayTasks : tomorrowTasks;
 
-  const doneTasks = displayTasks.filter(t => t.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const pendingTasks = displayTasks.filter(t => !t.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const doneTasks = displayTasks.filter(t2 => t2.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const pendingTasks = displayTasks.filter(t2 => !t2.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -37,7 +39,7 @@ export function TaskList() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const ids = pendingTasks.map(t => t.id);
+    const ids = pendingTasks.map(t2 => t2.id);
     const oldIndex = ids.indexOf(active.id as string);
     const newIndex = ids.indexOf(over.id as string);
     reorderTasks(arrayMove(ids, oldIndex, newIndex));
@@ -48,10 +50,10 @@ export function TaskList() {
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 16px 32px' }}>
           <div style={{ width: '100%', maxWidth: 420, background: 'var(--sf)', borderRadius: 18, border: '1px solid var(--bdr2)', padding: '20px 18px', boxShadow: 'var(--shd2)' }}>
-            <p style={{ fontSize: 14, textAlign: 'center', marginBottom: 16, color: 'var(--tx)', lineHeight: 1.5 }}>Delete this task?</p>
+            <p style={{ fontSize: 14, textAlign: 'center', marginBottom: 16, color: 'var(--tx)', lineHeight: 1.5 }}>{t('task.deleteConfirm')}</p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={() => setConfirmDelete(null)}>Cancel</button>
-              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'var(--coral)' }} onClick={() => { deleteTask(confirmDelete); setConfirmDelete(null); }}>Delete</button>
+              <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={() => setConfirmDelete(null)}>{t('task.cancel')}</button>
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'var(--coral)' }} onClick={() => { deleteTask(confirmDelete); setConfirmDelete(null); }}>{t('task.delete')}</button>
             </div>
           </div>
         </div>
@@ -61,9 +63,9 @@ export function TaskList() {
           <button key={day} className="btn btn-ghost"
             style={{ flex: 1, justifyContent: 'center', fontSize: 12, background: activeDay === day ? 'var(--ind-l)' : 'transparent', color: activeDay === day ? 'var(--ind)' : 'var(--tx3)', borderColor: activeDay === day ? 'var(--ind-m)' : 'var(--bdr2)' }}
             onClick={() => setActiveDay(day)}>
-            {day === 'today' ? 'Today' : 'Tomorrow'}
+            {day === 'today' ? t('day.today') : t('day.tomorrow')}
             <span style={{ fontSize: 10, fontWeight: 700, background: activeDay === day ? 'var(--ind)' : 'var(--sf3)', color: activeDay === day ? '#fff' : 'var(--tx3)', padding: '1px 6px', borderRadius: 10, marginLeft: 4 }}>
-              {(day === 'today' ? todayTasks : tomorrowTasks).filter(t => !t.is_done).length}
+              {(day === 'today' ? todayTasks : tomorrowTasks).filter(t2 => !t2.is_done).length}
             </span>
           </button>
         ))}
@@ -75,17 +77,13 @@ export function TaskList() {
             <div className="empty-icon">
               {activeDay === 'today' ? '🗓️' : '🌅'}
             </div>
-            <h3>{activeDay === 'today' ? 'No tasks today' : 'Tomorrow is clear'}</h3>
-            <p>
-              {activeDay === 'today'
-                ? 'Add a task below or tell the AI what you need to do today.'
-                : 'Plan ahead — add tasks for tomorrow or ask the AI to help.'}
-            </p>
+            <h3>{activeDay === 'today' ? t('task.empty.today.title') : t('task.empty.tomorrow.title')}</h3>
+            <p>{activeDay === 'today' ? t('task.empty.today.desc') : t('task.empty.tomorrow.desc')}</p>
           </div>
         )}
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => setIsDraggingAny(true)} onDragEnd={(event) => { setIsDraggingAny(false); handleDragEnd(event); }} onDragCancel={() => setIsDraggingAny(false)}>
-          <SortableContext items={pendingTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={pendingTasks.map(t2 => t2.id)} strategy={verticalListSortingStrategy}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pendingTasks.map(task => (
                 <SortableTaskCard
@@ -104,7 +102,7 @@ export function TaskList() {
         {doneTasks.length > 0 && (
           <>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--tx3)', margin: '16px 0 8px' }}>
-              Done · {doneTasks.length}
+              {t('task.done')} · {doneTasks.length}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, opacity: 0.55 }}>
               {doneTasks.map(task => (
@@ -116,7 +114,6 @@ export function TaskList() {
             </div>
           </>
         )}
-        {/* Bottom padding so last card isn't clipped */}
         <div style={{ height: 12 }} />
       </div>
 
@@ -124,7 +121,7 @@ export function TaskList() {
         {showAdd
           ? <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
           : <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--ind)' }} onClick={() => setShowAdd(true)}>
-              <Plus size={15} /> Add task
+              <Plus size={15} /> {t('task.add')}
             </button>
         }
       </div>
@@ -139,9 +136,11 @@ const ACTION_W = 64;
 function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, isDraggingAny }: {
   task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean; isDraggingAny?: boolean;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [swipeRevealed, setSwipeRevealed] = useState(false);
   const startX = useRef(0);
@@ -149,7 +148,6 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   const dirLocked = useRef<'h'|'v'|null>(null);
   const isSwiping = useRef(false);
 
-  // Reset swipe when drag starts
   if (isDragging && (swipeRevealed || swipeOffset !== 0)) {
     setSwipeOffset(0);
     setSwipeRevealed(false);
@@ -201,12 +199,13 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
     );
   }
 
+  const hasNotes = !!(task.notes && task.notes.trim());
+
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, position: 'relative', borderRadius: 10, overflow: 'hidden' }}
     >
-      {/* Swipe actions — only rendered when not dragging */}
       {!isDragging && !isDraggingAny && (
         <div style={{
           position: 'absolute', right: 0, top: 0, bottom: 0,
@@ -220,7 +219,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
             gap: 3, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
           }}>
             <ArrowRight size={16} />
-            {task.day === 'today' ? 'Tomorrow' : 'Today'}
+            {task.day === 'today' ? t('day.tomorrow') : t('day.today')}
           </button>
           <button onClick={() => { closeSwipe(); onDelete(); }} style={{
             flex: 1, border: 'none', cursor: 'pointer',
@@ -229,12 +228,11 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
             gap: 3, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
           }}>
             <Trash2 size={16} />
-            Delete
+            {t('task.delete')}
           </button>
         </div>
       )}
 
-      {/* Card — slides to reveal actions */}
       <div
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -266,6 +264,15 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               {task.recurrence !== 'none' && (
                 <span style={{ fontSize: 9, background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>🔁</span>
               )}
+              {hasNotes && (
+                <button
+                  className="btn-icon"
+                  onClick={(e) => { e.stopPropagation(); setShowNotes(s => !s); }}
+                  style={{ padding: 2, flexShrink: 0, color: showNotes ? 'var(--ind)' : 'var(--tx3)' }}
+                  title={t('task.notes')}>
+                  <FileText size={11} />
+                </button>
+              )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
               {formatDuration(task.duration_minutes)}
@@ -273,6 +280,16 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               {task.break_after > 0 && ` · +${task.break_after}m break`}
               {task.fixed_time && ` · @${task.fixed_time}`}
             </div>
+            {hasNotes && showNotes && (
+              <div style={{
+                marginTop: 6, padding: '6px 8px',
+                background: 'var(--sf2)', borderRadius: 6,
+                fontSize: 12, color: 'var(--tx2)', lineHeight: 1.5,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              }}>
+                {task.notes}
+              </div>
+            )}
           </div>
           {hovered && !isDone && (
             <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
@@ -290,9 +307,65 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   );
 }
 
-const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const DAY_LABELS_KEYS = ['day.short.sun', 'day.short.mon', 'day.short.tue', 'day.short.wed', 'day.short.thu', 'day.short.fri', 'day.short.sat'] as const;
+
+/** Shared category select with "other (custom)" support. */
+function CategorySelect({
+  value, onChange, allCategories, showAuto,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  allCategories: string[];
+  showAuto?: boolean;
+}) {
+  const t = useT();
+  // Custom mode is active when the value is not in the known categories list and is not empty.
+  const isCustom = value !== '' && !allCategories.includes(value);
+  const [mode, setMode] = useState<'preset' | 'other'>(isCustom ? 'other' : 'preset');
+  const [customText, setCustomText] = useState(isCustom ? value : '');
+
+  const handleSelectChange = (v: string) => {
+    if (v === '__other__') {
+      setMode('other');
+      // Don't change value yet — wait for user to type
+      onChange(customText.trim() || '');
+    } else {
+      setMode('preset');
+      onChange(v);
+    }
+  };
+
+  const handleCustomChange = (v: string) => {
+    setCustomText(v);
+    onChange(v.trim().toLowerCase());
+  };
+
+  const selectValue = mode === 'other' ? '__other__' : value;
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>
+        {t('task.category')}{showAuto && <span style={{ marginLeft: 4, color: 'var(--ind)', fontWeight: 600 }}>{t('task.category.auto')}</span>}
+      </div>
+      <select value={selectValue} onChange={e => handleSelectChange(e.target.value)} style={{ fontSize: 13, padding: '9px 8px' }}>
+        {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+        <option value="__other__">{t('task.category.other')}</option>
+      </select>
+      {mode === 'other' && (
+        <input
+          autoFocus
+          value={customText}
+          onChange={e => handleCustomChange(e.target.value)}
+          placeholder={t('task.category.customPlaceholder')}
+          style={{ fontSize: 13, padding: '9px 10px', marginTop: 6 }}
+        />
+      )}
+    </div>
+  );
+}
 
 function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
+  const t = useT();
   const { updateTask, config } = useStore();
   const [title, setTitle] = useState(task.title);
   const [duration, setDuration] = useState(String(task.duration_minutes));
@@ -303,6 +376,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
   const [customDays, setCustomDays] = useState<number[]>(task.recurrence_days ?? [1, 2, 3, 4, 5]);
   const [category, setCategory] = useState(task.category);
   const [fixedTime, setFixedTime] = useState(task.fixed_time ?? '');
+  const [notes, setNotes] = useState(task.notes ?? '');
 
   const toggleDay = (d: number) => {
     setCustomDays(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
@@ -316,10 +390,11 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
       break_after: parseInt(breakAfter) || 0,
       travel_minutes: parseInt(travel) || 0,
       priority,
-      category,
+      category: category.trim() || 'general',
       recurrence,
       recurrence_days: recurrence === 'custom' ? customDays : undefined,
       fixed_time: fixedTime || undefined,
+      notes: notes.trim() || undefined,
     });
     onDone();
   };
@@ -328,97 +403,105 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
 
   return (
     <div style={{ background: 'var(--sf)', border: '1px solid var(--ind-m)', borderRadius: 'var(--rs)', padding: '14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: -2 }}>Edit task</div>
-      <input autoFocus placeholder="Task title…" value={title}
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: -2 }}>{t('task.title')}</div>
+      <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '10px 12px' }}
         onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onDone(); }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Duration (min)</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.duration')}</div>
           <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Road (min)</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.road')}</div>
           <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Priority</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.priority')}</div>
           <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ fontSize: 13, padding: '9px 8px' }}>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="high">{t('task.priority.high')}</option>
+            <option value="medium">{t('task.priority.medium')}</option>
+            <option value="low">{t('task.priority.low')}</option>
           </select>
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>{t('task.break')}</div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 30].map(mins => (
             <button key={mins} type="button"
               onClick={() => setBreakAfter(String(mins))}
               style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`, background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent', color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {mins === 0 ? 'None' : `${mins}m`}
+              {mins === 0 ? t('task.break.none') : `${mins}m`}
             </button>
           ))}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <CategorySelect value={category} onChange={setCategory} allCategories={allCategories} />
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Category</div>
-          <select value={category} onChange={e => setCategory(e.target.value)} style={{ fontSize: 13, padding: '9px 8px' }}>
-            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Repeat</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.repeat')}</div>
           <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ fontSize: 13, padding: '9px 8px' }}>
-            <option value="none">No repeat</option>
-            <option value="daily">Every day</option>
-            <option value="weekdays">Weekdays</option>
-            <option value="weekly">Weekly</option>
-            <option value="custom">Custom…</option>
+            <option value="none">{t('task.repeat.none')}</option>
+            <option value="daily">{t('task.repeat.daily')}</option>
+            <option value="weekdays">{t('task.repeat.weekdays')}</option>
+            <option value="weekly">{t('task.repeat.weekly')}</option>
+            <option value="custom">{t('task.repeat.custom')}</option>
           </select>
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Fixed time (optional)</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <span>{t('task.fixedTime')}</span>
+          {fixedTime && (
+            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+              {(() => {
+                const [h, m] = fixedTime.split(':').map(Number);
+                const endMin = h * 60 + m + (parseInt(duration) || 30);
+                const eh = Math.floor(endMin / 60) % 24;
+                const em = endMin % 60;
+                return `→ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+              })()}
+            </span>
+          )}
+        </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
           style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 12px' }} />
-        {fixedTime && (
-          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ind)', padding: '7px 10px', background: 'var(--ind-l)', borderRadius: 8, textAlign: 'center', lineHeight: 1.3 }}>
-            {(() => {
-              const [h, m] = fixedTime.split(':').map(Number);
-              const endMin = h * 60 + m + (parseInt(duration) || 30);
-              const eh = Math.floor(endMin / 60) % 24;
-              const em = endMin % 60;
-              return `${fixedTime} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
-            })()}
-          </div>
-        )}
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.notes')}</div>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder={t('task.notes.placeholder')}
+          rows={3}
+          style={{ fontSize: 13, padding: '9px 10px', resize: 'vertical', minHeight: 60, fontFamily: 'inherit', lineHeight: 1.5 }}
+        />
       </div>
       {recurrence === 'custom' && (
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>{t('task.repeatOn')}</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {DAY_LABELS.map((lbl, i) => (
+            {DAY_LABELS_KEYS.map((key, i) => (
               <button key={i} type="button" onClick={() => toggleDay(i)}
                 style={{ flex: 1, height: 34, borderRadius: '50%', fontSize: 11, fontWeight: 600, border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`, background: customDays.includes(i) ? 'var(--ind)' : 'transparent', color: customDays.includes(i) ? '#fff' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                {lbl}
+                {t(key)}
               </button>
             ))}
           </div>
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px' }} onClick={handleSave}>Save</button>
-        <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>Cancel</button>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px' }} onClick={handleSave}>{t('task.save')}</button>
+        <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>{t('task.cancel')}</button>
       </div>
     </div>
   );
 }
 
 function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () => void }) {
+  const t = useT();
   const { addTask, config } = useStore();
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
@@ -430,6 +513,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const [category, setCategory] = useState('general');
   const [categoryEdited, setCategoryEdited] = useState(false);
   const [fixedTime, setFixedTime] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -453,13 +537,14 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         break_after: parseInt(breakAfter) || 0,
         travel_minutes: parseInt(travel) || 0,
         priority,
-        category,
+        category: category.trim() || 'general',
         is_starred: false,
         is_done: false,
         day,
         recurrence,
         recurrence_days: recurrence === 'custom' ? customDays : undefined,
         fixed_time: fixedTime || undefined,
+        notes: notes.trim() || undefined,
         sort_order: 0,
       });
       onDone();
@@ -473,88 +558,98 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <input autoFocus placeholder="Task title…" value={title}
+      <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '11px 12px' }}
         onChange={e => handleTitleChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onDone(); }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Duration (min)</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.duration')}</div>
           <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Road (min)</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.road')}</div>
           <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Priority</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.priority')}</div>
           <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ fontSize: 13, padding: '9px 8px' }}>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="high">{t('task.priority.high')}</option>
+            <option value="medium">{t('task.priority.medium')}</option>
+            <option value="low">{t('task.priority.low')}</option>
           </select>
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>Break after task</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>{t('task.break')}</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[0, 5, 10, 15, 30].map(mins => (
             <button key={mins} type="button"
               onClick={() => setBreakAfter(String(mins))}
               style={{ padding: '6px 12px', fontSize: 12, borderRadius: 20, border: `1px solid ${breakAfter === String(mins) ? 'var(--ind)' : 'var(--bdr2)'}`, background: breakAfter === String(mins) ? 'var(--ind-l)' : 'transparent', color: breakAfter === String(mins) ? 'var(--ind)' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
-              {mins === 0 ? 'None' : `${mins}m`}
+              {mins === 0 ? t('task.break.none') : `${mins}m`}
             </button>
           ))}
-          <input type="number" min="0" placeholder="custom"
+          <input type="number" min="0" placeholder={t('task.break.custom')}
             value={![0,5,10,15,30].includes(parseInt(breakAfter)) && breakAfter !== '0' ? breakAfter : ''}
             onChange={e => setBreakAfter(e.target.value)}
             style={{ width: 68, fontSize: 12, padding: '5px 8px' }} />
         </div>
       </div>
       <div>
-        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Start time (optional)</div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <span>{t('task.startTime')}</span>
+          {fixedTime && (
+            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+              {(() => {
+                const [h, m] = fixedTime.split(':').map(Number);
+                const endMin = h * 60 + m + (parseInt(duration) || 30);
+                const eh = Math.floor(endMin / 60) % 24;
+                const em = endMin % 60;
+                return `→ ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
+              })()}
+            </span>
+          )}
+        </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
           style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
-        {fixedTime && (
-          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--ind)', padding: '7px 10px', background: 'var(--ind-l)', borderRadius: 8, textAlign: 'center', lineHeight: 1.3 }}>
-            {(() => {
-              const [h, m] = fixedTime.split(':').map(Number);
-              const endMin = h * 60 + m + (parseInt(duration) || 30);
-              const eh = Math.floor(endMin / 60) % 24;
-              const em = endMin % 60;
-              return `${fixedTime} → ${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`;
-            })()}
-          </div>
-        )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <CategorySelect
+          value={category}
+          onChange={(next) => { setCategory(next); setCategoryEdited(true); }}
+          allCategories={allCategories}
+          showAuto={!categoryEdited && category !== 'general'}
+        />
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>
-            Category{!categoryEdited && category !== 'general' && <span style={{ marginLeft: 4, color: 'var(--ind)', fontWeight: 600 }}>auto</span>}
-          </div>
-          <select value={category} onChange={e => { setCategory(e.target.value); setCategoryEdited(true); }} style={{ fontSize: 13, padding: '9px 8px' }}>
-            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>Repeat</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.repeat')}</div>
           <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ fontSize: 13, padding: '9px 8px' }}>
-            <option value="none">No repeat</option>
-            <option value="daily">Every day</option>
-            <option value="weekdays">Weekdays</option>
-            <option value="weekly">Weekly</option>
-            <option value="custom">Custom…</option>
+            <option value="none">{t('task.repeat.none')}</option>
+            <option value="daily">{t('task.repeat.daily')}</option>
+            <option value="weekdays">{t('task.repeat.weekdays')}</option>
+            <option value="weekly">{t('task.repeat.weekly')}</option>
+            <option value="custom">{t('task.repeat.custom')}</option>
           </select>
         </div>
+      </div>
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.notes')}</div>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          placeholder={t('task.notes.placeholder')}
+          rows={2}
+          style={{ fontSize: 13, padding: '9px 10px', resize: 'vertical', minHeight: 50, fontFamily: 'inherit', lineHeight: 1.5 }}
+        />
       </div>
       {recurrence === 'custom' && (
         <div>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>Repeat on</div>
+          <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 6 }}>{t('task.repeatOn')}</div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {DAY_LABELS.map((lbl, i) => (
+            {DAY_LABELS_KEYS.map((key, i) => (
               <button key={i} type="button" onClick={() => toggleDay(i)}
                 style={{ flex: 1, height: 34, borderRadius: '50%', fontSize: 11, fontWeight: 600, border: `1px solid ${customDays.includes(i) ? 'var(--ind)' : 'var(--bdr2)'}`, background: customDays.includes(i) ? 'var(--ind)' : 'transparent', color: customDays.includes(i) ? '#fff' : 'var(--tx3)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                {lbl}
+                {t(key)}
               </button>
             ))}
           </div>
@@ -562,9 +657,9 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
       )}
       <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
         <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px', fontSize: 14 }} onClick={handleAdd} disabled={loading || !title.trim()}>
-          {loading ? 'Adding…' : 'Add'}
+          {loading ? t('task.adding') : t('task.add.btn')}
         </button>
-        <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>Cancel</button>
+        <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>{t('task.cancel')}</button>
       </div>
       {error && (
         <div style={{ fontSize: 12, color: 'var(--coral)', padding: '8px 10px', background: 'var(--coral-l)', borderRadius: 8, lineHeight: 1.4 }}>

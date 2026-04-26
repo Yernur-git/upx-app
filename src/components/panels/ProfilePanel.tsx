@@ -3,19 +3,20 @@ import { Plus, Trash2, LogOut, ChevronRight, Bell } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { requestNotificationPermission, canNotify } from '../../lib/notifications';
-import type { CategoryGoal } from '../../types';
+import { useT } from '../../lib/i18n';
+import type { CategoryGoal, Lang } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
 
-// Simple confirmation dialog
 function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  const t = useT();
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 24px' }}>
       <div style={{ width: '100%', maxWidth: 420, background: 'var(--sf)', borderRadius: 20, border: '1px solid var(--bdr2)', padding: '24px 20px', margin: '0 16px', boxShadow: 'var(--shd2)' }}>
         <p style={{ fontSize: 14, color: 'var(--tx)', textAlign: 'center', lineHeight: 1.5, marginBottom: 20 }}>{message}</p>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={onCancel}>Cancel</button>
-          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'var(--coral)' }} onClick={onConfirm}>Confirm</button>
+          <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center', padding: '12px' }} onClick={onCancel}>{t('common.cancel')}</button>
+          <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '12px', background: 'var(--coral)' }} onClick={onConfirm}>{t('common.confirm')}</button>
         </div>
       </div>
     </div>
@@ -23,6 +24,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 }
 
 export function ProfilePanel() {
+  const t = useT();
   const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, deleteTask } = useStore();
   const [localKey, setLocalKey] = useState(apiKey);
   const [localURL, setLocalURL] = useState(customBaseURL);
@@ -51,7 +53,7 @@ export function ProfilePanel() {
   const handleNotif = async () => {
     const granted = await requestNotificationPermission();
     setNotifGranted(granted);
-    if (granted) new Notification('✅ UpX notifications enabled', { body: 'You\'ll get reminders before each task.', icon: '/icon-192.png' });
+    if (granted) new Notification('✅ UpX', { body: t('profile.notifEnabled'), icon: '/icon-192.png' });
   };
 
   const PRESETS = [
@@ -60,6 +62,8 @@ export function ProfilePanel() {
     { label: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
     { label: 'Anthropic', url: '', model: 'claude-sonnet-4-20250514' },
   ];
+
+  const currentLang = (config.language ?? 'en') as Lang;
 
   return (
     <div className="panel-scroll">
@@ -79,68 +83,68 @@ export function ProfilePanel() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {userEmail === 'local' ? 'Local account' : userEmail}
+              {userEmail === 'local' ? t('profile.localAccount') : userEmail}
             </div>
             <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>
-              {userEmail === 'local' ? '⚠️ No sync — device only' : '✓ Synced across devices'}
+              {userEmail === 'local' ? t('profile.localWarn') : t('profile.synced')}
             </div>
           </div>
           <button
             className="btn btn-ghost"
             style={{ padding: '8px 14px', fontSize: 13, color: 'var(--coral)', borderColor: 'var(--coral)', flexShrink: 0, gap: 6 }}
-            onClick={() => ask('Sign out of your account?', signOut)}>
-            <LogOut size={14} /> Sign out
+            onClick={() => ask(t('profile.signOutConfirm'), signOut)}>
+            <LogOut size={14} /> {t('profile.signOut')}
           </button>
         </div>
       </Card>
 
       {/* ── SCHEDULE ── */}
-      <SectionTitle>Schedule</SectionTitle>
+      <SectionTitle>{t('profile.schedule')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Row label="Wake up">
+          <Row label={t('profile.wake')}>
             <input type="time" value={config.wake} onChange={e => updateConfig({ wake: e.target.value })} style={timeInput} />
           </Row>
           <Divider />
-          <Row label="Sleep">
+          <Row label={t('profile.sleep')}>
             <input type="time" value={config.sleep} onChange={e => updateConfig({ sleep: e.target.value })} style={timeInput} />
           </Row>
           <Divider />
-          <Row label="Morning buffer">
+          <Row label={t('profile.morningBuffer')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="number" min="0" max="120" value={config.morning_buffer}
                 onChange={e => updateConfig({ morning_buffer: parseInt(e.target.value) || 0 })}
                 style={numInput} />
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('profile.min')}</span>
             </div>
           </Row>
           <Divider />
-          <Row label="Break between tasks">
+          <Row label={t('profile.taskBreak')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="number" min="0" max="60" value={config.buffer}
                 onChange={e => updateConfig({ buffer: parseInt(e.target.value) || 0 })}
                 style={numInput} />
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('profile.min')}</span>
             </div>
           </Row>
           <Divider />
-          <Row label="Road time (each way)">
+          <Row label={t('profile.roadTime')}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="number" min="0" value={config.road_time_minutes}
                 onChange={e => updateConfig({ road_time_minutes: parseInt(e.target.value) || 0 })}
                 style={numInput} />
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>min</span>
+              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('profile.min')}</span>
             </div>
           </Row>
         </div>
       </Card>
 
       {/* ── WEEKLY GOALS ── */}
-      <SectionTitle>Weekly goals</SectionTitle>
+      <SectionTitle>{t('profile.weeklyGoals')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {config.category_goals.length === 0 && (
-            <div style={{ fontSize: 13, color: 'var(--tx3)', textAlign: 'center', padding: '12px 0' }}>No goals yet</div>
+            <div style={{ fontSize: 13, color: 'var(--tx3)', textAlign: 'center', padding: '12px 0' }}>{t('profile.noGoals')}</div>
           )}
           {config.category_goals.map((goal, idx) => (
             <div key={goal.category}>
@@ -148,10 +152,10 @@ export function ProfilePanel() {
                 <div style={{ width: 12, height: 12, borderRadius: 4, background: goal.color, flexShrink: 0 }} />
                 <span style={{ flex: 1, fontSize: 14, textTransform: 'capitalize', fontWeight: 500 }}>{goal.category}</span>
                 <span style={{ fontSize: 12, color: 'var(--tx3)', fontFamily: "'DM Mono', monospace" }}>
-                  {Math.round(goal.weekly_goal_minutes / 60)}h / week
+                  {Math.round(goal.weekly_goal_minutes / 60)}{t('profile.hPerWeek')}
                 </span>
                 <button className="btn-icon" style={{ padding: 6 }}
-                  onClick={() => ask(`Remove "${goal.category}" goal?`, () =>
+                  onClick={() => ask(t('profile.removeGoal', { cat: goal.category }), () =>
                     updateConfig({ category_goals: config.category_goals.filter(g => g.category !== goal.category) })
                   )}>
                   <Trash2 size={13} color="var(--coral)" />
@@ -161,13 +165,11 @@ export function ProfilePanel() {
             </div>
           ))}
         </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <input placeholder="Category" value={newGoalCat}
-            onChange={e => setNewGoalCat(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addGoal()}
+        <div style={{ display: 'flex', gap: 6, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--bdr)' }}>
+          <input placeholder={t('profile.goalCategory')}
+            value={newGoalCat} onChange={e => setNewGoalCat(e.target.value)}
             style={{ flex: 2, fontSize: 13, padding: '9px 12px' }} />
-          <input type="number" placeholder="h" value={newGoalHours}
+          <input type="number" placeholder={t('profile.hoursShort')} value={newGoalHours}
             onChange={e => setNewGoalHours(e.target.value)}
             style={{ width: 60, fontSize: 13, padding: '9px 10px' }} />
           <button className="btn btn-primary" style={{ padding: '9px 14px' }} onClick={addGoal}>
@@ -175,44 +177,44 @@ export function ProfilePanel() {
           </button>
         </div>
         <p style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 8, lineHeight: 1.5 }}>
-          Match category names with your tasks (case-insensitive).
+          {t('profile.goalHelp')}
         </p>
       </Card>
 
       {/* ── NOTIFICATIONS ── */}
-      <SectionTitle>Notifications</SectionTitle>
+      <SectionTitle>{t('profile.notifications')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Bell size={15} color="var(--ind)" /> Task reminders
+              <Bell size={15} color="var(--ind)" /> {t('profile.taskReminders')}
             </div>
             <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 3 }}>
-              {notifGranted ? '10 min before + at start time' : 'Get notified before tasks start'}
+              {notifGranted ? t('profile.notifEnabled') : t('profile.notifDisabled')}
             </div>
           </div>
           {notifGranted ? (
             <button className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13, flexShrink: 0 }}
-              onClick={() => new Notification('⏰ Starting in 10 min', { body: 'Deep Work Session', icon: '/icon-192.png', tag: 'upx-test' })}>
-              Test 🔔
+              onClick={() => new Notification('⏰ UpX', { body: 'Test', icon: '/icon-192.png', tag: 'upx-test' })}>
+              {t('profile.test')}
             </button>
           ) : (
             <button className="btn btn-primary" style={{ padding: '10px 18px', fontSize: 13, flexShrink: 0 }} onClick={handleNotif}>
-              Enable
+              {t('profile.enable')}
             </button>
           )}
         </div>
         {notifGranted && (
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sage)', fontWeight: 600 }}>✓ Enabled</div>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sage)', fontWeight: 600 }}>{t('profile.notifOn')}</div>
         )}
       </Card>
 
       {/* ── AI PROVIDER ── */}
-      <SectionTitle>AI Provider</SectionTitle>
+      <SectionTitle>{t('profile.aiProvider')}</SectionTitle>
       <Card>
         <button onClick={() => setShowAI(!showAI)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
           <span style={{ fontSize: 13, color: localKey ? 'var(--sage)' : 'var(--tx3)', fontWeight: 500 }}>
-            {localKey ? providerLabel(provider) : 'Not configured — tap to set up'}
+            {localKey ? providerLabel(provider) : t('profile.aiNotConfigured')}
           </span>
           <ChevronRight size={16} color="var(--tx3)" style={{ transform: showAI ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
@@ -228,27 +230,27 @@ export function ProfilePanel() {
               ))}
             </div>
             <div>
-              <label style={label}>API Key</label>
+              <label style={label}>{t('profile.apiKey')}</label>
               <input type="password" value={localKey} placeholder="sk-ant-…  /  sk-…  /  sk-or-…  /  gsk_…"
                 onChange={e => setLocalKey(e.target.value)} onBlur={() => setApiKey(localKey)}
                 style={{ fontSize: 13, padding: '10px 12px' }} />
               {localKey && <div style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600, marginTop: 5 }}>{providerLabel(provider)}</div>}
             </div>
             <div>
-              <label style={label}>Base URL <span style={{ opacity: .6, fontWeight: 400 }}>(leave empty for auto)</span></label>
+              <label style={label}>{t('profile.baseURL')} <span style={{ opacity: .6, fontWeight: 400 }}>{t('profile.baseURLHint')}</span></label>
               <input value={localURL} placeholder="https://openrouter.ai/api/v1"
                 onChange={e => setLocalURL(e.target.value)} onBlur={() => setCustomBaseURL(localURL)}
                 style={{ fontSize: 13, padding: '10px 12px' }} />
             </div>
             <div>
-              <label style={label}>Model</label>
+              <label style={label}>{t('profile.model')}</label>
               <input value={localModel} placeholder="google/gemini-2.0-flash-exp:free"
                 onChange={e => setLocalModel(e.target.value)} onBlur={() => setCustomModel(localModel)}
                 style={{ fontSize: 13, padding: '10px 12px' }} />
             </div>
             <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
               🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
-              🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> — any model &nbsp;·&nbsp;
+              🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> &nbsp;·&nbsp;
               🤖 <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
             </div>
           </div>
@@ -256,33 +258,55 @@ export function ProfilePanel() {
       </Card>
 
       {/* ── APPEARANCE ── */}
-      <SectionTitle>Appearance</SectionTitle>
+      <SectionTitle>{t('profile.appearance')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', gap: 10 }}>
-          {(['light', 'dark'] as const).map(t => (
-            <button key={t} className="btn btn-ghost" style={{
+          {(['light', 'dark'] as const).map(themeOpt => (
+            <button key={themeOpt} className="btn btn-ghost" style={{
               flex: 1, justifyContent: 'center', padding: '12px',
               fontSize: 14, fontWeight: 600,
-              background: config.theme === t ? 'var(--ind-l)' : 'transparent',
-              color: config.theme === t ? 'var(--ind)' : 'var(--tx3)',
-              borderColor: config.theme === t ? 'var(--ind-m)' : 'var(--bdr2)',
+              background: config.theme === themeOpt ? 'var(--ind-l)' : 'transparent',
+              color: config.theme === themeOpt ? 'var(--ind)' : 'var(--tx3)',
+              borderColor: config.theme === themeOpt ? 'var(--ind-m)' : 'var(--bdr2)',
             }}
-              onClick={() => { updateConfig({ theme: t }); document.documentElement.setAttribute('data-theme', t); }}>
-              {t === 'light' ? '☀️ Light' : '🌙 Dark'}
+              onClick={() => { updateConfig({ theme: themeOpt }); document.documentElement.setAttribute('data-theme', themeOpt); }}>
+              {themeOpt === 'light' ? t('profile.themeLight') : t('profile.themeDark')}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── LANGUAGE ── (under appearance, as requested) */}
+      <SectionTitle>{t('profile.language')}</SectionTitle>
+      <Card>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {([
+            { code: 'en' as const, label: 'English' },
+            { code: 'ru' as const, label: 'Русский' },
+          ]).map(opt => (
+            <button key={opt.code} className="btn btn-ghost" style={{
+              flex: 1, justifyContent: 'center', padding: '12px',
+              fontSize: 14, fontWeight: 600,
+              background: currentLang === opt.code ? 'var(--ind-l)' : 'transparent',
+              color: currentLang === opt.code ? 'var(--ind)' : 'var(--tx3)',
+              borderColor: currentLang === opt.code ? 'var(--ind-m)' : 'var(--bdr2)',
+            }}
+              onClick={() => updateConfig({ language: opt.code })}>
+              {opt.label}
             </button>
           ))}
         </div>
       </Card>
 
       {/* ── DANGER ── */}
-      <SectionTitle>Danger zone</SectionTitle>
+      <SectionTitle>{t('profile.danger')}</SectionTitle>
       <Card>
         <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', padding: '12px', color: 'var(--coral)', borderColor: 'var(--coral)', fontSize: 13 }}
-          onClick={() => ask('Delete ALL tasks? This cannot be undone.', async () => {
+          onClick={() => ask(t('profile.deleteAllConfirm'), async () => {
             const all = useStore.getState().tasks;
-            for (const t of all) await deleteTask(t.id);
+            for (const tt of all) await deleteTask(tt.id);
           })}>
-          🗑️ Delete all tasks
+          {t('profile.deleteAll')}
         </button>
       </Card>
 
@@ -291,7 +315,6 @@ export function ProfilePanel() {
   );
 }
 
-// ── Shared components ──
 const timeInput: React.CSSProperties = { fontSize: 14, padding: '8px 12px', width: 110 };
 const numInput: React.CSSProperties = { fontSize: 14, padding: '8px 10px', width: 70 };
 const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 };

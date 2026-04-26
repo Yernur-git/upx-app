@@ -14,15 +14,16 @@ import { supabase } from './lib/supabase';
 import { buildSchedule } from './lib/scheduler';
 import { scheduleTaskNotifications, canNotify } from './lib/notifications';
 import './styles/globals.css';
+import { t as tr } from './lib/i18n';
 
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 5)  return 'Good night';
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  if (h < 21) return 'Good evening';
-  return 'Good night';
+  if (h < 5)  return tr('greeting.night');
+  if (h < 12) return tr('greeting.morning');
+  if (h < 17) return tr('greeting.afternoon');
+  if (h < 21) return tr('greeting.evening');
+  return tr('greeting.night');
 }
 
 export default function App() {
@@ -173,7 +174,7 @@ export default function App() {
         {/* ── STATS PANEL ── */}
         {activePanel === 'stats' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <PanelHeader title="Stats" />
+            <PanelHeader title={tr('nav.stats')} />
             <StatsPanel />
           </div>
         )}
@@ -181,7 +182,7 @@ export default function App() {
         {/* ── PROFILE PANEL ── */}
         {activePanel === 'profile' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <PanelHeader title="Profile" />
+            <PanelHeader title={tr('nav.profile')} />
             <ProfilePanel />
           </div>
         )}
@@ -190,8 +191,8 @@ export default function App() {
       {/* ── BOTTOM NAV ── */}
       <nav className="bottom-nav">
         {([
-          { id: 'profile', label: 'Profile', Icon: User },
-          { id: 'plan',    label: 'Plan',    Icon: CalendarDays },
+          { id: 'profile', label: tr('nav.profile'), Icon: User },
+          { id: 'plan',    label: tr('nav.plan'),    Icon: CalendarDays },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (
@@ -210,7 +211,7 @@ export default function App() {
         <AIChatButton />
 
         {([
-          { id: 'stats', label: 'Stats', Icon: BarChart2 },
+          { id: 'stats', label: tr('nav.stats'), Icon: BarChart2 },
         ] as const).map(({ id, label, Icon }) => {
           const active = activePanel === id;
           return (

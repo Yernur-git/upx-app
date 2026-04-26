@@ -274,6 +274,36 @@ input::placeholder { color: var(--tx3); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
+/* ── TYPING INDICATOR (3 bouncing dots) ── */
+.typing-dots {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+  padding: 4px 2px;
+}
+.typing-dots span {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tx3);
+  animation: typingBounce 1.2s ease-in-out infinite;
+}
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.18s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30%           { transform: translateY(-7px); opacity: 1; }
+}
+
+/* ── MODAL FADE-IN ── */
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── PANEL SCROLL ── */
 .panel-scroll {
   flex: 1; overflow-y: auto;

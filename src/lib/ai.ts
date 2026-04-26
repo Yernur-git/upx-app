@@ -379,3 +379,91 @@ export async function sendChatMessage(
     }
   }
 }
+
+/**
+ * Get plain-text feedback on the user's week. No actions, just analysis.
+ * Used by the Stats panel "Ask AI to review my week" button.
+ */
+export async function getWeeklyFeedback(
+  weekSummary: string,
+  apiKey: string,
+  language: 'en' | 'ru',
+  customBaseURL?: string,
+  customModel?: string,
+): Promise<string> {
+  const provider = detectProvider(apiKey, customBaseURL);
+  const cfg: AIConfig = { apiKey, provider, baseURL: customBaseURL, model: customModel };
+
+  const langInstr = language === 'ru'
+    ? 'Отвечай на русском языке. Кратко, конструктивно, по делу. 3–5 коротких абзацев максимум. Без markdown, только обычный текст.'
+    : 'Respond in English. Concise, constructive, to the point. 3–5 short paragraphs max. Plain text only, no markdown.';
+
+  const systemPrompt = `You are a personal productivity coach analysing the user's week. Look at completion rates, category balance, missed tasks, and streaks. Give honest, specific feedback — what went well, what to fix, one concrete action for next week. Do NOT be sycophantic. Do NOT pad with generic advice. ${langInstr}
+
+Respond as PLAIN TEXT. Do not return JSON. Do not include "message" or "actions" keys. Just the feedback text directly.`;
+
+  const messages = [{ role: 'user' as const, content: weekSummary }];
+
+  if (provider === 'anthropic') {
+    if (cfg.apiKey) {
+      assertASCII(cfg.apiKey, 'Anthropic API key');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': cfg.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: cfg.model || defaultModel('anthropic'),
+          max_tokens: 1500,
+          system: systemPrompt,
+          messages,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(`Anthropic ${res.status}: ${(err as { error?: { message?: string } })?.error?.message || res.statusText}`);
+      }
+      const data = await res.json();
+      return data.content?.[0]?.text || '';
+    }
+    return callViaProxy('anthropic', cfg.model || defaultModel('anthropic'), systemPrompt, messages);
+  }
+
+  // OpenAI-compatible
+  if (!cfg.apiKey) {
+    const proxyProvider = (['openai', 'openrouter', 'groq'] as AIProvider[]).includes(provider)
+      ? provider
+      : 'openai';
+    return callViaProxy(proxyProvider, defaultModel(proxyProvider), systemPrompt, messages);
+  }
+
+  const baseURL = getBaseURL(provider, cfg.baseURL);
+  assertASCII(cfg.apiKey, `${provider} API key`);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${cfg.apiKey}`,
+  };
+  if (provider === 'openrouter') {
+    headers['HTTP-Referer'] = 'https://upx-app.vercel.app';
+    headers['X-Title'] = 'UpX Planner';
+  }
+  const res = await fetch(`${baseURL}/chat/completions`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      model: cfg.model || defaultModel(provider),
+      max_tokens: 1500,
+      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const detail = (err as { error?: { message?: string } })?.error?.message || res.statusText;
+    throw new Error(`${provider} ${res.status}: ${detail}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}

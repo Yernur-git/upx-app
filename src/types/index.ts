@@ -1,6 +1,7 @@
 export type Priority = 'low' | 'medium' | 'high';
 export type TaskDay = 'today' | 'tomorrow';
 export type Theme = 'light' | 'dark';
+export type Lang = 'en' | 'ru';
 export type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly' | 'custom';
 export type AppPanel = 'plan' | 'stats' | 'profile';
 
@@ -52,6 +53,7 @@ export interface UserConfig {
   buffer: number;
   morning_buffer: number;
   theme: Theme;
+  language?: Lang;
   road_time_minutes: number;
   known_contexts: Record<string, number>;
   category_goals: CategoryGoal[];
@@ -70,10 +72,22 @@ export interface ParsedAction {
   payload: unknown;
 }
 
+/** Snapshot of a single task within a DayStats entry. */
+export interface DayStatTask {
+  id: string;
+  title: string;
+  category: string;
+  duration_minutes: number;
+  is_done: boolean;
+}
+
 export interface DayStats {
+  /** ISO date YYYY-MM-DD (locale-independent). */
   date: string;
   total_minutes: number;
   done_minutes: number;
   done_count: number;
   total_count: number;
+  /** Per-task snapshot — added in v4. Older entries may not have this. */
+  tasks?: DayStatTask[];
 }

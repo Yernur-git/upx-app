@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store';
 import { buildSchedule, getNowMinutes, minutesToTime, formatDuration, isBreakBlock } from '../../lib/scheduler';
+import { useT } from '../../lib/i18n';
 import type { CategoryGoal } from '../../types';
 
 const HOUR_HEIGHT = 80;
@@ -36,6 +37,7 @@ function hexToRgb(hex: string): string {
 }
 
 export function Timeline() {
+  const t = useT();
   const { tasks, config } = useStore();
   const [nowMins, setNowMins] = useState(getNowMinutes);
   const [hoveredY, setHoveredY] = useState<number | null>(null);
@@ -105,7 +107,7 @@ export function Timeline() {
       {/* Header */}
       <div style={{ padding: '16px 24px 12px', flexShrink: 0, borderBottom: '1px solid var(--bdr)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Today's Schedule</div>
+          <div style={{ fontSize: 15, fontWeight: 600 }}>{t('timeline.title')}</div>
           <div style={{ fontSize: 12, color: 'var(--tx3)', fontFamily: "'DM Mono', monospace" }}>
             {formatDuration(totalMinutes)} / {formatDuration(availableMinutes)}
           </div>
@@ -126,7 +128,7 @@ export function Timeline() {
             background: 'var(--coral-l)', color: 'var(--coral)',
             fontSize: 12, fontWeight: 500,
           }}>
-            ⚠️ {overflow.length} task{overflow.length !== 1 ? 's' : ''} won't fit today
+            {t('timeline.overflow', { n: overflow.length })}
           </div>
         )}
       </div>
@@ -213,6 +215,7 @@ export function Timeline() {
                   catColor={catColor}
                   catEmoji={catEmoji}
                   startTime={minutesToTime(block.start_minutes)}
+                  endTime={minutesToTime(block.end_minutes)}
                   durationMin={duration}
                   height={height}
                   isPast={isPast}
@@ -263,10 +266,10 @@ export function Timeline() {
 }
 
 function ScheduleCard({
-  task, catColor, catEmoji, startTime, durationMin, height, isPast, isCurrent,
+  task, catColor, catEmoji, startTime, endTime, durationMin, height, isPast, isCurrent,
 }: {
   task: { title: string; category: string; travel_minutes: number; is_done: boolean; is_starred: boolean };
-  catColor: string; catEmoji: string; startTime: string;
+  catColor: string; catEmoji: string; startTime: string; endTime: string;
   durationMin: number; height: number; isPast: boolean; isCurrent: boolean;
 }) {
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
@@ -379,7 +382,7 @@ function ScheduleCard({
               fontWeight: isCurrent ? 600 : 400,
               flexShrink: 0,
             }}>
-              {startTime}
+              {startTime}–{endTime}
             </span>
             {!compact && (
               <>
