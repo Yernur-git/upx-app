@@ -137,6 +137,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean; isDraggingAny?: boolean;
 }) {
   const t = useT();
+  const lang = useStore(s => s.config.language ?? 'en');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -276,8 +277,8 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
             </div>
             <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
               {formatDuration(task.duration_minutes)}
-              {task.travel_minutes > 0 && ` · +${task.travel_minutes}m road`}
-              {task.break_after > 0 && ` · +${task.break_after}m break`}
+              {task.travel_minutes > 0 && ` · +${task.travel_minutes}${lang === 'ru' ? 'м дорога' : 'm road'}`}
+              {task.break_after > 0 && ` · +${task.break_after}${lang === 'ru' ? 'м перерыв' : 'm break'}`}
               {task.fixed_time && ` · @${task.fixed_time}`}
             </div>
             {hasNotes && showNotes && (

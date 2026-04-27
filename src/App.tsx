@@ -79,6 +79,19 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Periodic rollover check — catches the date change for users who keep the tab open across midnight
+  useEffect(() => {
+    const interval = setInterval(checkAndRollover, 5 * 60 * 1000);
+    const onVisible = () => { if (document.visibilityState === 'visible') checkAndRollover(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', checkAndRollover);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', checkAndRollover);
+    };
+  }, []);
+
   // Schedule task notifications whenever tasks/config change
   useEffect(() => {
     if (!canNotify()) return;
@@ -152,7 +165,7 @@ export default function App() {
                   className="btn btn-ghost"
                   style={{ fontSize: 11, padding: '7px 12px', display: 'none', gap: 5 }}
                   onClick={() => setShowTimeline(true)}>
-                  <CalendarDays size={13} /> Schedule
+                  <CalendarDays size={13} /> {tr('nav.schedule')}
                 </button>
               </div>
 

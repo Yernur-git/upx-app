@@ -224,17 +224,43 @@ async function callViaProxy(
   system: string,
   messages: Array<{ role: string; content: string }>
 ): Promise<string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const { supabase } = await import('./supabase');
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+  } catch {
+    // ignore — proxy will reject if it requires auth
+  }
   const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ provider, model, system, messages, max_tokens: 4000 }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Proxy ${res.status}: ${(err as { error?: string })?.error || res.statusText}`);
+    const err = await res.json().catch(() => ({} as Record<string, unknown>));
+    // Possible shapes:
+    //   our proxy:    { error: 'CODE', message: 'human text' }
+    //   anthropic:    { type: 'error', error: { type, message } }
+    //   openai/groq:  { error: { message, type } }
+    let detail: string;
+    if (typeof err.message === 'string') {
+      detail = err.message;
+    } else if (typeof err.error === 'string') {
+      detail = err.error;
+    } else if (err.error && typeof (err.error as { message?: string }).message === 'string') {
+      detail = (err.error as { message: string }).message;
+    } else {
+      detail = res.statusText;
+    }
+    // Surface a clearer hint when the SERVER's key is bad (default mode)
+    if (res.status === 401 && /invalid|api[-_ ]?key|authentication/i.test(detail)) {
+      detail = `Server key rejected by provider: ${detail}. Check the *_API_KEY env var on Vercel.`;
+    }
+    throw new Error(`[${res.status}] ${detail}`);
   }
   const data = await res.json();
-  // Normalize response shape from both Anthropic and OpenAI formats
   return data.content?.[0]?.text || data.choices?.[0]?.message?.content || '{}';
 }
 
@@ -343,11 +369,16 @@ export async function sendChatMessage(
   apiKey: string,
   activeDay: 'today' | 'tomorrow',
   customBaseURL?: string,
-  customModel?: string
+  customModel?: string,
+  useDefaultKey?: boolean,
 ): Promise<AIResponse> {
-  const effectiveKey = apiKey;
-  const provider = detectProvider(effectiveKey, customBaseURL);
-  const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: customBaseURL, model: customModel };
+  // Default mode: ignore any client-side credentials, force the proxy path.
+  // This is what makes "Default" actually default — even stale state can't leak through.
+  const effectiveKey = useDefaultKey ? '' : apiKey;
+  const effectiveBaseURL = useDefaultKey ? undefined : customBaseURL;
+  const effectiveModel = useDefaultKey ? undefined : customModel;
+  const provider = detectProvider(effectiveKey, effectiveBaseURL);
+  const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: effectiveBaseURL, model: effectiveModel };
   const systemPrompt = buildSystemPrompt(tasks, config, activeDay);
 
   const rawText = provider === 'anthropic'
@@ -390,9 +421,13 @@ export async function getWeeklyFeedback(
   language: 'en' | 'ru',
   customBaseURL?: string,
   customModel?: string,
+  useDefaultKey?: boolean,
 ): Promise<string> {
-  const provider = detectProvider(apiKey, customBaseURL);
-  const cfg: AIConfig = { apiKey, provider, baseURL: customBaseURL, model: customModel };
+  const effectiveKey = useDefaultKey ? '' : apiKey;
+  const effectiveBaseURL = useDefaultKey ? undefined : customBaseURL;
+  const effectiveModel = useDefaultKey ? undefined : customModel;
+  const provider = detectProvider(effectiveKey, effectiveBaseURL);
+  const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: effectiveBaseURL, model: effectiveModel };
 
   const langInstr = language === 'ru'
     ? 'Отвечай на русском языке. Кратко, конструктивно, по делу. 3–5 коротких абзацев максимум. Без markdown, только обычный текст.'

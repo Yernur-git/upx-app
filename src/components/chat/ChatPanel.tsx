@@ -6,7 +6,7 @@ import { useT } from '../../lib/i18n';
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, activeChatDay } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -29,7 +29,7 @@ export function ChatPanel() {
     setIsTyping(true);
 
     try {
-      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel);
+      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey);
 
       let applied = 0;
       if (result.actions.length > 0) {

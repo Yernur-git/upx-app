@@ -14,6 +14,7 @@ const DICT = {
     'nav.profile': 'Profile',
     'nav.plan':    'Plan',
     'nav.stats':   'Stats',
+    'nav.schedule': 'Schedule',
 
     // Days
     'day.today':    'Today',
@@ -153,6 +154,23 @@ const DICT = {
     // Common
     'common.confirm':   'Confirm',
     'common.cancel':    'Cancel',
+
+    // Onboarding
+    'onb.wake.title':       'When do you wake up?',
+    'onb.wake.subtitle':    "We'll build your schedule around your day.",
+    'onb.task.title':       "What's your first task?",
+    'onb.task.subtitle':    'Add one thing you want to get done today.',
+    'onb.goal.title':       'Set a weekly goal',
+    'onb.goal.subtitle':    'Track progress on things that matter to you.',
+    'onb.wakeUp':           'Wake up',
+    'onb.bedtime':          'Bedtime',
+    'onb.taskPlaceholder':  'e.g. Morning workout, Deep work session…',
+    'onb.taskDuration':     'Duration (min)',
+    'onb.skip':             'Skip for now',
+    'onb.goalPlaceholder':  'Or type your own category…',
+    'onb.goalHours':        'Weekly goal (hours)',
+    'onb.continue':         'Continue',
+    'onb.lets':             "Let's go 🚀",
   },
   ru: {
     // Greetings
@@ -165,6 +183,7 @@ const DICT = {
     'nav.profile': 'Профиль',
     'nav.plan':    'План',
     'nav.stats':   'Статы',
+    'nav.schedule': 'Расписание',
 
     // Days
     'day.today':    'Сегодня',
@@ -304,6 +323,23 @@ const DICT = {
     // Common
     'common.confirm':   'Подтвердить',
     'common.cancel':    'Отмена',
+
+    // Onboarding
+    'onb.wake.title':       'Когда ты просыпаешься?',
+    'onb.wake.subtitle':    'Мы построим расписание под твой день.',
+    'onb.task.title':       'Какая твоя первая задача?',
+    'onb.task.subtitle':    'Добавь одну вещь, которую хочешь сделать сегодня.',
+    'onb.goal.title':       'Поставь недельную цель',
+    'onb.goal.subtitle':    'Отслеживай прогресс в важных для тебя вещах.',
+    'onb.wakeUp':           'Подъём',
+    'onb.bedtime':          'Отбой',
+    'onb.taskPlaceholder':  'напр. Утренняя тренировка, глубокая работа…',
+    'onb.taskDuration':     'Длительность (мин)',
+    'onb.skip':             'Пропустить',
+    'onb.goalPlaceholder':  'Или введи свою категорию…',
+    'onb.goalHours':        'Недельная цель (часов)',
+    'onb.continue':         'Дальше',
+    'onb.lets':             'Поехали 🚀',
   },
 } satisfies Record<Lang, Record<string, string>>;
 

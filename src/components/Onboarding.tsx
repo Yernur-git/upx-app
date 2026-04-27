@@ -1,29 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../store';
+import { useT } from '../lib/i18n';
 
 interface OnboardingProps {
   onDone: () => void;
 }
 
-const STEPS = [
-  {
-    emoji: '⏰',
-    title: "When do you wake up?",
-    subtitle: "We'll build your schedule around your day.",
-  },
-  {
-    emoji: '🎯',
-    title: "What's your first task?",
-    subtitle: "Add one thing you want to get done today.",
-  },
-  {
-    emoji: '📊',
-    title: "Set a weekly goal",
-    subtitle: "Track progress on things that matter to you.",
-  },
-];
-
 export function Onboarding({ onDone }: OnboardingProps) {
+  const t = useT();
   const { updateConfig, addTask, config } = useStore();
   const [step, setStep] = useState(0);
   const [wake, setWake] = useState('07:00');
@@ -32,6 +16,12 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const [taskDuration, setTaskDuration] = useState('30');
   const [goalCat, setGoalCat] = useState('workout');
   const [goalHours, setGoalHours] = useState('6');
+
+  const STEPS = [
+    { emoji: '⏰', title: t('onb.wake.title'), subtitle: t('onb.wake.subtitle') },
+    { emoji: '🎯', title: t('onb.task.title'), subtitle: t('onb.task.subtitle') },
+    { emoji: '📊', title: t('onb.goal.title'), subtitle: t('onb.goal.subtitle') },
+  ];
 
   const canNext = () => {
     if (step === 1 && !taskTitle.trim()) return false;
@@ -88,7 +78,6 @@ export function Onboarding({ onDone }: OnboardingProps) {
       alignItems: 'center', justifyContent: 'center',
       padding: '24px 20px',
     }}>
-      {/* Progress dots */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 40 }}>
         {STEPS.map((_, i) => (
           <div key={i} style={{
@@ -100,7 +89,6 @@ export function Onboarding({ onDone }: OnboardingProps) {
         ))}
       </div>
 
-      {/* Card */}
       <div style={{
         width: '100%', maxWidth: 380,
         background: 'var(--sf)', borderRadius: 24,
@@ -116,19 +104,18 @@ export function Onboarding({ onDone }: OnboardingProps) {
           {current.subtitle}
         </p>
 
-        {/* Step 0 — Wake/Sleep time */}
         {step === 0 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 }}>
-                Wake up
+                {t('onb.wakeUp')}
               </label>
               <input type="time" value={wake} onChange={e => setWake(e.target.value)}
                 style={{ fontSize: 16, padding: '12px 14px', textAlign: 'center' }} />
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 }}>
-                Bedtime
+                {t('onb.bedtime')}
               </label>
               <input type="time" value={sleep} onChange={e => setSleep(e.target.value)}
                 style={{ fontSize: 16, padding: '12px 14px', textAlign: 'center' }} />
@@ -136,12 +123,11 @@ export function Onboarding({ onDone }: OnboardingProps) {
           </div>
         )}
 
-        {/* Step 1 — First task */}
         {step === 1 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <input
               autoFocus
-              placeholder="e.g. Morning workout, Deep work session…"
+              placeholder={t('onb.taskPlaceholder')}
               value={taskTitle}
               onChange={e => setTaskTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && canNext() && handleNext()}
@@ -149,7 +135,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
             />
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 5 }}>Duration (min)</label>
+                <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 5 }}>{t('onb.taskDuration')}</label>
                 <input type="number" value={taskDuration} min="5"
                   onChange={e => setTaskDuration(e.target.value)}
                   style={{ fontSize: 14, padding: '10px 12px' }} />
@@ -159,15 +145,13 @@ export function Onboarding({ onDone }: OnboardingProps) {
               className="btn btn-ghost"
               style={{ fontSize: 13, justifyContent: 'center' }}
               onClick={() => { setTaskTitle(''); handleNext(); }}>
-              Skip for now
+              {t('onb.skip')}
             </button>
           </div>
         )}
 
-        {/* Step 2 — Weekly goal */}
         {step === 2 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Quick presets */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
               {['workout', 'deep work', 'reading', 'meditation', 'running'].map(preset => (
                 <button key={preset} onClick={() => setGoalCat(preset)}
@@ -182,12 +166,12 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 </button>
               ))}
             </div>
-            <input placeholder="Or type your own category…" value={goalCat}
+            <input placeholder={t('onb.goalPlaceholder')} value={goalCat}
               onChange={e => setGoalCat(e.target.value)}
               style={{ fontSize: 14, padding: '11px 14px' }} />
             <div>
               <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 5 }}>
-                Weekly goal (hours)
+                {t('onb.goalHours')}
               </label>
               <div style={{ display: 'flex', gap: 6 }}>
                 {[2, 3, 5, 6, 8, 10].map(h => (
@@ -206,13 +190,12 @@ export function Onboarding({ onDone }: OnboardingProps) {
             </div>
             <button className="btn btn-ghost" style={{ fontSize: 13, justifyContent: 'center' }}
               onClick={onDone}>
-              Skip for now
+              {t('onb.skip')}
             </button>
           </div>
         )}
       </div>
 
-      {/* Next button */}
       <button
         className="btn btn-primary"
         style={{
@@ -223,7 +206,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
         }}
         onClick={handleNext}
         disabled={!canNext()}>
-        {step === STEPS.length - 1 ? "Let's go 🚀" : 'Continue'}
+        {step === STEPS.length - 1 ? t('onb.lets') : t('onb.continue')}
       </button>
     </div>
   );

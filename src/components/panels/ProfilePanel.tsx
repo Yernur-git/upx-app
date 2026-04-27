@@ -25,7 +25,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 export function ProfilePanel() {
   const t = useT();
-  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, deleteTask } = useStore();
+  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, useDefaultKey, setKeyMode, deleteTask } = useStore();
   const [localKey, setLocalKey] = useState(apiKey);
   const [localURL, setLocalURL] = useState(customBaseURL);
   const [localModel, setLocalModel] = useState(customModel);
@@ -213,46 +213,91 @@ export function ProfilePanel() {
       <SectionTitle>{t('profile.aiProvider')}</SectionTitle>
       <Card>
         <button onClick={() => setShowAI(!showAI)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-          <span style={{ fontSize: 13, color: localKey ? 'var(--sage)' : 'var(--tx3)', fontWeight: 500 }}>
-            {localKey ? providerLabel(provider) : t('profile.aiNotConfigured')}
+          <span style={{ fontSize: 13, color: useDefaultKey ? 'var(--ind)' : (localKey ? 'var(--sage)' : 'var(--tx3)'), fontWeight: 500 }}>
+            {useDefaultKey
+              ? (config.language === 'ru' ? 'По умолчанию' : 'Default')
+              : (localKey ? providerLabel(provider) : t('profile.aiNotConfigured'))}
           </span>
           <ChevronRight size={16} color="var(--tx3)" style={{ transform: showAI ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
 
         {showAI && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {PRESETS.map(p => (
-                <button key={p.label} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}
-                  onClick={() => { setLocalURL(p.url); setLocalModel(p.model); setCustomBaseURL(p.url); setCustomModel(p.model); }}>
-                  {p.label}
-                </button>
-              ))}
+            {/* Mode toggle — switching CLEARS custom inputs */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {([
+                { mode: 'default' as const, label: config.language === 'ru' ? 'По умолчанию' : 'Default' },
+                { mode: 'custom'  as const, label: config.language === 'ru' ? 'Свой ключ'    : 'Custom'  },
+              ]).map(opt => {
+                const active = (opt.mode === 'default') === useDefaultKey;
+                return (
+                  <button key={opt.mode} className="btn btn-ghost" style={{
+                    flex: 1, justifyContent: 'center', padding: '10px',
+                    fontSize: 13, fontWeight: 600,
+                    background: active ? 'var(--ind-l)' : 'transparent',
+                    color:      active ? 'var(--ind)'   : 'var(--tx3)',
+                    borderColor:active ? 'var(--ind-m)' : 'var(--bdr2)',
+                  }}
+                    onClick={() => {
+                      // Always reset local mirror state on mode switch.
+                      // The store action also wipes apiKey/customBaseURL/customModel.
+                      setLocalKey('');
+                      setLocalURL('');
+                      setLocalModel('');
+                      setKeyMode(opt.mode);
+                    }}>
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <label style={label}>{t('profile.apiKey')}</label>
-              <input type="password" value={localKey} placeholder="sk-ant-…  /  sk-…  /  sk-or-…  /  gsk_…"
-                onChange={e => setLocalKey(e.target.value)} onBlur={() => setApiKey(localKey)}
-                style={{ fontSize: 13, padding: '10px 12px' }} />
-              {localKey && <div style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600, marginTop: 5 }}>{providerLabel(provider)}</div>}
-            </div>
-            <div>
-              <label style={label}>{t('profile.baseURL')} <span style={{ opacity: .6, fontWeight: 400 }}>{t('profile.baseURLHint')}</span></label>
-              <input value={localURL} placeholder="https://openrouter.ai/api/v1"
-                onChange={e => setLocalURL(e.target.value)} onBlur={() => setCustomBaseURL(localURL)}
-                style={{ fontSize: 13, padding: '10px 12px' }} />
-            </div>
-            <div>
-              <label style={label}>{t('profile.model')}</label>
-              <input value={localModel} placeholder="google/gemini-2.0-flash-exp:free"
-                onChange={e => setLocalModel(e.target.value)} onBlur={() => setCustomModel(localModel)}
-                style={{ fontSize: 13, padding: '10px 12px' }} />
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
-              🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
-              🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> &nbsp;·&nbsp;
-              🤖 <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
-            </div>
+
+            {useDefaultKey ? (
+              <div style={{
+                fontSize: 12, color: 'var(--tx3)', lineHeight: 1.6,
+                padding: '10px 12px', background: 'var(--sf2)',
+                border: '1px solid var(--bdr)', borderRadius: 'var(--rs)',
+              }}>
+                {config.language === 'ru'
+                  ? 'Используется встроенный ключ. Запросы идут через защищённый прокси-сервер.'
+                  : 'Built-in key in use. Requests are routed through a secure proxy.'}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {PRESETS.map(p => (
+                    <button key={p.label} className="btn btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}
+                      onClick={() => { setLocalURL(p.url); setLocalModel(p.model); setCustomBaseURL(p.url); setCustomModel(p.model); }}>
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label style={label}>{t('profile.apiKey')}</label>
+                  <input type="password" value={localKey} placeholder="sk-ant-…  /  sk-…  /  sk-or-…  /  gsk_…"
+                    onChange={e => setLocalKey(e.target.value)} onBlur={() => setApiKey(localKey)}
+                    style={{ fontSize: 13, padding: '10px 12px' }} />
+                  {localKey && <div style={{ fontSize: 11, color: 'var(--sage)', fontWeight: 600, marginTop: 5 }}>{providerLabel(provider)}</div>}
+                </div>
+                <div>
+                  <label style={label}>{t('profile.baseURL')} <span style={{ opacity: .6, fontWeight: 400 }}>{t('profile.baseURLHint')}</span></label>
+                  <input value={localURL} placeholder="https://openrouter.ai/api/v1"
+                    onChange={e => setLocalURL(e.target.value)} onBlur={() => setCustomBaseURL(localURL)}
+                    style={{ fontSize: 13, padding: '10px 12px' }} />
+                </div>
+                <div>
+                  <label style={label}>{t('profile.model')}</label>
+                  <input value={localModel} placeholder="google/gemini-2.0-flash-exp:free"
+                    onChange={e => setLocalModel(e.target.value)} onBlur={() => setCustomModel(localModel)}
+                    style={{ fontSize: 13, padding: '10px 12px' }} />
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
+                  🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
+                  🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> &nbsp;·&nbsp;
+                  🤖 <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Card>

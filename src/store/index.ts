@@ -29,6 +29,7 @@ interface Store {
   apiKey: string;
   customBaseURL: string;
   customModel: string;
+  useDefaultKey: boolean;
   chatOpen: boolean;
   activePanel: AppPanel;
   activeChatDay: 'today' | 'tomorrow';
@@ -40,6 +41,8 @@ interface Store {
   setApiKey: (key: string) => void;
   setCustomBaseURL: (url: string) => void;
   setCustomModel: (model: string) => void;
+  /** Switch between default (env-backed proxy) and custom key. CLEARS custom state on switch. */
+  setKeyMode: (mode: 'default' | 'custom') => void;
   setChatOpen: (open: boolean) => void;
   setActivePanel: (panel: AppPanel) => void;
   setActiveChatDay: (day: 'today' | 'tomorrow') => void;
@@ -56,7 +59,7 @@ interface Store {
   applyActions: (actions: ParsedAction[]) => Promise<number>;
   undoLastAI: () => Promise<void>;
   saveDayStats: () => void;
-  checkAndRollover: () => void;
+  checkAndRollover: () => Promise<void>;
 
   loadFromSupabase: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -75,57 +78,84 @@ function todayDateStr(): string {
   return `${y}-${m}-${day}`;
 }
 
-function rolloverRecurring(tasks: Task[]): Task[] {
+/**
+ * Day-rollover: returns the new task list AND a diff so the caller can sync
+ * changes back to Supabase. Without that sync, the DB keeps serving yesterday's
+ * state on every reload and the UI looks broken.
+ */
+function rolloverRecurring(tasks: Task[]): {
+  kept: Task[];
+  drops: string[];                                                // delete from DB
+  dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }>;   // update day in DB
+  resetIds: string[];                                             // is_done → false in DB
+} {
   const dayOfWeek = new Date().getDay();
   const isWeekday = dayOfWeek > 0 && dayOfWeek < 6;
 
-  const result: Task[] = [];
+  const kept: Task[] = [];
+  const drops: string[] = [];
+  const dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }> = [];
+  const resetIds: string[] = [];
+
+  const appliesToday = (t: Task): boolean =>
+    t.recurrence === 'daily' ||
+    (t.recurrence === 'weekdays' && isWeekday) ||
+    (t.recurrence === 'weekly' && new Date(t.created_at).getDay() === dayOfWeek) ||
+    (t.recurrence === 'custom' && (t.recurrence_days?.includes(dayOfWeek) ?? false));
 
   for (const t of tasks) {
-    // Done today tasks → remove (they're in history, don't carry over)
+    // Done one-shot today → DROP (DB + local)
     if (t.day === 'today' && t.is_done && t.recurrence === 'none') {
-      continue; // drop completed one-time tasks
+      drops.push(t.id);
+      continue;
     }
 
-    // Unfinished today non-recurring → push to tomorrow (missed tasks)
+    // Pending one-shot today → keep
     if (t.day === 'today' && !t.is_done && t.recurrence === 'none') {
-      result.push({ ...t, day: 'tomorrow' as const });
+      kept.push(t);
       continue;
     }
 
-    // Today recurring tasks (done or not) → reset and keep today
+    // Recurring on today
     if (t.day === 'today' && t.recurrence !== 'none') {
-      // Check if this recurrence applies today
-      if (t.recurrence === 'weekdays' && !isWeekday) { result.push(t); continue; }
-      if (t.recurrence === 'weekly') {
-        const created = new Date(t.created_at).getDay();
-        if (created !== dayOfWeek) { result.push(t); continue; }
+      const yes = appliesToday(t);
+      if (yes) {
+        if (t.is_done) resetIds.push(t.id);
+        kept.push({ ...t, is_done: false });
+      } else {
+        kept.push({ ...t, day: 'tomorrow', is_done: false });
+        dayChanges.push({ id: t.id, day: 'tomorrow' });
+        if (t.is_done) resetIds.push(t.id);
       }
-      if (t.recurrence === 'custom' && t.recurrence_days) {
-        if (!t.recurrence_days.includes(dayOfWeek)) { result.push(t); continue; }
-      }
-      result.push({ ...t, is_done: false }); // reset for new day
       continue;
     }
 
-    // Tomorrow recurring tasks → promote to today
+    // One-shot tomorrow → today (ignore is_done — fresh start)
+    if (t.day === 'tomorrow' && t.recurrence === 'none') {
+      kept.push({ ...t, day: 'today', is_done: false });
+      dayChanges.push({ id: t.id, day: 'today' });
+      if (t.is_done) resetIds.push(t.id);
+      continue;
+    }
+
+    // Recurring tomorrow
     if (t.day === 'tomorrow' && t.recurrence !== 'none') {
-      if (t.recurrence === 'weekdays' && !isWeekday) { result.push(t); continue; }
-      if (t.recurrence === 'weekly') {
-        const created = new Date(t.created_at).getDay();
-        if (created !== dayOfWeek) { result.push(t); continue; }
+      const yes = appliesToday(t);
+      if (yes) {
+        kept.push({ ...t, day: 'today', is_done: false });
+        dayChanges.push({ id: t.id, day: 'today' });
+        if (t.is_done) resetIds.push(t.id);
+      } else {
+        kept.push({ ...t, is_done: false });
+        if (t.is_done) resetIds.push(t.id);
       }
-      if (t.recurrence === 'custom' && t.recurrence_days) {
-        if (!t.recurrence_days.includes(dayOfWeek)) { result.push(t); continue; }
-      }
-      result.push({ ...t, day: 'today' as const, is_done: false });
       continue;
     }
 
-    result.push(t);
+    kept.push(t);
   }
 
-  return result;
+  return { kept, drops, dayChanges, resetIds };
 }
 
 export const useStore = create<Store>()(
@@ -141,6 +171,7 @@ export const useStore = create<Store>()(
       apiKey: '',
       customBaseURL: '',
       customModel: '',
+      useDefaultKey: true,
       chatOpen: false,
       activePanel: 'plan',
       activeChatDay: 'today',
@@ -152,17 +183,70 @@ export const useStore = create<Store>()(
       setApiKey: (key) => set({ apiKey: key }),
       setCustomBaseURL: (url) => set({ customBaseURL: url }),
       setCustomModel: (model) => set({ customModel: model }),
+      setKeyMode: (mode) => {
+        // Mandatory state cleanup on every switch — prevents stale credentials
+        // from leaking between modes. Always clear, regardless of direction.
+        set({
+          useDefaultKey: mode === 'default',
+          apiKey: '',
+          customBaseURL: '',
+          customModel: '',
+        });
+      },
       setChatOpen: (open) => set({ chatOpen: open }),
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveChatDay: (day) => set({ activeChatDay: day }),
 
-      checkAndRollover: () => {
+      checkAndRollover: async () => {
         const today = todayDateStr();
-        const { lastRolloverDate, tasks } = get();
-        if (lastRolloverDate === today) return;
-        get().saveDayStats(); // save yesterday's stats before rollover
-        const rolled = rolloverRecurring(tasks);
-        set({ tasks: rolled, lastRolloverDate: today });
+        const { lastRolloverDate, tasks, userId, dayHistory } = get();
+        const isISO = lastRolloverDate && /^\d{4}-\d{2}-\d{2}$/.test(lastRolloverDate);
+        if (isISO && lastRolloverDate === today) return;
+
+        // Snapshot the OLD day's stats under the OLD date (not today!).
+        // Previous bug: saveDayStats used today's date, so the new day's slot
+        // got polluted with yesterday's task list.
+        if (lastRolloverDate && /^\d{4}-\d{2}-\d{2}$/.test(lastRolloverDate)) {
+          const oldDayTasks = tasks.filter(t => t.day === 'today');
+          const stat: DayStats = {
+            date: lastRolloverDate,
+            total_count: oldDayTasks.length,
+            done_count: oldDayTasks.filter(t => t.is_done).length,
+            total_minutes: oldDayTasks.reduce((s, t) => s + t.duration_minutes, 0),
+            done_minutes: oldDayTasks.filter(t => t.is_done).reduce((s, t) => s + t.duration_minutes, 0),
+            tasks: oldDayTasks.map(t => ({
+              id: t.id, title: t.title, category: t.category,
+              duration_minutes: t.duration_minutes, is_done: t.is_done,
+            })),
+          };
+          const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== lastRolloverDate);
+          set({ dayHistory: [...filtered.slice(-29), stat] });
+        }
+
+        const { kept, drops, dayChanges, resetIds } = rolloverRecurring(tasks);
+        set({ tasks: kept, lastRolloverDate: today });
+
+        // Sync the rollover diff to Supabase. Without this, the DB keeps
+        // serving yesterday's state on every reload — done tasks "come back".
+        if (userId && userId !== 'local-user') {
+          try {
+            if (drops.length > 0) {
+              await supabase.from('tasks').delete().in('id', drops).eq('user_id', userId);
+            }
+            // Use a single-row update per change — Supabase doesn't bulk-update with different values
+            for (const ch of dayChanges) {
+              await supabase.from('tasks').update({ day: ch.day, is_done: false }).eq('id', ch.id).eq('user_id', userId);
+            }
+            // Recurring resets that didn't already get covered by dayChanges
+            const dayChangedIds = new Set(dayChanges.map(c => c.id));
+            const onlyResets = resetIds.filter(id => !dayChangedIds.has(id));
+            if (onlyResets.length > 0) {
+              await supabase.from('tasks').update({ is_done: false }).in('id', onlyResets).eq('user_id', userId);
+            }
+          } catch (e) {
+            console.error('[rollover] sync failed', e);
+          }
+        }
       },
 
       addTask: async (taskData) => {
@@ -367,8 +451,11 @@ export const useStore = create<Store>()(
       },
 
       saveDayStats: () => {
-        const { tasks, dayHistory } = get();
+        const { tasks, dayHistory, lastRolloverDate } = get();
         const todayStr = todayDateStr();
+        // Skip until checkAndRollover has run for today. Otherwise we snapshot
+        // yesterday's leftover "today" tasks under today's date and corrupt stats.
+        if (lastRolloverDate !== todayStr) return;
         const todayTasks = tasks.filter(t => t.day === 'today');
         const stat: DayStats = {
           date: todayStr,
@@ -421,6 +508,7 @@ export const useStore = create<Store>()(
         apiKey: s.apiKey,
         customBaseURL: s.customBaseURL,
         customModel: s.customModel,
+        useDefaultKey: s.useDefaultKey,
         lastRolloverDate: s.lastRolloverDate,
       }),
     }

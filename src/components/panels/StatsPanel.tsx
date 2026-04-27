@@ -19,7 +19,7 @@ const STREAK_THRESHOLD = 0.8;
 
 export function StatsPanel() {
   const t = useT();
-  const { tasks, dayHistory, config, apiKey, customBaseURL, customModel } = useStore();
+  const { tasks, dayHistory, config, apiKey, customBaseURL, customModel, useDefaultKey } = useStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -137,7 +137,7 @@ export function StatsPanel() {
     try {
       const summary = buildWeekSummary(weekStats, categoryProgress, streak, config.language ?? 'en');
       const lang = (config.language ?? 'en') as 'en' | 'ru';
-      const text = await getWeeklyFeedback(summary, apiKey, lang, customBaseURL, customModel);
+      const text = await getWeeklyFeedback(summary, apiKey, lang, customBaseURL, customModel, useDefaultKey);
       setAiText(text);
     } catch (e) {
       setAiError(e instanceof Error ? e.message : t('stats.aiError'));
