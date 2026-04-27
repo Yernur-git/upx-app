@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Undo2 } from 'lucide-react';
+import { Send, X, Bot, Undo2, Settings2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -78,6 +78,9 @@ export function ChatPanel() {
             <div style={{ fontSize: 14, fontWeight: 600 }}>{t('chat.title')}</div>
             <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('chat.subtitle')}</div>
           </div>
+          <button className="btn-icon" title={config.language === 'ru' ? 'Настройки AI' : 'AI settings'} onClick={() => { setChatOpen(false); setActivePanel('profile'); }}>
+            <Settings2 size={15} />
+          </button>
           <button className="btn-icon" onClick={() => setChatOpen(false)}>
             <X size={15} />
           </button>
