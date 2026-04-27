@@ -221,6 +221,16 @@ export const useStore = create<Store>()(
           };
           const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== lastRolloverDate);
           set({ dayHistory: [...filtered.slice(-29), stat] });
+          if (userId && userId !== 'local-user') {
+            supabase.from('day_stats').upsert({
+              user_id: userId, date: stat.date,
+              total_count: stat.total_count, done_count: stat.done_count,
+              total_minutes: stat.total_minutes, done_minutes: stat.done_minutes,
+              tasks: stat.tasks,
+            }, { onConflict: 'user_id,date' }).then(({ error }) => {
+              if (error) console.error('[rollover] day_stats upsert failed', error);
+            });
+          }
         }
 
         const { kept, drops, dayChanges, resetIds } = rolloverRecurring(tasks);
@@ -451,7 +461,7 @@ export const useStore = create<Store>()(
       },
 
       saveDayStats: () => {
-        const { tasks, dayHistory, lastRolloverDate } = get();
+        const { tasks, dayHistory, lastRolloverDate, userId } = get();
         const todayStr = todayDateStr();
         // Skip until checkAndRollover has run for today. Otherwise we snapshot
         // yesterday's leftover "today" tasks under today's date and corrupt stats.
@@ -464,30 +474,52 @@ export const useStore = create<Store>()(
           total_minutes: todayTasks.reduce((s, t) => s + t.duration_minutes, 0),
           done_minutes: todayTasks.filter(t => t.is_done).reduce((s, t) => s + t.duration_minutes, 0),
           tasks: todayTasks.map(t => ({
-            id: t.id,
-            title: t.title,
-            category: t.category,
-            duration_minutes: t.duration_minutes,
-            is_done: t.is_done,
+            id: t.id, title: t.title, category: t.category,
+            duration_minutes: t.duration_minutes, is_done: t.is_done,
           })),
         };
-        // Keep only ISO-format entries (drop legacy toDateString entries which won't match anything)
         const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== todayStr);
         set({ dayHistory: [...filtered.slice(-29), stat] });
+        if (userId && userId !== 'local-user') {
+          supabase.from('day_stats').upsert({
+            user_id: userId, date: stat.date,
+            total_count: stat.total_count, done_count: stat.done_count,
+            total_minutes: stat.total_minutes, done_minutes: stat.done_minutes,
+            tasks: stat.tasks,
+          }, { onConflict: 'user_id,date' }).then(({ error }) => {
+            if (error) console.error('[saveDayStats] supabase error', error);
+          });
+        }
       },
 
       loadFromSupabase: async () => {
         const { userId } = get();
         if (!userId) return;
         set({ isLoading: true });
-        const [tasksRes, configRes] = await Promise.all([
+        const [tasksRes, configRes, statsRes] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId).order('sort_order'),
           supabase.from('user_config').select('*').eq('user_id', userId).single(),
+          supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
         ]);
         if (tasksRes.data) set({ tasks: tasksRes.data });
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
           set({ config: { ...DEFAULT_CONFIG, ...cfg } });
+        }
+        if (statsRes.data && statsRes.data.length > 0) {
+          const remoteStats: DayStats[] = statsRes.data.map(r => ({
+            date: r.date,
+            total_count: r.total_count,
+            done_count: r.done_count,
+            total_minutes: r.total_minutes,
+            done_minutes: r.done_minutes,
+            tasks: r.tasks || [],
+          }));
+          // Merge remote into local — remote wins for same date
+          const { dayHistory } = get();
+          const merged = new Map<string, DayStats>(dayHistory.map(d => [d.date, d]));
+          for (const r of remoteStats) merged.set(r.date, r);
+          set({ dayHistory: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30) });
         }
         set({ isLoading: false });
         get().checkAndRollover();
