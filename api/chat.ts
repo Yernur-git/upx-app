@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
+export const config = { runtime: 'edge' };
+
 const URLS: Record<string, string> = {
   anthropic: 'https://api.anthropic.com/v1/messages',
   openai: 'https://api.openai.com/v1/chat/completions',
