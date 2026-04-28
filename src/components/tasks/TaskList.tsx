@@ -401,7 +401,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
   const allCategories = getAllCategories(config.category_goals);
 
   return (
-    <div style={{ background: 'var(--sf)', border: '1px solid var(--ind-m)', borderRadius: 'var(--rs)', padding: '14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ background: 'var(--sf)', border: '1px solid var(--ind-m)', borderRadius: 'var(--rs)', padding: '14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: -2 }}>{t('task.title')}</div>
       <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '10px 12px' }}
@@ -616,7 +616,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const allCategories = getAllCategories(config.category_goals);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
       <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '11px 12px' }}
         onChange={e => handleTitleChange(e.target.value)}
