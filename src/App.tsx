@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart2, CalendarDays, User, Sparkles } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -205,36 +205,15 @@ export default function App() {
           </div>
         )}
 
-        {/* ── BOTTOM NAV (mobile only) ── */}
+        {/* ── BOTTOM NAV (mobile only, hidden on desktop via CSS) ── */}
         <nav className="bottom-nav">
           {([
-            { id: 'profile', label: tr('nav.profile'), Icon: User },
-            { id: 'plan',    label: tr('nav.plan'),    Icon: CalendarDays },
-          ] as const).map(({ id, label, Icon }) => {
-            const active = activePanel === id;
-            return (
-              <button
-                key={id}
-                className={`nav-item${active ? ' active' : ''}`}
-                onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
-                <div className="nav-pill" />
-                <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
-                <span>{label}</span>
-              </button>
-            );
-          })}
-
-          {/* AI center button */}
-          <AIChatButton />
-
-          {([
+            { id: 'plan',  label: tr('nav.plan'),  Icon: CalendarDays },
             { id: 'stats', label: tr('nav.stats'), Icon: BarChart2 },
           ] as const).map(({ id, label, Icon }) => {
             const active = activePanel === id;
             return (
-              <button
-                key={id}
-                className={`nav-item${active ? ' active' : ''}`}
+              <button key={id} className={`nav-item${active ? ' active' : ''}`}
                 onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
                 <div className="nav-pill" />
                 <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
@@ -242,6 +221,15 @@ export default function App() {
               </button>
             );
           })}
+
+          <AIChatButton />
+
+          <button className={`nav-item${activePanel === 'profile' ? ' active' : ''}`}
+            onClick={() => { setActivePanel('profile'); setShowTimeline(false); }}>
+            <div className="nav-pill" />
+            <User size={22} strokeWidth={activePanel === 'profile' ? 2.2 : 1.8} />
+            <span>{tr('nav.profile')}</span>
+          </button>
         </nav>
       </div>
 
@@ -263,40 +251,43 @@ function DesktopNav({ activePanel, onNav }: {
 }) {
   const { chatOpen, setChatOpen } = useStore();
 
-  const items = [
-    { id: 'plan'    as const, Icon: CalendarDays, label: tr('nav.plan') },
-    { id: 'stats'   as const, Icon: BarChart2,    label: tr('nav.stats') },
-    { id: 'profile' as const, Icon: User,         label: tr('nav.profile') },
-  ];
+  const navBtn = (id: 'plan' | 'stats' | 'profile', Icon: React.ElementType, label: string) => {
+    const active = activePanel === id;
+    return (
+      <button key={id} onClick={() => onNav(id)} title={label}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 3, padding: '10px 6px', borderRadius: 12, border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: 9, fontWeight: active ? 700 : 500,
+          background: active ? 'var(--ind-l)' : 'transparent',
+          color: active ? 'var(--ind)' : 'var(--tx3)',
+          transition: 'all var(--tr)', width: '100%',
+        }}>
+        <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+        <span>{label}</span>
+      </button>
+    );
+  };
 
   return (
     <nav className="desktop-nav">
-      <div style={{ padding: '14px 0 6px', display: 'flex', justifyContent: 'center' }}>
-        <img src="/logo.png" alt="UpX" style={{ width: 30, height: 30, objectFit: 'contain' }}
+      {/* Logo */}
+      <div style={{ padding: '14px 0 10px', display: 'flex', justifyContent: 'center' }}>
+        <img src="/logo.png" alt="UpX" style={{ width: 28, height: 28, objectFit: 'contain' }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 8px' }}>
-        {items.map(({ id, Icon, label }) => {
-          const active = activePanel === id;
-          return (
-            <button key={id} onClick={() => onNav(id)} title={label}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 3, padding: '10px 6px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                fontFamily: 'inherit', fontSize: 9, fontWeight: active ? 700 : 500,
-                background: active ? 'var(--ind-l)' : 'transparent',
-                color: active ? 'var(--ind)' : 'var(--tx3)',
-                transition: 'all var(--tr)',
-              }}>
-              <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
+      {/* Primary nav — top */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 8px' }}>
+        {navBtn('plan',  CalendarDays, tr('nav.plan'))}
+        {navBtn('stats', BarChart2,    tr('nav.stats'))}
       </div>
 
-      <div style={{ padding: '8px 8px 20px', display: 'flex', justifyContent: 'center' }}>
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* AI button — center */}
+      <div style={{ padding: '0 8px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
         <button onClick={() => setChatOpen(!chatOpen)} title="AI"
           style={{
             width: 40, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer',
@@ -307,6 +298,15 @@ function DesktopNav({ activePanel, onNav }: {
           }}>
           <Sparkles size={18} color={chatOpen ? '#fff' : 'var(--ind)'} />
         </button>
+        <span style={{ fontSize: 9, fontWeight: 600, color: chatOpen ? 'var(--ind)' : 'var(--tx3)' }}>AI</span>
+      </div>
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Profile — bottom */}
+      <div style={{ padding: '0 8px 20px' }}>
+        {navBtn('profile', User, tr('nav.profile'))}
       </div>
     </nav>
   );

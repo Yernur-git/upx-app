@@ -450,11 +450,11 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           </select>
         </div>
       </div>
-      <div>
+      <div style={{ overflow: 'hidden' }}>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span>{t('task.fixedTime')}</span>
           {fixedTime && (
-            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11, flexShrink: 0 }}>
               {(() => {
                 const [h, m] = fixedTime.split(':').map(Number);
                 const endMin = h * 60 + m + (parseInt(duration) || 30);
@@ -466,7 +466,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           )}
         </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 12px' }} />
+          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 12px' }} />
       </div>
       <div>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.notes')}</div>
@@ -530,30 +530,30 @@ function QuickAddBar({ day, onExpand }: { day: 'today' | 'tomorrow'; onExpand: (
   };
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-      <input
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
-        placeholder={t('task.title.placeholder')}
-        style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+          placeholder={t('task.title.placeholder')}
+          style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
+        />
+        <button
+          className="btn btn-primary"
+          onClick={handleAdd}
+          disabled={loading || !title.trim()}
+          style={{ padding: '10px 16px', flexShrink: 0 }}
+        >
+          <Plus size={15} /> {t('task.add.btn')}
+        </button>
+      </div>
       <button
-        className="btn btn-primary"
-        onClick={handleAdd}
-        disabled={loading || !title.trim()}
-        style={{ padding: '10px 14px', flexShrink: 0 }}
-        title={t('task.add.btn')}
-      >
-        <Plus size={15} />
-      </button>
-      <button
-        className="btn-icon"
+        className="btn btn-ghost"
         onClick={onExpand}
-        title={t('task.moreOptions')}
-        style={{ flexShrink: 0, border: '1px solid var(--bdr2)', padding: 9 }}
+        style={{ fontSize: 11, color: 'var(--tx3)', padding: '5px 8px', justifyContent: 'center', border: 'none' }}
       >
-        <SlidersHorizontal size={14} />
+        <SlidersHorizontal size={12} /> {t('task.moreOptions')}
       </button>
     </div>
   );
@@ -655,11 +655,11 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             style={{ width: 68, fontSize: 12, padding: '5px 8px' }} />
         </div>
       </div>
-      <div>
+      <div style={{ overflow: 'hidden' }}>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span>{t('task.startTime')}</span>
           {fixedTime && (
-            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11 }}>
+            <span style={{ color: 'var(--ind)', fontWeight: 600, fontFamily: "'DM Mono', monospace", fontSize: 11, flexShrink: 0 }}>
               {(() => {
                 const [h, m] = fixedTime.split(':').map(Number);
                 const endMin = h * 60 + m + (parseInt(duration) || 30);
@@ -671,7 +671,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           )}
         </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
+          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <CategorySelect
