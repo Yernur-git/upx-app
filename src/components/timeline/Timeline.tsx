@@ -146,7 +146,9 @@ export function Timeline() {
             background: 'var(--coral-l)', color: 'var(--coral)',
             fontSize: 12, fontWeight: 500,
           }}>
-            {t('timeline.overflow', { n: overflow.length })}
+            {config.language === 'ru'
+              ? `Не влезает до ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`
+              : `Won't fit before ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`}
           </div>
         )}
       </div>
