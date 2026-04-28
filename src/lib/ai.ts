@@ -61,17 +61,17 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
+  // Keep task lines concise to avoid 504 timeouts on large lists
   const taskList = todayTasks.length
     ? todayTasks.map(t =>
         `- [id:${t.id}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
-        `${t.travel_minutes ? ` (+${t.travel_minutes}min travel each way)` : ''}` +
-        `${t.break_after ? ` +${t.break_after}min break after` : ''}` +
-        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}`
+        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
+        `${t.travel_minutes ? ` 🚗${t.travel_minutes}m` : ''}`
       ).join('\n')
     : 'No tasks yet.';
 
   const tmrwList = tomorrowTasks.length
-    ? tomorrowTasks.map(t => `- [id:${t.id}] "${t.title}" ${t.duration_minutes}min`).join('\n')
+    ? tomorrowTasks.map(t => `- [id:${t.id}] "${t.title}" ${t.duration_minutes}min${t.fixed_time ? ` @ ${t.fixed_time}` : ''}`).join('\n')
     : 'Empty.';
 
   const now = new Date();
@@ -189,6 +189,10 @@ No markdown, no text outside JSON:
 
 Other action types:
 - update_task: { "id": "task-id", ...fieldsToUpdate }
+  Examples: change time → { "id": "...", "fixed_time": "15:00" }
+            change duration → { "id": "...", "duration_minutes": 90 }
+            remove fixed time → { "id": "...", "fixed_time": null }
+            rename → { "id": "...", "title": "New name" }
 - delete_task: { "id": "task-id" }
 - move_task: { "id": "task-id", "day": "today|tomorrow" }
 - reschedule: { "order": ["id1", "id2", ...] }
