@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Task, UserConfig, ChatMessage, ParsedAction, AppPanel, DayStats } from '../types';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 
 const DEFAULT_CONFIG: UserConfig = {
   wake: '07:00',
@@ -34,6 +35,8 @@ interface Store {
   activePanel: AppPanel;
   activeChatDay: 'today' | 'tomorrow';
   lastRolloverDate: string | null;
+  lastMorningBriefDate: string | null;
+  lastEveningPromptDate: string | null;
   aiUndoSnapshot: Task[] | null;
 
   setUserId: (id: string | null) => void;
@@ -46,6 +49,8 @@ interface Store {
   setChatOpen: (open: boolean) => void;
   setActivePanel: (panel: AppPanel) => void;
   setActiveChatDay: (day: 'today' | 'tomorrow') => void;
+  setLastMorningBriefDate: (date: string) => void;
+  setLastEveningPromptDate: (date: string) => void;
 
   addTask: (task: Omit<Task, 'id' | 'created_at'>) => Promise<Task>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -176,6 +181,8 @@ export const useStore = create<Store>()(
       activePanel: 'plan',
       activeChatDay: 'today',
       lastRolloverDate: null,
+      lastMorningBriefDate: null,
+      lastEveningPromptDate: null,
       aiUndoSnapshot: null,
 
       setUserId: (id) => set({ userId: id }),
@@ -196,6 +203,8 @@ export const useStore = create<Store>()(
       setChatOpen: (open) => set({ chatOpen: open }),
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveChatDay: (day) => set({ activeChatDay: day }),
+      setLastMorningBriefDate: (date) => set({ lastMorningBriefDate: date }),
+      setLastEveningPromptDate: (date) => set({ lastEveningPromptDate: date }),
 
       checkAndRollover: async () => {
         const today = todayDateStr();
@@ -297,6 +306,7 @@ export const useStore = create<Store>()(
             throw new Error(error.message);
           }
         }
+        track('task_added', { day: task.day, priority: task.priority, has_fixed_time: !!task.fixed_time });
         return task;
       },
 
@@ -336,6 +346,7 @@ export const useStore = create<Store>()(
         const task = get().tasks.find(t => t.id === id);
         if (!task) return;
         await get().updateTask(id, { is_done: !task.is_done });
+        if (!task.is_done) track('task_completed', { category: task.category, duration_minutes: task.duration_minutes });
       },
 
       reorderTasks: async (orderedIds) => {
@@ -443,6 +454,7 @@ export const useStore = create<Store>()(
             }
           } catch(e) { console.error('Action failed:', action.type, e); }
         }
+        if (applied > 0) track('ai_actions_applied', { count: applied });
         return applied;
       },
 
@@ -526,6 +538,7 @@ export const useStore = create<Store>()(
       },
 
       signOut: async () => {
+        track('signed_out');
         await supabase.auth.signOut();
         set({ userId: null, userEmail: null, tasks: [], chatMessages: [], aiUndoSnapshot: null });
       },
@@ -543,6 +556,8 @@ export const useStore = create<Store>()(
         customModel: s.customModel,
         useDefaultKey: s.useDefaultKey,
         lastRolloverDate: s.lastRolloverDate,
+        lastMorningBriefDate: s.lastMorningBriefDate,
+        lastEveningPromptDate: s.lastEveningPromptDate,
       }),
     }
   )

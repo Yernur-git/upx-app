@@ -3,6 +3,7 @@ import { Send, X, Bot, Undo2, Settings2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
+import { track } from '../../lib/analytics';
 
 export function ChatPanel() {
   const t = useT();
@@ -26,6 +27,7 @@ export function ChatPanel() {
     setInput('');
 
     addChatMessage({ role: 'user', content: text });
+    track('ai_chat_sent', { day: activeChatDay, message_length: text.length });
     setIsTyping(true);
 
     try {
