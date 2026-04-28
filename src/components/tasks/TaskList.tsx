@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, SlidersHorizontal } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -120,9 +120,7 @@ export function TaskList() {
       <div style={{ padding: '10px 18px 18px', borderTop: '1px solid var(--bdr2)', flexShrink: 0 }}>
         {showAdd
           ? <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
-          : <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', color: 'var(--ind)' }} onClick={() => setShowAdd(true)}>
-              <Plus size={15} /> {t('task.add')}
-            </button>
+          : <QuickAddBar day={activeDay} onExpand={() => setShowAdd(true)} />
         }
       </div>
     </div>
@@ -497,6 +495,66 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
         <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px' }} onClick={handleSave}>{t('task.save')}</button>
         <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>{t('task.cancel')}</button>
       </div>
+    </div>
+  );
+}
+
+function QuickAddBar({ day, onExpand }: { day: 'today' | 'tomorrow'; onExpand: () => void }) {
+  const t = useT();
+  const { addTask, config } = useStore();
+  const [title, setTitle] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleAdd = async () => {
+    const trimmed = title.trim();
+    if (!trimmed || loading) return;
+    setLoading(true);
+    try {
+      await addTask({
+        title: trimmed,
+        duration_minutes: 30,
+        break_after: config.buffer,
+        travel_minutes: 0,
+        priority: 'medium',
+        category: detectCategory(trimmed, config.category_goals),
+        is_starred: false,
+        is_done: false,
+        day,
+        recurrence: 'none',
+        sort_order: 0,
+      });
+      setTitle('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <input
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
+        placeholder={t('task.title.placeholder')}
+        style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
+      />
+      <button
+        className="btn btn-primary"
+        onClick={handleAdd}
+        disabled={loading || !title.trim()}
+        style={{ padding: '10px 14px', flexShrink: 0 }}
+        title={t('task.add.btn')}
+      >
+        <Plus size={15} />
+      </button>
+      <button
+        className="btn-icon"
+        onClick={onExpand}
+        title={t('task.moreOptions')}
+        style={{ flexShrink: 0, border: '1px solid var(--bdr2)', padding: 9 }}
+      >
+        <SlidersHorizontal size={14} />
+      </button>
     </div>
   );
 }

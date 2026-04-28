@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"serviceWorker\\\\|sw\\\\\\\\.js\" \"C:/HOME-WORKS/NUR4IK PROJECT UpX/upx-app/src\")",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
