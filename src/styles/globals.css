@@ -117,6 +117,23 @@ input::placeholder { color: var(--tx3); }
 .dot.medium { background: var(--must); }
 .dot.low    { background: var(--sage); }
 
+/* ── DESKTOP SIDEBAR NAV ── */
+.desktop-nav {
+  display: none;
+  width: 64px;
+  flex-shrink: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--bdr2);
+  background: var(--bg);
+  z-index: 50;
+}
+@media (min-width: 900px) {
+  .desktop-nav { display: flex; }
+  .bottom-nav  { display: none !important; }
+  .sidebar-logo { display: none !important; }
+  .chat-panel  { bottom: 16px; right: 16px; border-radius: var(--r); }
+}
+
 /* ── SHELL (desktop two-column) ── */
 .shell { display: flex; height: 100%; overflow: hidden; }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BarChart2, CalendarDays, User, Sparkles } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
@@ -118,7 +118,7 @@ export default function App() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       {showOnboarding && !showSplash && (
         <Onboarding onDone={() => {
@@ -127,8 +127,14 @@ export default function App() {
         }} />
       )}
 
-      {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* ── DESKTOP SIDEBAR NAV (≥900px) ── */}
+      <DesktopNav
+        activePanel={activePanel}
+        onNav={(id) => { setActivePanel(id); setShowTimeline(false); }}
+      />
+
+      {/* ── MAIN COLUMN ── */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* ── PLAN PANEL ── */}
         {activePanel === 'plan' && (
@@ -142,11 +148,10 @@ export default function App() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
                 <div>
-                  {/* Logo — replace with your PNG once uploaded */}
                   <img src="/logo.png" alt="UpX"
+                    className="sidebar-logo"
                     style={{ height: 28, marginBottom: 4 }}
                     onError={e => {
-                      // fallback to text if logo not found
                       (e.target as HTMLImageElement).style.display = 'none';
                       const el = document.getElementById('upx-text-logo');
                       if (el) el.style.display = 'block';
@@ -199,46 +204,34 @@ export default function App() {
             <ProfilePanel />
           </div>
         )}
+
+        {/* ── BOTTOM NAV (mobile only, hidden on desktop via CSS) ── */}
+        <nav className="bottom-nav">
+          {([
+            { id: 'plan',  label: tr('nav.plan'),  Icon: CalendarDays },
+            { id: 'stats', label: tr('nav.stats'), Icon: BarChart2 },
+          ] as const).map(({ id, label, Icon }) => {
+            const active = activePanel === id;
+            return (
+              <button key={id} className={`nav-item${active ? ' active' : ''}`}
+                onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
+                <div className="nav-pill" />
+                <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+
+          <AIChatButton />
+
+          <button className={`nav-item${activePanel === 'profile' ? ' active' : ''}`}
+            onClick={() => { setActivePanel('profile'); setShowTimeline(false); }}>
+            <div className="nav-pill" />
+            <User size={22} strokeWidth={activePanel === 'profile' ? 2.2 : 1.8} />
+            <span>{tr('nav.profile')}</span>
+          </button>
+        </nav>
       </div>
-
-      {/* ── BOTTOM NAV ── */}
-      <nav className="bottom-nav">
-        {([
-          { id: 'profile', label: tr('nav.profile'), Icon: User },
-          { id: 'plan',    label: tr('nav.plan'),    Icon: CalendarDays },
-        ] as const).map(({ id, label, Icon }) => {
-          const active = activePanel === id;
-          return (
-            <button
-              key={id}
-              className={`nav-item${active ? ' active' : ''}`}
-              onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
-              <div className="nav-pill" />
-              <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-
-        {/* AI center button */}
-        <AIChatButton />
-
-        {([
-          { id: 'stats', label: tr('nav.stats'), Icon: BarChart2 },
-        ] as const).map(({ id, label, Icon }) => {
-          const active = activePanel === id;
-          return (
-            <button
-              key={id}
-              className={`nav-item${active ? ' active' : ''}`}
-              onClick={() => { setActivePanel(id); setShowTimeline(false); }}>
-              <div className="nav-pill" />
-              <Icon size={22} strokeWidth={active ? 2.2 : 1.8} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </nav>
 
       <ChatPanel />
 
@@ -249,6 +242,73 @@ export default function App() {
         }
       `}</style>
     </div>
+  );
+}
+
+function DesktopNav({ activePanel, onNav }: {
+  activePanel: string;
+  onNav: (id: 'plan' | 'stats' | 'profile') => void;
+}) {
+  const { chatOpen, setChatOpen } = useStore();
+
+  const navBtn = (id: 'plan' | 'stats' | 'profile', Icon: React.ElementType, label: string) => {
+    const active = activePanel === id;
+    return (
+      <button key={id} onClick={() => onNav(id)} title={label}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 3, padding: '10px 6px', borderRadius: 12, border: 'none', cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: 9, fontWeight: active ? 700 : 500,
+          background: active ? 'var(--ind-l)' : 'transparent',
+          color: active ? 'var(--ind)' : 'var(--tx3)',
+          transition: 'all var(--tr)', width: '100%',
+        }}>
+        <Icon size={20} strokeWidth={active ? 2.2 : 1.8} />
+        <span>{label}</span>
+      </button>
+    );
+  };
+
+  return (
+    <nav className="desktop-nav">
+      {/* Logo */}
+      <div style={{ padding: '14px 0 10px', display: 'flex', justifyContent: 'center' }}>
+        <img src="/logo.png" alt="UpX" style={{ width: 28, height: 28, objectFit: 'contain' }}
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+      </div>
+
+      {/* Primary nav — top */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '0 8px' }}>
+        {navBtn('plan',  CalendarDays, tr('nav.plan'))}
+        {navBtn('stats', BarChart2,    tr('nav.stats'))}
+      </div>
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* AI button — center */}
+      <div style={{ padding: '0 8px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        <button onClick={() => setChatOpen(!chatOpen)} title="AI"
+          style={{
+            width: 40, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: chatOpen ? 'var(--ind)' : 'var(--ind-l)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all var(--tr)',
+            boxShadow: chatOpen ? '0 4px 14px rgba(76,94,232,.4)' : 'none',
+          }}>
+          <Sparkles size={18} color={chatOpen ? '#fff' : 'var(--ind)'} />
+        </button>
+        <span style={{ fontSize: 9, fontWeight: 600, color: chatOpen ? 'var(--ind)' : 'var(--tx3)' }}>AI</span>
+      </div>
+
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Profile — bottom */}
+      <div style={{ padding: '0 8px 20px' }}>
+        {navBtn('profile', User, tr('nav.profile'))}
+      </div>
+    </nav>
   );
 }
 
