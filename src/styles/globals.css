@@ -110,6 +110,7 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 3px var(--ind-l);
 }
 input::placeholder { color: var(--tx3); }
+input[type="time"] { min-width: 0; }
 
 /* ── PRIORITY DOTS ── */
 .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
