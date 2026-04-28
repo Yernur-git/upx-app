@@ -535,7 +535,8 @@ export const useStore = create<Store>()(
       partialize: (s) => ({
         tasks: s.tasks,
         config: s.config,
-        chatMessages: s.chatMessages,
+        // chatMessages intentionally NOT persisted — each session starts fresh
+        // so AI context is consistent across all devices
         dayHistory: s.dayHistory,
         apiKey: s.apiKey,
         customBaseURL: s.customBaseURL,

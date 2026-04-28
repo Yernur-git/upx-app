@@ -50,11 +50,18 @@ export function Timeline() {
     return () => clearInterval(id);
   }, []);
 
+  // ignoreNow=true: tasks stay at their planned positions; red "now" line shows reality
   const { blocks, overflow, totalMinutes, availableMinutes } = useMemo(
-    () => buildSchedule(tasks, config),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, config, nowMins]
+    () => buildSchedule(tasks, config, true),
+    [tasks, config]
   );
+
+  // How many minutes behind the planned schedule are we?
+  const lateMinutes = useMemo(() => {
+    const firstMissed = blocks.find(b => !isBreakBlock(b) && !b.task.is_done && b.end_minutes <= nowMins);
+    if (!firstMissed || isBreakBlock(firstMissed)) return 0;
+    return nowMins - firstMissed.start_minutes;
+  }, [blocks, nowMins]);
 
   const wakeMin = useMemo(() => {
     const [h, m] = config.wake.split(':').map(Number);
@@ -122,6 +129,17 @@ export function Timeline() {
           }} />
         </div>
 
+        {lateMinutes > 0 && (
+          <div style={{
+            marginTop: 8, padding: '6px 10px', borderRadius: 'var(--rs)',
+            background: 'rgba(230,100,80,0.12)', color: 'var(--coral)',
+            fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            ⏰ {config.language === 'ru'
+              ? `Опаздываешь на ${formatDuration(lateMinutes)} — расписание смещено`
+              : `Running ${formatDuration(lateMinutes)} behind schedule`}
+          </div>
+        )}
         {overflow.length > 0 && (
           <div style={{
             marginTop: 8, padding: '6px 10px', borderRadius: 'var(--rs)',
