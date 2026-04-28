@@ -5,6 +5,7 @@ import { formatDuration } from '../../lib/scheduler';
 import { taskMatchesGoal } from '../../lib/categories';
 import { getWeeklyFeedback } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
+import { track } from '../../lib/analytics';
 import type { DayStatTask } from '../../types';
 
 /** ISO YYYY-MM-DD. */
@@ -131,6 +132,7 @@ export function StatsPanel() {
   const selectedDay = selectedDate ? weekStats.find(d => d.date === selectedDate) : null;
 
   const askAI = async () => {
+    track('week_reviewed', { streak, has_goals: config.category_goals.length > 0 });
     setAiLoading(true);
     setAiError(null);
     setAiText(null);

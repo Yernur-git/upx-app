@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart2, CalendarDays, User, Sparkles } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { BarChart2, CalendarDays, User, Sparkles, X } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
@@ -13,8 +13,13 @@ import { ProfilePanel } from './components/panels/ProfilePanel';
 import { supabase } from './lib/supabase';
 import { buildSchedule } from './lib/scheduler';
 import { scheduleTaskNotifications, canNotify } from './lib/notifications';
+import { sendChatMessage } from './lib/ai';
+import { initAnalytics, identifyUser, track } from './lib/analytics';
 import './styles/globals.css';
 import { t as tr } from './lib/i18n';
+
+// Run once at module load — safe even if VITE_POSTHOG_KEY is not set
+initAnalytics();
 
 
 function greeting() {
@@ -26,18 +31,30 @@ function greeting() {
   return tr('greeting.night');
 }
 
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 export default function App() {
   const {
     config, userId, userEmail, tasks,
     setUserId, setUserEmail, loadFromSupabase,
     activePanel, setActivePanel,
     checkAndRollover, saveDayStats,
+    chatMessages, addChatMessage, applyActions,
+    apiKey, customBaseURL, customModel, useDefaultKey,
+    setChatOpen,
+    lastMorningBriefDate, setLastMorningBriefDate,
+    lastEveningPromptDate, setLastEveningPromptDate,
   } = useStore();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [showMorningBanner, setShowMorningBanner] = useState(false);
+  const [showEveningBanner, setShowEveningBanner] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
   });
@@ -91,6 +108,49 @@ export default function App() {
       window.removeEventListener('focus', checkAndRollover);
     };
   }, []);
+
+  // Analytics: identify user on sign-in
+  useEffect(() => {
+    if (userId && userId !== 'local-user') {
+      identifyUser(userId, userEmail ?? undefined);
+      track('app_opened');
+    }
+  }, [userId]);
+
+  // Helper: fire an AI message without the user typing
+  const sendAutoMessage = useCallback(async (text: string) => {
+    addChatMessage({ role: 'user', content: text });
+    try {
+      const result = await sendChatMessage(
+        text, chatMessages, tasks, config,
+        apiKey, 'today', customBaseURL, customModel, useDefaultKey,
+      );
+      const applied = result.actions.length > 0 ? await applyActions(result.actions) : 0;
+      addChatMessage({ role: 'assistant', content: result.message, actions: applied > 0 ? result.actions.slice(0, applied) : [] });
+    } catch (err) {
+      addChatMessage({ role: 'assistant', content: tr('chat.error', { err: err instanceof Error ? err.message : 'Error' }), actions: [] });
+    }
+  }, [tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, chatMessages, addChatMessage, applyActions]);
+
+  // Morning briefing banner: show once per day between 06:00–11:00 if there are tasks
+  useEffect(() => {
+    const h = new Date().getHours();
+    const today = todayStr();
+    const hasTasks = tasks.filter(t => t.day === 'today').length > 0;
+    if (h >= 6 && h < 11 && hasTasks && lastMorningBriefDate !== today && authChecked && !showSplash) {
+      setShowMorningBanner(true);
+    }
+  }, [authChecked, showSplash, tasks, lastMorningBriefDate]);
+
+  // Evening summary banner: show once per day after 19:00 if there are tasks
+  useEffect(() => {
+    const h = new Date().getHours();
+    const today = todayStr();
+    const hasTasks = tasks.filter(t => t.day === 'today').length > 0;
+    if (h >= 19 && hasTasks && lastEveningPromptDate !== today && authChecked && !showSplash) {
+      setShowEveningBanner(true);
+    }
+  }, [authChecked, showSplash, tasks, lastEveningPromptDate]);
 
   // Schedule task notifications whenever tasks/config change
   useEffect(() => {
@@ -173,6 +233,78 @@ export default function App() {
                   <CalendarDays size={13} /> {tr('nav.schedule')}
                 </button>
               </div>
+
+              {/* Morning & evening banners */}
+              {showMorningBanner && (
+                <div style={{
+                  margin: '0 18px 10px', padding: '10px 14px',
+                  background: 'linear-gradient(135deg, var(--ind-l) 0%, var(--sf2) 100%)',
+                  border: '1px solid var(--ind-m)', borderRadius: 12,
+                  display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 18 }}>☀️</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ind)' }}>
+                      {config.language === 'ru' ? 'Утренний брифинг готов' : 'Morning briefing ready'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 1 }}>
+                      {config.language === 'ru' ? 'AI расскажет как лучше провести день' : 'AI will walk you through your day'}
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ fontSize: 11, padding: '6px 12px', flexShrink: 0 }}
+                    onClick={() => {
+                      setShowMorningBanner(false);
+                      setLastMorningBriefDate(todayStr());
+                      setChatOpen(true);
+                      track('morning_brief_opened');
+                      const msg = config.language === 'ru'
+                        ? 'Дай мне краткий утренний план на сегодня. Посмотри на задачи и скажи с чего начать и как распределить день.'
+                        : "Give me a quick morning plan for today. Look at my tasks and tell me where to start and how to structure my day.";
+                      setTimeout(() => sendAutoMessage(msg), 400);
+                    }}>
+                    {config.language === 'ru' ? 'Открыть' : 'Open'}
+                  </button>
+                  <button className="btn-icon" style={{ padding: 4, flexShrink: 0 }}
+                    onClick={() => { setShowMorningBanner(false); setLastMorningBriefDate(todayStr()); }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+              {showEveningBanner && (
+                <div style={{
+                  margin: '0 18px 10px', padding: '10px 14px',
+                  background: 'linear-gradient(135deg, rgba(240,180,41,.12) 0%, var(--sf2) 100%)',
+                  border: '1px solid var(--must)', borderRadius: 12,
+                  display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 18 }}>🌙</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>
+                      {config.language === 'ru' ? 'День заканчивается' : 'Day wrapping up'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 1 }}>
+                      {config.language === 'ru' ? 'AI оценит твой день и подскажет на завтра' : 'Get AI feedback on your day'}
+                    </div>
+                  </div>
+                  <button className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', flexShrink: 0 }}
+                    onClick={() => {
+                      setShowEveningBanner(false);
+                      setLastEveningPromptDate(todayStr());
+                      setChatOpen(true);
+                      track('evening_summary_opened');
+                      const msg = config.language === 'ru'
+                        ? 'Подведи итог моего дня. Что сделал, что нет, что стоит перенести на завтра и какой совет дашь?'
+                        : "Summarize my day. What did I accomplish, what did I miss, what should move to tomorrow, and what's your advice?";
+                      setTimeout(() => sendAutoMessage(msg), 400);
+                    }}>
+                    {config.language === 'ru' ? 'Подвести итог' : 'Review day'}
+                  </button>
+                  <button className="btn-icon" style={{ padding: 4, flexShrink: 0 }}
+                    onClick={() => { setShowEveningBanner(false); setLastEveningPromptDate(todayStr()); }}>
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
 
               <TaskList />
             </aside>
