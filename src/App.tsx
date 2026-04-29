@@ -231,7 +231,7 @@ export default function App() {
                   <div id="upx-text-logo" style={{ display: 'none', fontSize: 13, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)', marginBottom: 2 }}>UpX</div>
                   <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.2px' }}>{greeting()} 👋</div>
                   <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 1 }}>
-                    {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    {new Date().toLocaleDateString(config.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </div>
                 </div>
 

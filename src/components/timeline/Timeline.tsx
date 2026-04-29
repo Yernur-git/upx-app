@@ -39,6 +39,7 @@ function hexToRgb(hex: string): string {
 export function Timeline() {
   const t = useT();
   const { tasks, config } = useStore();
+  const lang = config.language ?? 'en';
   const [nowMins, setNowMins] = useState(getNowMinutes);
   const [hoveredY, setHoveredY] = useState<number | null>(null);
   const [hoveredTime, setHoveredTime] = useState<string | null>(null);
@@ -116,7 +117,7 @@ export function Timeline() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 15, fontWeight: 600 }}>{t('timeline.title')}</div>
           <div style={{ fontSize: 12, color: 'var(--tx3)', fontFamily: "'DM Mono', monospace" }}>
-            {formatDuration(totalMinutes)} / {formatDuration(availableMinutes)}
+            {formatDuration(totalMinutes, lang)} / {formatDuration(availableMinutes, lang)}
           </div>
         </div>
 
@@ -136,7 +137,7 @@ export function Timeline() {
             fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
           }}>
             ⏰ {config.language === 'ru'
-              ? `Опаздываешь на ${formatDuration(lateMinutes)} — расписание смещено`
+              ? `Опаздываешь на ${formatDuration(lateMinutes, 'ru')} — расписание смещено`
               : `Running ${formatDuration(lateMinutes)} behind schedule`}
           </div>
         )}
@@ -203,7 +204,7 @@ export function Timeline() {
                 }}>
                   {rawHeight >= 20 && (
                     <span style={{ fontSize: 10, color: 'var(--brk-tx)', fontWeight: 500, userSelect: 'none', whiteSpace: 'nowrap' }}>
-                      ☕ {formatDuration(breakDur)}
+                      ☕ {formatDuration(breakDur, lang)}
                     </span>
                   )}
                 </div>
@@ -240,6 +241,7 @@ export function Timeline() {
                   height={height}
                   isPast={isPast}
                   isCurrent={isCurrent}
+                  lang={lang}
                 />
               </div>
             );
@@ -286,11 +288,11 @@ export function Timeline() {
 }
 
 function ScheduleCard({
-  task, catColor, catEmoji, startTime, endTime, durationMin, height, isPast, isCurrent,
+  task, catColor, catEmoji, startTime, endTime, durationMin, height, isPast, isCurrent, lang,
 }: {
   task: { title: string; category: string; travel_minutes: number; is_done: boolean; is_starred: boolean };
   catColor: string; catEmoji: string; startTime: string; endTime: string;
-  durationMin: number; height: number; isPast: boolean; isCurrent: boolean;
+  durationMin: number; height: number; isPast: boolean; isCurrent: boolean; lang?: string;
 }) {
   const rgb = (() => { try { return hexToRgb(catColor); } catch { return '92, 107, 156'; } })();
   // Size tiers
@@ -383,7 +385,7 @@ function ScheduleCard({
               fontFamily: "'DM Mono', monospace",
               letterSpacing: '0',
             }}>
-              {formatDuration(durationMin)}
+              {formatDuration(durationMin, lang)}
             </span>
           )}
         </div>
