@@ -87,12 +87,13 @@ export function Onboarding({ onDone }: OnboardingProps) {
       <div style={{
         flex: 1,
         display: 'flex', flexDirection: 'column',
-        alignItems: 'center',
-        padding: '48px 20px 32px',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '24px 20px 24px',
         minHeight: 'min-content',
+        gap: 16,
       }}>
         {/* Step dots */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           {STEPS.map((_, i) => (
             <div key={i} style={{
               width: i === step ? 24 : 8,
@@ -224,7 +225,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
         <button
           className="btn btn-primary"
           style={{
-            marginTop: 20, width: '100%', maxWidth: 400,
+            width: '100%', maxWidth: 400,
             padding: '15px', fontSize: 15, fontWeight: 600,
             justifyContent: 'center',
             opacity: canNext() && !loading ? 1 : 0.5,
@@ -237,11 +238,6 @@ export function Onboarding({ onDone }: OnboardingProps) {
               ? t('onb.lets')
               : t('onb.continue')}
         </button>
-
-        {/* Progress hint */}
-        <p style={{ marginTop: 16, fontSize: 11, color: 'var(--tx3)', textAlign: 'center' }}>
-          {step + 1} / {STEPS.length}
-        </p>
       </div>
     </div>
   );

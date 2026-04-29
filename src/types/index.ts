@@ -54,6 +54,7 @@ export interface QuickTask {
   duration_minutes: number;
   category: string;
   priority: Priority;
+  fixed_time?: string; // optional HH:MM — locks the task to a specific time
 }
 
 export interface UserConfig {

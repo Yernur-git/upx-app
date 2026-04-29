@@ -102,6 +102,7 @@ export function QuickActionSheet({ open, onClose, day }: {
         day,
         recurrence: 'none',
         sort_order: 0,
+        fixed_time: qt.fixed_time || undefined,
       });
       setDone(qt.id);
       setTimeout(onClose, 700); // brief "✓ Added" moment before close
@@ -170,7 +171,9 @@ export function QuickActionSheet({ open, onClose, day }: {
                 : <>
                     <span style={{ fontSize: 28 }}>{qt.emoji}</span>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{qt.title}</span>
-                    <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{qt.duration_minutes}min</span>
+                    <span style={{ fontSize: 10, color: 'var(--tx3)' }}>
+                      {qt.duration_minutes}min{qt.fixed_time ? ` · ${qt.fixed_time}` : ''}
+                    </span>
                   </>
               }
             </button>
@@ -217,7 +220,22 @@ function AddQuickTaskTile({ onAdd, lang }: {
   const [emoji, setEmoji] = useState('⚡');
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
+  const [fixedTime, setFixedTime] = useState('');
+  const [priority, setPriority] = useState<Priority>('medium');
   const [open, setOpen] = useState(false);
+
+  const save = () => {
+    if (!title.trim()) return;
+    onAdd({
+      id: `qt-${Date.now()}`,
+      emoji,
+      title: title.trim(),
+      duration_minutes: parseInt(duration) || 30,
+      category: 'general',
+      priority,
+      fixed_time: fixedTime || undefined,
+    });
+  };
 
   if (!open) {
     return (
@@ -237,29 +255,53 @@ function AddQuickTaskTile({ onAdd, lang }: {
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 6, padding: '10px',
+      display: 'flex', flexDirection: 'column', gap: 8, padding: '12px',
       background: 'var(--sf)', border: '1px solid var(--ind-m)',
       borderRadius: 16, gridColumn: '1 / -1',
     }}>
+      {/* Row 1: emoji + name */}
       <div style={{ display: 'flex', gap: 8 }}>
-        <input value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 48, fontSize: 20, textAlign: 'center', padding: '6px' }} maxLength={2} />
+        <input value={emoji} onChange={e => setEmoji(e.target.value)}
+          style={{ width: 46, fontSize: 20, textAlign: 'center', padding: '8px 4px', flexShrink: 0 }} maxLength={2} />
         <input
           autoFocus value={title} onChange={e => setTitle(e.target.value)}
           placeholder={lang === 'ru' ? 'Название' : 'Task name'}
           style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
-          onKeyDown={e => { if (e.key === 'Enter' && title.trim()) onAdd({ id: `qt-${Date.now()}`, emoji, title: title.trim(), duration_minutes: parseInt(duration) || 30, category: 'general', priority: 'medium' }); }}
+          onKeyDown={e => { if (e.key === 'Enter') save(); }}
         />
-        <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="5" style={{ width: 56, fontSize: 13, padding: '8px 6px' }} />
       </div>
+      {/* Row 2: duration + priority */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>{lang === 'ru' ? 'Мин' : 'Min'}</div>
+          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="5"
+            style={{ fontSize: 13, padding: '7px 8px', width: '100%', boxSizing: 'border-box' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>{lang === 'ru' ? 'Приоритет' : 'Priority'}</div>
+          <select value={priority} onChange={e => setPriority(e.target.value as Priority)}
+            style={{ fontSize: 12, padding: '7px 6px', width: '100%', boxSizing: 'border-box' }}>
+            <option value="high">{lang === 'ru' ? 'Высокий' : 'High'}</option>
+            <option value="medium">{lang === 'ru' ? 'Средний' : 'Medium'}</option>
+            <option value="low">{lang === 'ru' ? 'Низкий' : 'Low'}</option>
+          </select>
+        </div>
+      </div>
+      {/* Row 3: optional fixed time */}
+      <div>
+        <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 4 }}>
+          {lang === 'ru' ? 'Фиксированное время (необязательно)' : 'Fixed time (optional)'}
+        </div>
+        <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
+          style={{ fontSize: 13, padding: '7px 10px', width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
+      </div>
+      {/* Actions */}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button
-          className="btn btn-primary"
-          style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '8px' }}
-          disabled={!title.trim()}
-          onClick={() => onAdd({ id: `qt-${Date.now()}`, emoji, title: title.trim(), duration_minutes: parseInt(duration) || 30, category: 'general', priority: 'medium' })}>
+        <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '9px' }}
+          disabled={!title.trim()} onClick={save}>
           {lang === 'ru' ? 'Сохранить' : 'Save'}
         </button>
-        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 12px' }} onClick={() => setOpen(false)}>
+        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '9px 14px' }} onClick={() => setOpen(false)}>
           {lang === 'ru' ? 'Отмена' : 'Cancel'}
         </button>
       </div>
