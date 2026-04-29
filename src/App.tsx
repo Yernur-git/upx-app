@@ -117,6 +117,15 @@ export default function App() {
     }
   }, [userId]);
 
+  // Show onboarding for first-time users (after splash + auth confirmed)
+  useEffect(() => {
+    if (!userId || !authChecked || showSplash) return;
+    const key = `upx_onboarded_${userId}`;
+    if (!localStorage.getItem(key)) {
+      setShowOnboarding(true);
+    }
+  }, [userId, authChecked, showSplash]);
+
   // Helper: fire an AI message without the user typing
   const sendAutoMessage = useCallback(async (text: string) => {
     addChatMessage({ role: 'user', content: text });
