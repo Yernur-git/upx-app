@@ -521,7 +521,28 @@ export const useStore = create<Store>()(
           supabase.from('user_config').select('*').eq('user_id', userId).single(),
           supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
         ]);
-        if (tasksRes.data) set({ tasks: tasksRes.data });
+        if (tasksRes.data) {
+          const { lastRolloverDate } = get();
+          const today = todayDateStr();
+          const alreadyRolledToday = lastRolloverDate === today;
+          // If rollover already ran today, Supabase might still have stale done
+          // one-shot tasks (delete failed or was never flushed). Filter them out
+          // so they don't "come back" after reload.
+          const tasks = alreadyRolledToday
+            ? tasksRes.data.filter(t => !(t.day === 'today' && t.is_done && t.recurrence === 'none'))
+            : tasksRes.data;
+          set({ tasks });
+          // Also delete any stale done tasks from Supabase so they don't return again
+          if (alreadyRolledToday) {
+            const staleIds = tasksRes.data
+              .filter(t => t.day === 'today' && t.is_done && t.recurrence === 'none')
+              .map(t => t.id);
+            if (staleIds.length > 0) {
+              supabase.from('tasks').delete().in('id', staleIds).eq('user_id', userId)
+                .then(({ error }) => { if (error) console.error('[loadFromSupabase] stale cleanup failed', error); });
+            }
+          }
+        }
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
           set({ config: { ...DEFAULT_CONFIG, ...cfg } });
