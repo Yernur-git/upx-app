@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, SlidersHorizontal } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2 } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -12,9 +12,251 @@ import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
 import { detectCategory, getAllCategories } from '../../lib/categories';
 import { useT } from '../../lib/i18n';
-import type { Task, Priority, Recurrence } from '../../types';
+import type { Task, Priority, Recurrence, QuickTask } from '../../types';
 import { formatDuration } from '../../lib/scheduler';
 
+// ─── Bottom Sheet wrapper ──────────────────────────────────────────
+function BottomSheet({ open, onClose, children, title }: {
+  open: boolean; onClose: () => void; children: React.ReactNode; title?: string;
+}) {
+  // Lock body scroll when sheet is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 3000,
+      display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+    }}>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.45)', backdropFilter: 'blur(2px)' }}
+      />
+      {/* Sheet */}
+      <div style={{
+        position: 'relative', zIndex: 1,
+        background: 'var(--bg)',
+        borderRadius: '20px 20px 0 0',
+        maxHeight: '88dvh',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 -8px 40px rgba(0,0,0,.18)',
+      }}>
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--bdr2)' }} />
+        </div>
+        {/* Header */}
+        {title && (
+          <div style={{
+            padding: '8px 18px 12px', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--tx)' }}>{title}</span>
+            <button onClick={onClose} className="btn-icon" style={{ padding: 6 }}><X size={16} /></button>
+          </div>
+        )}
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', padding: '0 18px 32px', WebkitOverflowScrolling: 'touch' as any }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Quick Action Sheet ────────────────────────────────────────────
+export function QuickActionSheet({ open, onClose, day }: {
+  open: boolean; onClose: () => void; day: 'today' | 'tomorrow';
+}) {
+  const t = useT();
+  const { addTask, config, updateConfig } = useStore();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+
+  const quickTasks: QuickTask[] = config.quick_tasks ?? [];
+
+  const handleTap = async (qt: QuickTask) => {
+    if (editMode) return;
+    setAdding(qt.id);
+    try {
+      await addTask({
+        title: qt.title,
+        duration_minutes: qt.duration_minutes,
+        break_after: config.buffer,
+        travel_minutes: 0,
+        priority: qt.priority,
+        category: qt.category,
+        is_starred: false,
+        is_done: false,
+        day,
+        recurrence: 'none',
+        sort_order: 0,
+      });
+      onClose();
+    } finally {
+      setAdding(null);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    updateConfig({ quick_tasks: quickTasks.filter(q => q.id !== id) });
+  };
+
+  if (showAddForm) {
+    return (
+      <BottomSheet open={open} onClose={() => { setShowAddForm(false); onClose(); }} title={t('task.add.btn')}>
+        <AddTaskForm day={day} onDone={() => { setShowAddForm(false); onClose(); }} />
+      </BottomSheet>
+    );
+  }
+
+  const lang = config.language ?? 'en';
+
+  return (
+    <BottomSheet open={open} onClose={onClose}>
+      {/* Sheet header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, paddingTop: 4 }}>
+        <span style={{ fontSize: 15, fontWeight: 700 }}>
+          {lang === 'ru' ? 'Быстрое добавление' : 'Quick Add'}
+        </span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            onClick={() => setEditMode(e => !e)}
+            className="btn btn-ghost"
+            style={{ fontSize: 11, padding: '5px 10px', color: editMode ? 'var(--ind)' : 'var(--tx3)', background: editMode ? 'var(--ind-l)' : 'transparent' }}>
+            <Settings2 size={13} />
+            {lang === 'ru' ? 'Ред.' : 'Edit'}
+          </button>
+          <button onClick={onClose} className="btn-icon" style={{ padding: 6 }}><X size={16} /></button>
+        </div>
+      </div>
+
+      {/* Grid of templates */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+        {quickTasks.map(qt => (
+          <div key={qt.id} style={{ position: 'relative' }}>
+            <button
+              onClick={() => handleTap(qt)}
+              disabled={adding === qt.id}
+              style={{
+                width: '100%',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 6, padding: '18px 12px',
+                background: adding === qt.id ? 'var(--ind-l)' : 'var(--sf)',
+                border: `1px solid ${adding === qt.id ? 'var(--ind-m)' : 'var(--bdr2)'}`,
+                borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all .15s ease',
+                WebkitTapHighlightColor: 'transparent',
+                opacity: editMode ? 0.7 : 1,
+              }}>
+              <span style={{ fontSize: 28 }}>{qt.emoji}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{qt.title}</span>
+              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{qt.duration_minutes}min</span>
+            </button>
+            {editMode && (
+              <button
+                onClick={() => handleDelete(qt.id)}
+                style={{
+                  position: 'absolute', top: -6, right: -6,
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: 'var(--coral)', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                <X size={12} color="#fff" />
+              </button>
+            )}
+          </div>
+        ))}
+
+        {/* + New template button (in edit mode) */}
+        {editMode && (
+          <AddQuickTaskTile onAdd={(qt) => {
+            updateConfig({ quick_tasks: [...quickTasks, qt] });
+            setEditMode(false);
+          }} lang={lang} />
+        )}
+      </div>
+
+      {/* Custom / Full form button */}
+      <button
+        onClick={() => setShowAddForm(true)}
+        className="btn btn-ghost"
+        style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '13px', borderRadius: 14, border: '1.5px dashed var(--bdr2)' }}>
+        <Plus size={15} />
+        {lang === 'ru' ? 'Добавить вручную (все поля)' : 'Add manually (all options)'}
+      </button>
+    </BottomSheet>
+  );
+}
+
+// Inline mini form to add a new quick task template
+function AddQuickTaskTile({ onAdd, lang }: {
+  onAdd: (qt: QuickTask) => void; lang: string;
+}) {
+  const [emoji, setEmoji] = useState('⚡');
+  const [title, setTitle] = useState('');
+  const [duration, setDuration] = useState('30');
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 6, padding: '18px 12px', background: 'transparent',
+          border: '1.5px dashed var(--bdr2)', borderRadius: 16,
+          cursor: 'pointer', fontFamily: 'inherit', color: 'var(--tx3)',
+        }}>
+        <Plus size={24} />
+        <span style={{ fontSize: 12 }}>{lang === 'ru' ? 'Новый' : 'New'}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 6, padding: '10px',
+      background: 'var(--sf)', border: '1px solid var(--ind-m)',
+      borderRadius: 16, gridColumn: '1 / -1',
+    }}>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 48, fontSize: 20, textAlign: 'center', padding: '6px' }} maxLength={2} />
+        <input
+          autoFocus value={title} onChange={e => setTitle(e.target.value)}
+          placeholder={lang === 'ru' ? 'Название' : 'Task name'}
+          style={{ flex: 1, fontSize: 13, padding: '8px 10px' }}
+          onKeyDown={e => { if (e.key === 'Enter' && title.trim()) onAdd({ id: `qt-${Date.now()}`, emoji, title: title.trim(), duration_minutes: parseInt(duration) || 30, category: 'general', priority: 'medium' }); }}
+        />
+        <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="5" style={{ width: 56, fontSize: 13, padding: '8px 6px' }} />
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          className="btn btn-primary"
+          style={{ flex: 1, justifyContent: 'center', fontSize: 12, padding: '8px' }}
+          disabled={!title.trim()}
+          onClick={() => onAdd({ id: `qt-${Date.now()}`, emoji, title: title.trim(), duration_minutes: parseInt(duration) || 30, category: 'general', priority: 'medium' })}>
+          {lang === 'ru' ? 'Сохранить' : 'Save'}
+        </button>
+        <button className="btn btn-ghost" style={{ fontSize: 12, padding: '8px 12px' }} onClick={() => setOpen(false)}>
+          {lang === 'ru' ? 'Отмена' : 'Cancel'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── TaskList ─────────────────────────────────────────────────────
 export function TaskList() {
   const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks, activeChatDay, setActiveChatDay } = useStore();
@@ -58,6 +300,12 @@ export function TaskList() {
           </div>
         </div>
       )}
+
+      {/* Add task bottom sheet */}
+      <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} title={t('task.add.btn')}>
+        <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
+      </BottomSheet>
+
       <div style={{ display: 'flex', gap: 4, padding: '0 18px 12px', flexShrink: 0 }}>
         {(['today', 'tomorrow'] as const).map(day => (
           <button key={day} className="btn btn-ghost"
@@ -117,11 +365,14 @@ export function TaskList() {
         <div style={{ height: 12 }} />
       </div>
 
+      {/* Bottom: compact add button (opens sheet) */}
       <div style={{ padding: '10px 18px 18px', borderTop: '1px solid var(--bdr2)', flexShrink: 0 }}>
-        {showAdd
-          ? <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
-          : <QuickAddBar day={activeDay} onExpand={() => setShowAdd(true)} />
-        }
+        <button
+          className="btn btn-ghost"
+          onClick={() => setShowAdd(true)}
+          style={{ width: '100%', justifyContent: 'center', fontSize: 13, padding: '11px', color: 'var(--tx3)' }}>
+          <Plus size={15} /> {t('task.add.btn')}
+        </button>
       </div>
     </div>
   );
@@ -193,7 +444,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   if (editing) {
     return (
       <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
-        <EditTaskForm task={task} onDone={() => setEditing(false)} />
+        <EditTaskSheet task={task} onDone={() => setEditing(false)} />
       </div>
     );
   }
@@ -306,6 +557,17 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   );
 }
 
+// Edit task as bottom sheet
+function EditTaskSheet({ task, onDone }: { task: Task; onDone: () => void }) {
+  return (
+    <BottomSheet open onClose={onDone}>
+      <div style={{ paddingTop: 4 }}>
+        <EditTaskForm task={task} onDone={onDone} />
+      </div>
+    </BottomSheet>
+  );
+}
+
 const DAY_LABELS_KEYS = ['day.short.sun', 'day.short.mon', 'day.short.tue', 'day.short.wed', 'day.short.thu', 'day.short.fri', 'day.short.sat'] as const;
 
 /** Shared category select with "other (custom)" support. */
@@ -318,7 +580,6 @@ function CategorySelect({
   showAuto?: boolean;
 }) {
   const t = useT();
-  // Custom mode is active when the value is not in the known categories list and is not empty.
   const isCustom = value !== '' && !allCategories.includes(value);
   const [mode, setMode] = useState<'preset' | 'other'>(isCustom ? 'other' : 'preset');
   const [customText, setCustomText] = useState(isCustom ? value : '');
@@ -326,7 +587,6 @@ function CategorySelect({
   const handleSelectChange = (v: string) => {
     if (v === '__other__') {
       setMode('other');
-      // Don't change value yet — wait for user to type
       onChange(customText.trim() || '');
     } else {
       setMode('preset');
@@ -401,7 +661,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
   const allCategories = getAllCategories(config.category_goals);
 
   return (
-    <div style={{ background: 'var(--sf)', border: '1px solid var(--ind-m)', borderRadius: 'var(--rs)', padding: '14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: -2 }}>{t('task.title')}</div>
       <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '10px 12px' }}
@@ -450,7 +710,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           </select>
         </div>
       </div>
-      <div style={{ overflow: 'hidden' }}>
+      <div>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span>{t('task.fixedTime')}</span>
           {fixedTime && (
@@ -495,66 +755,6 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
         <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center', padding: '11px' }} onClick={handleSave}>{t('task.save')}</button>
         <button className="btn btn-ghost" style={{ padding: '11px 16px' }} onClick={onDone}>{t('task.cancel')}</button>
       </div>
-    </div>
-  );
-}
-
-function QuickAddBar({ day, onExpand }: { day: 'today' | 'tomorrow'; onExpand: () => void }) {
-  const t = useT();
-  const { addTask, config } = useStore();
-  const [title, setTitle] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleAdd = async () => {
-    const trimmed = title.trim();
-    if (!trimmed || loading) return;
-    setLoading(true);
-    try {
-      await addTask({
-        title: trimmed,
-        duration_minutes: 30,
-        break_after: config.buffer,
-        travel_minutes: 0,
-        priority: 'medium',
-        category: detectCategory(trimmed, config.category_goals),
-        is_starred: false,
-        is_done: false,
-        day,
-        recurrence: 'none',
-        sort_order: 0,
-      });
-      setTitle('');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') handleAdd(); }}
-          placeholder={t('task.title.placeholder')}
-          style={{ flex: 1, fontSize: 13, padding: '10px 12px' }}
-        />
-        <button
-          className="btn btn-primary"
-          onClick={handleAdd}
-          disabled={loading || !title.trim()}
-          style={{ padding: '10px 16px', flexShrink: 0 }}
-        >
-          <Plus size={15} /> {t('task.add.btn')}
-        </button>
-      </div>
-      <button
-        className="btn btn-ghost"
-        onClick={onExpand}
-        style={{ fontSize: 11, color: 'var(--tx3)', padding: '5px 8px', justifyContent: 'center', border: 'none' }}
-      >
-        <SlidersHorizontal size={12} /> {t('task.moreOptions')}
-      </button>
     </div>
   );
 }
@@ -616,7 +816,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
   const allCategories = getAllCategories(config.category_goals);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input autoFocus placeholder={t('task.title.placeholder')} value={title}
         style={{ fontSize: 14, padding: '11px 12px' }}
         onChange={e => handleTitleChange(e.target.value)}
@@ -655,7 +855,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
             style={{ width: 68, fontSize: 12, padding: '5px 8px' }} />
         </div>
       </div>
-      <div style={{ overflow: 'hidden' }}>
+      <div>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span>{t('task.startTime')}</span>
           {fixedTime && (

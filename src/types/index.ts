@@ -47,6 +47,15 @@ export interface BreakBlock {
 
 export type TimelineBlock = ScheduledBlock | BreakBlock;
 
+export interface QuickTask {
+  id: string;
+  emoji: string;
+  title: string;
+  duration_minutes: number;
+  category: string;
+  priority: Priority;
+}
+
 export interface UserConfig {
   wake: string;
   sleep: string;
@@ -57,6 +66,7 @@ export interface UserConfig {
   road_time_minutes: number;
   known_contexts: Record<string, number>;
   category_goals: CategoryGoal[];
+  quick_tasks?: QuickTask[];
 }
 
 export interface ChatMessage {

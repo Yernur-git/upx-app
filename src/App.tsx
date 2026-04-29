@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BarChart2, CalendarDays, User, Sparkles, X } from 'lucide-react';
+import { BarChart2, CalendarDays, User, Sparkles, X, Plus } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
 import { SplashScreen } from './components/SplashScreen';
 import { Onboarding } from './components/Onboarding';
-import { TaskList } from './components/tasks/TaskList';
+import { TaskList, QuickActionSheet } from './components/tasks/TaskList';
 import { Timeline } from './components/timeline/Timeline';
 import { ChatPanel } from './components/chat/ChatPanel';
 import { StatsPanel } from './components/panels/StatsPanel';
@@ -41,6 +41,7 @@ export default function App() {
     config, userId, userEmail, tasks,
     setUserId, setUserEmail, loadFromSupabase,
     activePanel, setActivePanel,
+    activeChatDay,
     checkAndRollover, saveDayStats,
     chatMessages, addChatMessage, applyActions,
     apiKey, customBaseURL, customModel, useDefaultKey,
@@ -55,6 +56,7 @@ export default function App() {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showMorningBanner, setShowMorningBanner] = useState(false);
   const [showEveningBanner, setShowEveningBanner] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
   });
@@ -363,6 +365,28 @@ export default function App() {
             );
           })}
 
+          {/* ── CENTER + BUTTON ── */}
+          <button
+            onClick={() => setShowQuickAdd(true)}
+            style={{
+              flex: 1,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 4, border: 'none', cursor: 'pointer',
+              background: 'none', padding: '8px 4px',
+              WebkitTapHighlightColor: 'transparent',
+            }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 16,
+              background: 'var(--ind)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 14px rgba(76,94,232,.35)',
+              transition: 'transform .15s ease',
+            }}>
+              <Plus size={22} color="#fff" strokeWidth={2.5} />
+            </div>
+          </button>
+
           <AIChatButton />
 
           <button className={`nav-item${activePanel === 'profile' ? ' active' : ''}`}
@@ -373,6 +397,13 @@ export default function App() {
           </button>
         </nav>
       </div>
+
+      {/* Quick add sheet — global so it works from any panel */}
+      <QuickActionSheet
+        open={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        day={activeChatDay}
+      />
 
       <ChatPanel />
 
