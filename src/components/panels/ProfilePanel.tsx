@@ -25,7 +25,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 export function ProfilePanel() {
   const t = useT();
-  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, useDefaultKey, setKeyMode, deleteTask } = useStore();
+  const { config, updateConfig, userEmail, signOut, apiKey, setApiKey, customBaseURL, setCustomBaseURL, customModel, setCustomModel, useDefaultKey, setKeyMode, deleteAllTasks } = useStore();
   const [localKey, setLocalKey] = useState(apiKey);
   const [localURL, setLocalURL] = useState(customBaseURL);
   const [localModel, setLocalModel] = useState(customModel);
@@ -389,10 +389,7 @@ export function ProfilePanel() {
       <SectionTitle>{t('profile.danger')}</SectionTitle>
       <Card>
         <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', padding: '12px', color: 'var(--coral)', borderColor: 'var(--coral)', fontSize: 13 }}
-          onClick={() => ask(t('profile.deleteAllConfirm'), async () => {
-            const all = useStore.getState().tasks;
-            for (const tt of all) await deleteTask(tt.id);
-          })}>
+          onClick={() => ask(t('profile.deleteAllConfirm'), () => deleteAllTasks())}>
           {t('profile.deleteAll')}
         </button>
       </Card>

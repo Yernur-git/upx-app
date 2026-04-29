@@ -7,7 +7,7 @@ import { track } from '../../lib/analytics';
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -20,6 +20,16 @@ export function ChatPanel() {
   useEffect(() => {
     if (chatOpen) inputRef.current?.focus();
   }, [chatOpen]);
+
+  // Auto-send pending message (e.g. weekly review) when chat opens
+  useEffect(() => {
+    if (chatOpen && pendingChatInput) {
+      const msg = pendingChatInput;
+      setPendingChatInput('');
+      sendText(msg);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatOpen, pendingChatInput]);
 
   const [retryText, setRetryText] = useState<string | null>(null);
 

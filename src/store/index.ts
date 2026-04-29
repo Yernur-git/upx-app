@@ -59,6 +59,8 @@ interface Store {
   setActiveChatDay: (day: 'today' | 'tomorrow') => void;
   setLastMorningBriefDate: (date: string) => void;
   setLastEveningPromptDate: (date: string) => void;
+  pendingChatInput: string;
+  setPendingChatInput: (s: string) => void;
 
   addTask: (task: Omit<Task, 'id' | 'created_at'>) => Promise<Task>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -69,6 +71,7 @@ interface Store {
 
   updateConfig: (updates: Partial<UserConfig>) => Promise<void>;
   addChatMessage: (msg: Omit<ChatMessage, 'id' | 'created_at'>) => void;
+  deleteAllTasks: () => Promise<void>;
   applyActions: (actions: ParsedAction[]) => Promise<number>;
   undoLastAI: () => Promise<void>;
   saveDayStats: () => void;
@@ -192,6 +195,7 @@ export const useStore = create<Store>()(
       lastMorningBriefDate: null,
       lastEveningPromptDate: null,
       aiUndoSnapshot: null,
+      pendingChatInput: '',
 
       setUserId: (id) => set({ userId: id }),
       setUserEmail: (email) => set({ userEmail: email }),
@@ -213,6 +217,7 @@ export const useStore = create<Store>()(
       setActiveChatDay: (day) => set({ activeChatDay: day }),
       setLastMorningBriefDate: (date) => set({ lastMorningBriefDate: date }),
       setLastEveningPromptDate: (date) => set({ lastEveningPromptDate: date }),
+      setPendingChatInput: (s) => set({ pendingChatInput: s }),
 
       checkAndRollover: async () => {
         const today = todayDateStr();
@@ -347,6 +352,14 @@ export const useStore = create<Store>()(
             set(s => ({ tasks: [...s.tasks, prev] }));
             throw new Error(error.message);
           }
+        }
+      },
+
+      deleteAllTasks: async () => {
+        const { userId } = get();
+        set({ tasks: [] });
+        if (userId) {
+          await supabase.from('tasks').delete().eq('user_id', userId);
         }
       },
 
