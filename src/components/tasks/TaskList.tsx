@@ -327,7 +327,7 @@ const MOODS = [
 export function TaskList() {
   const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks,
-          activeChatDay, setActiveChatDay, setChatOpen, addChatMessage, config } = useStore();
+          activeChatDay, setActiveChatDay, setChatOpen, config, setPendingChatInput } = useStore();
   const lang = config.language ?? 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -363,7 +363,7 @@ export function TaskList() {
     const msg = lang === 'ru'
       ? 'Сделай обзор моей недели: что я выполнил, как распределял время, что стоит улучшить?'
       : 'Review my week: what did I complete, how did I spend my time, what should I improve?';
-    addChatMessage({ role: 'user', content: msg });
+    setPendingChatInput(msg);
     setChatOpen(true);
   };
 
@@ -865,7 +865,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
       break_after: parseInt(breakAfter) || 0,
       travel_minutes: parseInt(travel) || 0,
       priority,
-      category: category.trim() || 'general',
+      category: category.trim().toLowerCase() || 'general',
       recurrence,
       recurrence_days: recurrence === 'custom' ? customDays : undefined,
       fixed_time: fixedTime || undefined,
@@ -886,15 +886,15 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.duration')}</div>
-          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ fontSize: 14, padding: '9px 10px' }} />
+          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.road')}</div>
-          <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ fontSize: 14, padding: '9px 10px' }} />
+          <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.priority')}</div>
-          <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ fontSize: 13, padding: '9px 8px' }}>
+          <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 13, padding: '9px 8px' }}>
             <option value="high">{t('task.priority.high')}</option>
             <option value="medium">{t('task.priority.medium')}</option>
             <option value="low">{t('task.priority.low')}</option>
@@ -917,7 +917,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
         <CategorySelect value={category} onChange={setCategory} allCategories={allCategories} />
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.repeat')}</div>
-          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ fontSize: 13, padding: '9px 8px' }}>
+          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 13, padding: '9px 8px' }}>
             <option value="none">{t('task.repeat.none')}</option>
             <option value="daily">{t('task.repeat.daily')}</option>
             <option value="weekdays">{t('task.repeat.weekdays')}</option>
@@ -942,7 +942,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
           )}
         </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
-          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 12px' }} />
+          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 12px', WebkitAppearance: 'none', appearance: 'none' } as React.CSSProperties} />
       </div>
       <div>
         <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.notes')}</div>
@@ -1012,7 +1012,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         break_after: parseInt(breakAfter) || 0,
         travel_minutes: parseInt(travel) || 0,
         priority,
-        category: category.trim() || 'general',
+        category: category.trim().toLowerCase() || 'general',
         is_starred: false,
         is_done: false,
         day,
@@ -1040,15 +1040,15 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.duration')}</div>
-          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ fontSize: 14, padding: '9px 10px' }} />
+          <input type="number" value={duration} onChange={e => setDuration(e.target.value)} min="1" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.road')}</div>
-          <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ fontSize: 14, padding: '9px 10px' }} />
+          <input type="number" value={travel} onChange={e => setTravel(e.target.value)} min="0" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
         </div>
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.priority')}</div>
-          <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ fontSize: 13, padding: '9px 8px' }}>
+          <select value={priority} onChange={e => setPriority(e.target.value as Priority)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 13, padding: '9px 8px' }}>
             <option value="high">{t('task.priority.high')}</option>
             <option value="medium">{t('task.priority.medium')}</option>
             <option value="low">{t('task.priority.low')}</option>
@@ -1087,7 +1087,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           )}
         </div>
         <input type="time" value={fixedTime} onChange={e => setFixedTime(e.target.value)}
-          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px' }} />
+          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 14, padding: '9px 10px', WebkitAppearance: 'none', appearance: 'none' } as React.CSSProperties} />
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <CategorySelect
@@ -1098,7 +1098,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         />
         <div>
           <div style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 5 }}>{t('task.repeat')}</div>
-          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ fontSize: 13, padding: '9px 8px' }}>
+          <select value={recurrence} onChange={e => setRecurrence(e.target.value as Recurrence)} style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 13, padding: '9px 8px' }}>
             <option value="none">{t('task.repeat.none')}</option>
             <option value="daily">{t('task.repeat.daily')}</option>
             <option value="weekdays">{t('task.repeat.weekdays')}</option>
@@ -1114,7 +1114,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
           onChange={e => setNotes(e.target.value)}
           placeholder={t('task.notes.placeholder')}
           rows={2}
-          style={{ fontSize: 13, padding: '9px 10px', resize: 'vertical', minHeight: 50, fontFamily: 'inherit', lineHeight: 1.5 }}
+          style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', fontSize: 13, padding: '9px 10px', resize: 'vertical', minHeight: 50, fontFamily: 'inherit', lineHeight: 1.5 }}
         />
       </div>
       {recurrence === 'custom' && (
