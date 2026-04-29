@@ -17,6 +17,14 @@ const DEFAULT_CONFIG: UserConfig = {
     { category: 'workout', weekly_goal_minutes: 360, color: '#5FA35F' },
     { category: 'deep work', weekly_goal_minutes: 1200, color: '#5C6B9C' },
   ],
+  quick_tasks: [
+    { id: 'qt-1', emoji: '🏋️', title: 'Training',   duration_minutes: 60,  category: 'workout',    priority: 'high'   },
+    { id: 'qt-2', emoji: '💻', title: 'Deep Work',  duration_minutes: 90,  category: 'deep work',  priority: 'high'   },
+    { id: 'qt-3', emoji: '📅', title: 'Meeting',    duration_minutes: 30,  category: 'general',    priority: 'medium' },
+    { id: 'qt-4', emoji: '📚', title: 'Reading',    duration_minutes: 30,  category: 'reading',    priority: 'low'    },
+    { id: 'qt-5', emoji: '🧘', title: 'Meditation', duration_minutes: 20,  category: 'meditation', priority: 'low'    },
+    { id: 'qt-6', emoji: '🚶', title: 'Walk',       duration_minutes: 30,  category: 'general',    priority: 'low'    },
+  ],
 };
 
 interface Store {
