@@ -6,10 +6,6 @@
     {
       "path": "/api/push/morning",
       "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/push/tasks",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
