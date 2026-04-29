@@ -111,44 +111,44 @@ export function Onboarding({ onDone }: OnboardingProps) {
           background: 'var(--sf)', borderRadius: 24,
           border: '1px solid var(--bdr2)', padding: '32px 24px 24px',
           boxShadow: 'var(--shd2)',
-          display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
+          boxSizing: 'border-box',
         }}>
           <div style={{ fontSize: 48, marginBottom: 4, textAlign: 'center' }}>{current.emoji}</div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', letterSpacing: '-.3px', margin: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', letterSpacing: '-.3px', margin: '0 0 6px' }}>
             {current.title}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--tx3)', textAlign: 'center', lineHeight: 1.6, marginBottom: 12, margin: '4px 0 12px' }}>
+          <p style={{ fontSize: 13, color: 'var(--tx3)', textAlign: 'center', lineHeight: 1.6, margin: '0 0 20px' }}>
             {current.subtitle}
           </p>
 
           {step === 0 && (
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 }}>
                   {t('onb.wakeUp')}
                 </label>
                 <input type="time" value={wake} onChange={e => setWake(e.target.value)}
-                  style={{ fontSize: 16, padding: '12px 14px', textAlign: 'center', width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none' } as React.CSSProperties} />
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 }}>
                   {t('onb.bedtime')}
                 </label>
                 <input type="time" value={sleep} onChange={e => setSleep(e.target.value)}
-                  style={{ fontSize: 16, padding: '12px 14px', textAlign: 'center', width: '100%', boxSizing: 'border-box', minWidth: 0 }} />
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none' } as React.CSSProperties} />
               </div>
             </div>
           )}
 
           {step === 1 && (
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
                 autoFocus
                 placeholder={t('onb.taskPlaceholder')}
                 value={taskTitle}
                 onChange={e => setTaskTitle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && canNext() && handleNext()}
-                style={{ fontSize: 15, padding: '12px 14px', width: '100%', boxSizing: 'border-box' }}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 15, padding: '12px 14px' }}
               />
               <div>
                 <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 5 }}>{t('onb.taskDuration')}</label>
@@ -177,7 +177,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
           )}
 
           {step === 2 && (
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {['workout', 'deep work', 'reading', 'meditation', 'running'].map(preset => (
                   <button key={preset} onClick={() => setGoalCat(preset)}
@@ -194,7 +194,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               </div>
               <input placeholder={t('onb.goalPlaceholder')} value={goalCat}
                 onChange={e => setGoalCat(e.target.value)}
-                style={{ fontSize: 14, padding: '11px 14px', width: '100%', boxSizing: 'border-box' }} />
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '11px 14px' }} />
               <div>
                 <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 6 }}>
                   {t('onb.goalHours')}

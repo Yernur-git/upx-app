@@ -53,11 +53,12 @@ export async function subscribeToPush(userId: string): Promise<'subscribed' | 'd
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource,
     });
 
-    // Save to server
+    // Save to server (include timezone offset so cron can compute local time)
+    const tzOffset = -new Date().getTimezoneOffset(); // minutes east of UTC
     const res = await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub.toJSON(), userId }),
+      body: JSON.stringify({ subscription: sub.toJSON(), userId, tzOffset }),
     });
 
     if (!res.ok) throw new Error(`Server error ${res.status}`);
