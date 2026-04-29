@@ -437,32 +437,43 @@ export const useStore = create<Store>()(
               case 'update_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
-                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('update_task: unknown id', pl.id); break; }
-                const { id, ...updates } = pl;
-                await updateTask(id as string, updates as Partial<Task>);
+                // Support both full UUID and 8-char short ID (prefix match)
+                const utask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
+                if (!utask) { console.warn('update_task: unknown id', pl.id); break; }
+                const { id: _id, ...updates } = pl;
+                await updateTask(utask.id, updates as Partial<Task>);
                 applied++;
                 break;
               }
               case 'delete_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string') break;
-                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('delete_task: unknown id', pl.id); break; }
-                await deleteTask(pl.id as string);
+                // Support both full UUID and 8-char short ID (prefix match)
+                const dtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
+                if (!dtask) { console.warn('delete_task: unknown id', pl.id); break; }
+                await deleteTask(dtask.id);
                 applied++;
                 break;
               }
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!pl?.id || typeof pl.id !== 'string' || !pl?.day) break;
-                if (!get().tasks.find(t => t.id === pl.id)) { console.warn('move_task: unknown id', pl.id); break; }
-                await moveTask(pl.id as string, pl.day as 'today' | 'tomorrow');
+                const mtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
+                if (!mtask) { console.warn('move_task: unknown id', pl.id); break; }
+                await moveTask(mtask.id, pl.day as 'today' | 'tomorrow');
                 applied++;
                 break;
               }
               case 'reschedule': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
-                await reorderTasks(pl.order as string[]);
+                // Resolve short IDs to full IDs for reschedule
+                const tasks = get().tasks;
+                const resolvedOrder = (pl.order as string[]).map(shortId => {
+                  const t = tasks.find(t => t.id === shortId || t.id.startsWith(shortId));
+                  return t ? t.id : shortId;
+                });
+                await reorderTasks(resolvedOrder);
                 applied++;
                 break;
               }

@@ -62,16 +62,20 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
   // Keep task lines concise to avoid 504 timeouts on large lists
+  // Use short IDs (first 8 chars) to reduce AI truncation errors.
+  // applyActions does prefix matching so full or short IDs both work.
+  const sid = (id: string) => id.slice(0, 8);
+
   const taskList = todayTasks.length
     ? todayTasks.map(t =>
-        `- [id:${t.id}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
+        `- [id:${sid(t.id)}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
         `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
         `${t.travel_minutes ? ` 🚗${t.travel_minutes}m` : ''}`
       ).join('\n')
     : 'No tasks yet.';
 
   const tmrwList = tomorrowTasks.length
-    ? tomorrowTasks.map(t => `- [id:${t.id}] "${t.title}" ${t.duration_minutes}min${t.fixed_time ? ` @ ${t.fixed_time}` : ''}`).join('\n')
+    ? tomorrowTasks.map(t => `- [id:${sid(t.id)}] "${t.title}" ${t.duration_minutes}min${t.fixed_time ? ` @ ${t.fixed_time}` : ''}`).join('\n')
     : 'Empty.';
 
   const now = new Date();
@@ -210,8 +214,15 @@ Other action types:
 Always use empty array [] for actions if no task operations needed.
 
 ## TASK IDs — CRITICAL
-Each task starts with [id:UUID]. Copy the UUID exactly — do not shorten, paraphrase, or invent IDs.
-When using update_task, delete_task, move_task, or reschedule — always use the exact [id:UUID] value.
+Each task starts with [id:XXXXXXXX] (8-char short ID). Copy it EXACTLY — do not add, remove, or change any character.
+When using update_task, delete_task, move_task, or reschedule — always use the exact 8-char id value from the task list.
+
+## DAY LIMITATION — CRITICAL
+Tasks can only be "today" or "tomorrow". There is no "in 3 days", "next week" etc.
+- "перенеси на 4 дня" / "postpone 4 days" → use move_task with day:"tomorrow" (closest available), and mention this limitation.
+- "перенеси на 16:00" / "move to 4pm" → use update_task with fixed_time:"16:00" (NOT move_task).
+- "убери время" / "remove fixed time" → use update_task with fixed_time:null.
+Changing time ≠ moving day. Use update_task for time changes, move_task only for today↔tomorrow.
 
 ## OVERLOAD HANDLING
 If user says they are overwhelmed, overloaded, or have too many tasks:
