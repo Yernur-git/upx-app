@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Plus, Trash2, LogOut, ChevronRight, Bell } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2, LogOut, ChevronRight, Bell, BellOff } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
-import { requestNotificationPermission, canNotify } from '../../lib/notifications';
 import { useT } from '../../lib/i18n';
+import { supportsPush, getPushSubscription, subscribeToPush, unsubscribeFromPush } from '../../lib/push';
 import type { CategoryGoal, Lang } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
@@ -32,8 +32,15 @@ export function ProfilePanel() {
   const [newGoalCat, setNewGoalCat] = useState('');
   const [newGoalHours, setNewGoalHours] = useState('5');
   const [showAI, setShowAI] = useState(false);
-  const [notifGranted, setNotifGranted] = useState(() => canNotify());
+  const [pushStatus, setPushStatus] = useState<'loading' | 'subscribed' | 'unsubscribed' | 'unsupported'>('loading');
+  const [pushWorking, setPushWorking] = useState(false);
   const [confirm, setConfirm] = useState<null | { message: string; onConfirm: () => void }>(null);
+
+  // Detect current push subscription state on mount
+  useEffect(() => {
+    if (!supportsPush()) { setPushStatus('unsupported'); return; }
+    getPushSubscription().then(sub => setPushStatus(sub ? 'subscribed' : 'unsubscribed'));
+  }, []);
 
   const provider = detectProvider(localKey, localURL);
 
@@ -50,10 +57,26 @@ export function ProfilePanel() {
     setNewGoalCat(''); setNewGoalHours('5');
   };
 
-  const handleNotif = async () => {
-    const granted = await requestNotificationPermission();
-    setNotifGranted(granted);
-    if (granted) new Notification('✅ UpX', { body: t('profile.notifEnabled'), icon: '/icon-192.png' });
+  const handleSubscribe = async () => {
+    setPushWorking(true);
+    const { userId } = useStore.getState();
+    const result = await subscribeToPush(userId || 'local-user');
+    if (result === 'subscribed') {
+      setPushStatus('subscribed');
+      // Send a test push so user sees it immediately
+      new Notification('✅ UpX', { body: t('profile.pushEnabled'), icon: '/icon-192.png' });
+    } else if (result === 'denied') {
+      alert(t('profile.pushDenied'));
+    }
+    setPushWorking(false);
+  };
+
+  const handleUnsubscribe = async () => {
+    setPushWorking(true);
+    const { userId } = useStore.getState();
+    await unsubscribeFromPush(userId || 'local-user');
+    setPushStatus('unsubscribed');
+    setPushWorking(false);
   };
 
   const PRESETS = [
@@ -185,27 +208,46 @@ export function ProfilePanel() {
       <SectionTitle>{t('profile.notifications')}</SectionTitle>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Bell size={15} color="var(--ind)" /> {t('profile.taskReminders')}
+              {pushStatus === 'subscribed'
+                ? <Bell size={15} color="var(--sage)" />
+                : <BellOff size={15} color="var(--tx3)" />}
+              {t('profile.pushTitle')}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 3 }}>
-              {notifGranted ? t('profile.notifEnabled') : t('profile.notifDisabled')}
+            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 3, lineHeight: 1.5 }}>
+              {pushStatus === 'loading'   && '…'}
+              {pushStatus === 'unsupported' && t('profile.pushUnsupported')}
+              {pushStatus === 'unsubscribed' && t('profile.pushOff')}
+              {pushStatus === 'subscribed'   && t('profile.pushOn')}
             </div>
           </div>
-          {notifGranted ? (
-            <button className="btn btn-ghost" style={{ padding: '9px 16px', fontSize: 13, flexShrink: 0 }}
-              onClick={() => new Notification('⏰ UpX', { body: 'Test', icon: '/icon-192.png', tag: 'upx-test' })}>
-              {t('profile.test')}
+
+          {pushStatus === 'unsupported' && (
+            <span style={{ fontSize: 12, color: 'var(--tx3)' }}>—</span>
+          )}
+          {pushStatus === 'unsubscribed' && (
+            <button className="btn btn-primary"
+              style={{ padding: '10px 18px', fontSize: 13, flexShrink: 0 }}
+              disabled={pushWorking}
+              onClick={handleSubscribe}>
+              {pushWorking ? '…' : t('profile.pushEnable')}
             </button>
-          ) : (
-            <button className="btn btn-primary" style={{ padding: '10px 18px', fontSize: 13, flexShrink: 0 }} onClick={handleNotif}>
-              {t('profile.enable')}
+          )}
+          {pushStatus === 'subscribed' && (
+            <button className="btn btn-ghost"
+              style={{ padding: '9px 14px', fontSize: 13, flexShrink: 0, color: 'var(--coral)', borderColor: 'var(--coral)' }}
+              disabled={pushWorking}
+              onClick={handleUnsubscribe}>
+              {pushWorking ? '…' : t('profile.pushDisable')}
             </button>
           )}
         </div>
-        {notifGranted && (
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--sage)', fontWeight: 600 }}>{t('profile.notifOn')}</div>
+
+        {pushStatus === 'subscribed' && (
+          <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--sf2)', borderRadius: 10, fontSize: 12, color: 'var(--tx2)', lineHeight: 1.6 }}>
+            ☀️ {t('profile.pushMorningHint')}
+          </div>
         )}
       </Card>
 
