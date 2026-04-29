@@ -128,14 +128,14 @@ export function Onboarding({ onDone }: OnboardingProps) {
                   {t('onb.wakeUp')}
                 </label>
                 <input type="time" value={wake} onChange={e => setWake(e.target.value)}
-                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none' } as React.CSSProperties} />
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none', appearance: 'none' } as React.CSSProperties} />
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx2)', display: 'block', marginBottom: 6 }}>
                   {t('onb.bedtime')}
                 </label>
                 <input type="time" value={sleep} onChange={e => setSleep(e.target.value)}
-                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none' } as React.CSSProperties} />
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 18, padding: '14px 16px', WebkitAppearance: 'none', appearance: 'none' } as React.CSSProperties} />
               </div>
             </div>
           )}

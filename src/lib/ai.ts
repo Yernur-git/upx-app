@@ -70,7 +70,8 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
     ? todayTasks.map(t =>
         `- [id:${sid(t.id)}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
         `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
-        `${t.travel_minutes ? ` 🚗${t.travel_minutes}m` : ''}`
+        `${t.travel_minutes ? ` 🚗${t.travel_minutes}m` : ''}` +
+        `${t.notes ? ` 💬${t.notes.slice(0, 60)}` : ''}`
       ).join('\n')
     : 'No tasks yet.';
 
