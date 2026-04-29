@@ -84,9 +84,10 @@ export function QuickActionSheet({ open, onClose, day }: {
   const [adding, setAdding] = useState<string | null>(null);
 
   const quickTasks: QuickTask[] = config.quick_tasks ?? [];
+  const [done, setDone] = useState<string | null>(null);
 
   const handleTap = async (qt: QuickTask) => {
-    if (editMode) return;
+    if (editMode || adding) return;
     setAdding(qt.id);
     try {
       await addTask({
@@ -102,7 +103,8 @@ export function QuickActionSheet({ open, onClose, day }: {
         recurrence: 'none',
         sort_order: 0,
       });
-      onClose();
+      setDone(qt.id);
+      setTimeout(onClose, 700); // brief "✓ Added" moment before close
     } finally {
       setAdding(null);
     }
@@ -147,21 +149,30 @@ export function QuickActionSheet({ open, onClose, day }: {
           <div key={qt.id} style={{ position: 'relative' }}>
             <button
               onClick={() => handleTap(qt)}
-              disabled={adding === qt.id}
+              disabled={!!adding}
               style={{
                 width: '100%',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 gap: 6, padding: '18px 12px',
-                background: adding === qt.id ? 'var(--ind-l)' : 'var(--sf)',
-                border: `1px solid ${adding === qt.id ? 'var(--ind-m)' : 'var(--bdr2)'}`,
-                borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all .15s ease',
+                background: done === qt.id ? 'var(--sage-l, #e8f5e9)' : adding === qt.id ? 'var(--ind-l)' : 'var(--sf)',
+                border: `1.5px solid ${done === qt.id ? 'var(--sage)' : adding === qt.id ? 'var(--ind-m)' : 'var(--bdr2)'}`,
+                borderRadius: 16, cursor: adding ? 'default' : 'pointer', fontFamily: 'inherit',
+                transition: 'all .2s ease',
                 WebkitTapHighlightColor: 'transparent',
                 opacity: editMode ? 0.7 : 1,
+                transform: done === qt.id ? 'scale(0.97)' : 'scale(1)',
               }}>
-              <span style={{ fontSize: 28 }}>{qt.emoji}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{qt.title}</span>
-              <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{qt.duration_minutes}min</span>
+              {done === qt.id
+                ? <>
+                    <span style={{ fontSize: 28 }}>✅</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--sage)' }}>Added!</span>
+                  </>
+                : <>
+                    <span style={{ fontSize: 28 }}>{qt.emoji}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{qt.title}</span>
+                    <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{qt.duration_minutes}min</span>
+                  </>
+              }
             </button>
             {editMode && (
               <button
