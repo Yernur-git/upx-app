@@ -358,7 +358,9 @@ export const useStore = create<Store>()(
       },
 
       reorderTasks: async (orderedIds) => {
-        const prevTasks = get().tasks;
+        // Apply optimistic update immediately — local state is authoritative for order.
+        // Do NOT rollback on Supabase failure: sort_order is also persisted in
+        // localStorage, so the user's drag sticks even if the DB sync fails.
         set(s => {
           const taskMap = new Map(s.tasks.map(t => [t.id, t]));
           const reordered = orderedIds
@@ -368,16 +370,21 @@ export const useStore = create<Store>()(
           return { tasks: [...reordered, ...rest] };
         });
         const { userId } = get();
-        if (userId) {
-          // Single upsert instead of N individual updates
-          const upsertRows = orderedIds.map((id, i) => ({ id, user_id: userId, sort_order: i }));
-          const { error } = await supabase
-            .from('tasks')
-            .upsert(upsertRows, { onConflict: 'id' });
-          if (error) {
-            set({ tasks: prevTasks }); // rollback
-            console.error('reorderTasks failed, rolled back:', error.message);
-          }
+        if (userId && userId !== 'local-user') {
+          // Update each row individually to avoid sort_order unique-constraint
+          // violations that can happen when a batch upsert tries to assign values
+          // that other rows still hold (e.g. swapping 0↔2 hits a conflict mid-batch).
+          // Fire all updates in parallel — no rollback on failure.
+          const updates = orderedIds.map((id, i) =>
+            supabase.from('tasks')
+              .update({ sort_order: i })
+              .eq('id', id)
+              .eq('user_id', userId)
+              .then(({ error }) => {
+                if (error) console.error('[reorderTasks] update failed for', id, error.message);
+              })
+          );
+          await Promise.all(updates);
         }
       },
 
