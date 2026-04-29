@@ -21,10 +21,16 @@ export function ChatPanel() {
     if (chatOpen) inputRef.current?.focus();
   }, [chatOpen]);
 
-  const send = async () => {
-    const text = input.trim();
+  const [retryText, setRetryText] = useState<string | null>(null);
+
+  // Action-claim words — if AI says these but applied=0, show retry button
+  const claimsAction = (msg: string) =>
+    /переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|готово|сделал|I['']ll|I will|adding|moving|creating|deleting|updating|done\b|scheduled/i.test(msg);
+
+  const sendText = async (text: string) => {
     if (!text || isTyping) return;
     setInput('');
+    setRetryText(null);
 
     addChatMessage({ role: 'user', content: text });
     track('ai_chat_sent', { day: activeChatDay, message_length: text.length });
@@ -36,6 +42,11 @@ export function ChatPanel() {
       let applied = 0;
       if (result.actions.length > 0) {
         applied = await applyActions(result.actions);
+      }
+
+      // If AI claimed an action but nothing was applied, show retry
+      if (applied === 0 && claimsAction(result.message)) {
+        setRetryText(text);
       }
 
       addChatMessage({
@@ -53,6 +64,8 @@ export function ChatPanel() {
       setIsTyping(false);
     }
   };
+
+  const send = () => sendText(input.trim());
 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -154,6 +167,22 @@ export function ChatPanel() {
               </div>
             </div>
           ))}
+
+          {/* Retry chip — shown when AI claimed an action but nothing was applied */}
+          {retryText && !isTyping && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <button
+                onClick={() => sendText(retryText)}
+                style={{
+                  fontSize: 11, padding: '5px 12px', borderRadius: 20,
+                  background: 'var(--must-l, #fff8e1)', color: 'var(--must, #b7890a)',
+                  border: '1px solid var(--must, #b7890a)',
+                  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', gap: 5, alignItems: 'center',
+                }}>
+                ⚠️ {config.language === 'ru' ? 'Не сработало — повторить' : 'Didn\'t apply — retry'}
+              </button>
+            </div>
+          )}
 
           {isTyping && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
