@@ -317,14 +317,55 @@ function AddQuickTaskTile({ onAdd, lang }: {
 }
 
 // ─── TaskList ─────────────────────────────────────────────────────
+const MOODS = [
+  { emoji: '💪', ru: 'Огонь!',  en: 'Crushed it' },
+  { emoji: '😊', ru: 'Хорошо',  en: 'Good' },
+  { emoji: '😤', ru: 'Тяжело',  en: 'Tough' },
+  { emoji: '😴', ru: 'Устал',   en: 'Tired' },
+];
+
 export function TaskList() {
   const t = useT();
-  const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks, activeChatDay, setActiveChatDay } = useStore();
+  const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks,
+          activeChatDay, setActiveChatDay, setChatOpen, addChatMessage, config } = useStore();
+  const lang = config.language ?? 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [isDraggingAny, setIsDraggingAny] = useState(false);
+  const [moodTask, setMoodTask] = useState<{ id: string; title: string } | null>(null);
   const activeDay = activeChatDay;
   const setActiveDay = setActiveChatDay;
+
+  // Auto-dismiss mood picker after 7 seconds
+  useEffect(() => {
+    if (!moodTask) return;
+    const timer = setTimeout(() => setMoodTask(null), 7000);
+    return () => clearTimeout(timer);
+  }, [moodTask]);
+
+  const handleToggle = (task: Task) => {
+    toggleDone(task.id);
+    // Show mood picker only when marking a pending task as done
+    if (!task.is_done) setMoodTask({ id: task.id, title: task.title });
+  };
+
+  const saveMood = (emoji: string, label: string) => {
+    if (!moodTask) return;
+    const task = tasks.find(tt => tt.id === moodTask.id);
+    if (!task) return;
+    const moodLine = `[${emoji} ${label}]`;
+    const existing = task.notes?.trim() || '';
+    updateTask(moodTask.id, { notes: existing ? `${existing}\n${moodLine}` : moodLine });
+    setMoodTask(null);
+  };
+
+  const openWeeklyReview = () => {
+    const msg = lang === 'ru'
+      ? 'Сделай обзор моей недели: что я выполнил, как распределял время, что стоит улучшить?'
+      : 'Review my week: what did I complete, how did I spend my time, what should I improve?';
+    addChatMessage({ role: 'user', content: msg });
+    setChatOpen(true);
+  };
 
   const todayTasks = tasks.filter(t2 => t2.day === 'today');
   const tomorrowTasks = tasks.filter(t2 => t2.day === 'tomorrow');
@@ -366,7 +407,7 @@ export function TaskList() {
         <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
       </BottomSheet>
 
-      <div style={{ display: 'flex', gap: 4, padding: '0 18px 12px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 4, padding: '0 18px 10px', flexShrink: 0 }}>
         {(['today', 'tomorrow'] as const).map(day => (
           <button key={day} className="btn btn-ghost"
             style={{ flex: 1, justifyContent: 'center', fontSize: 12, background: activeDay === day ? 'var(--ind-l)' : 'transparent', color: activeDay === day ? 'var(--ind)' : 'var(--tx3)', borderColor: activeDay === day ? 'var(--ind-m)' : 'var(--bdr2)' }}
@@ -377,6 +418,14 @@ export function TaskList() {
             </span>
           </button>
         ))}
+        {/* Weekly AI review — always visible, 1 tap */}
+        <button
+          onClick={openWeeklyReview}
+          className="btn btn-ghost"
+          title={lang === 'ru' ? 'Обзор недели' : 'Week review'}
+          style={{ flexShrink: 0, padding: '6px 10px', fontSize: 13, color: 'var(--ind)', borderColor: 'var(--ind-m)', background: 'var(--ind-l)' }}>
+          📊
+        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px', minHeight: 0 }}>
@@ -398,7 +447,7 @@ export function TaskList() {
                   key={task.id}
                   task={task}
                   isDraggingAny={isDraggingAny}
-                  onToggle={() => toggleDone(task.id)}
+                  onToggle={() => handleToggle(task)}
                   onDelete={() => setConfirmDelete(task.id)}
                   onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
                   onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
@@ -424,6 +473,50 @@ export function TaskList() {
         )}
         <div style={{ height: 12 }} />
       </div>
+
+      {/* Mood picker — floating toast after task completion */}
+      {moodTask && (
+        <div style={{
+          position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 600, width: 'calc(100% - 32px)', maxWidth: 360,
+          background: 'var(--sf)', border: '1px solid var(--bdr2)',
+          borderRadius: 18, padding: '14px 16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,.18)',
+          animation: 'slideUp .2s ease',
+        }}>
+          <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 10, textAlign: 'center' }}>
+            ✓ <strong style={{ color: 'var(--tx)' }}>{moodTask.title}</strong>
+            {' — '}{lang === 'ru' ? 'Как прошло?' : 'How did it go?'}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {MOODS.map(({ emoji, ru, en }) => (
+              <button
+                key={emoji}
+                onClick={() => saveMood(emoji, lang === 'ru' ? ru : en)}
+                style={{
+                  flex: 1, border: '1.5px solid var(--bdr2)', borderRadius: 12,
+                  background: 'var(--sf2)', cursor: 'pointer', padding: '8px 4px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  fontFamily: 'inherit',
+                }}>
+                <span style={{ fontSize: 22 }}>{emoji}</span>
+                <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 600 }}>
+                  {lang === 'ru' ? ru : en}
+                </span>
+              </button>
+            ))}
+            <button
+              onClick={() => setMoodTask(null)}
+              style={{
+                flexShrink: 0, border: '1.5px solid var(--bdr2)', borderRadius: 12,
+                background: 'transparent', cursor: 'pointer', padding: '8px 10px',
+                color: 'var(--tx3)', fontSize: 18, fontFamily: 'inherit',
+              }}>
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom: compact add button (opens sheet) */}
       <div style={{ padding: '10px 18px 18px', borderTop: '1px solid var(--bdr2)', flexShrink: 0 }}>
