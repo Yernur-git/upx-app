@@ -83,12 +83,13 @@ export function Onboarding({ onDone }: OnboardingProps) {
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch' as any,
     }}>
-      {/* Scrollable inner — centers on tall screens, scrolls on short ones */}
+      {/* Scrollable inner — top-aligned with safe-area padding */}
       <div style={{
         flex: 1,
         display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '24px 20px 24px',
+        alignItems: 'center', justifyContent: 'flex-start',
+        padding: '0 20px 40px',
+        paddingTop: 'max(env(safe-area-inset-top, 0px) + 32px, 48px)',
         minHeight: 'min-content',
         gap: 16,
       }}>

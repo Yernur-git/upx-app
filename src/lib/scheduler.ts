@@ -16,10 +16,12 @@ export function getNowMinutes(): number {
   return now.getHours() * 60 + now.getMinutes();
 }
 
-export function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
+export function formatDuration(minutes: number, lang?: string): string {
+  const ru = lang === 'ru';
+  if (minutes < 60) return ru ? `${minutes}м` : `${minutes}m`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
+  if (ru) return m === 0 ? `${h}ч` : `${h}ч ${m}м`;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
@@ -31,66 +33,125 @@ export interface ScheduleResult {
 }
 
 /**
- * ignoreNow=true → schedule from wake time (useful for full-day preview/testing).
+ * Builds a daily schedule.
+ *
+ * Fixed-time tasks act as "anchors" — floating tasks are placed in the
+ * gaps BEFORE each anchor (not after), so e.g. workout always appears
+ * before edit@17:00 if there's enough time.
+ *
+ * ignoreNow=true → schedule from wake time (full-day preview/testing).
  * ignoreNow=false (default) → schedule from max(wake, now).
  */
 export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = false): ScheduleResult {
   const wake = timeToMinutes(config.wake);
   let sleep = timeToMinutes(config.sleep);
-  // If sleep is at or before wake (e.g. sleep=00:00, wake=07:00), treat sleep as next-day midnight
+  // If sleep ≤ wake (e.g. 00:00 sleep, 07:00 wake) → treat as next-day
   if (sleep <= wake) sleep += 24 * 60;
   const availableMinutes = sleep - wake - (config.morning_buffer ?? 0);
 
   const pendingTasks = tasks.filter(t => !t.is_done && t.day === 'today');
+  const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-  const priorityOrder = { high: 0, medium: 1, low: 2 };
-  const sorted = [...pendingTasks].sort((a, b) => {
-    if (a.fixed_time && !b.fixed_time) return -1;
-    if (!a.fixed_time && b.fixed_time) return 1;
-    if (a.fixed_time && b.fixed_time) return timeToMinutes(a.fixed_time) - timeToMinutes(b.fixed_time);
-    if (a.sort_order !== b.sort_order) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-    if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
-    return priorityOrder[a.priority] - priorityOrder[b.priority];
-  });
+  // ── Separate fixed vs floating tasks ──────────────────────────────
+  const fixedTasks = [...pendingTasks]
+    .filter(t => t.fixed_time)
+    .sort((a, b) => timeToMinutes(a.fixed_time!) - timeToMinutes(b.fixed_time!));
+
+  const floatingTasks = [...pendingTasks]
+    .filter(t => !t.fixed_time)
+    .sort((a, b) => {
+      if (a.sort_order !== b.sort_order) return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+      return (priorityOrder[a.priority] ?? 1) - (priorityOrder[b.priority] ?? 1);
+    });
 
   const blocks: TimelineBlock[] = [];
   const overflow: Task[] = [];
   const nowMins = getNowMinutes();
+
   let cursor = ignoreNow
     ? wake + (config.morning_buffer ?? 0)
     : Math.max(wake + (config.morning_buffer ?? 0), nowMins);
 
-  for (const task of sorted) {
-    const travelTime = task.travel_minutes;
-    const totalSlot = travelTime + task.duration_minutes + travelTime;
-    const breakAfter = task.break_after ?? config.buffer;
+  let floatIdx = 0;
 
-    if (task.fixed_time) {
-      const fixedStart = timeToMinutes(task.fixed_time);
-      if (fixedStart >= cursor) {
-        // Fixed time is ahead — jump to it if task fits before sleep
-        if (fixedStart + totalSlot > sleep) { overflow.push(task); continue; }
-        if (fixedStart > cursor) {
-          blocks.push({ type: 'break', start_minutes: cursor, end_minutes: fixedStart, label: 'Free time' });
-        }
-        cursor = fixedStart;
+  /** Place as many floating tasks as fit in [cursor … deadline). */
+  const fillGap = (deadline: number) => {
+    while (floatIdx < floatingTasks.length) {
+      const task = floatingTasks[floatIdx];
+      const travel = task.travel_minutes;
+      const slot   = travel + task.duration_minutes + travel;
+      const brk    = task.break_after ?? config.buffer;
+
+      // Must fit entirely before deadline
+      if (cursor + slot > deadline) break;
+
+      blocks.push({ task, start_minutes: cursor, end_minutes: cursor + slot, is_overflow: false });
+      cursor += slot;
+      floatIdx++;
+
+      // Add break only if it still fits before deadline
+      if (brk > 0 && cursor + brk <= deadline) {
+        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+        cursor += brk;
       }
-      // fixedStart < cursor: time passed, fall through and place at cursor
+    }
+  };
+
+  // ── Place fixed tasks as anchors, fill gaps before each ──────────
+  for (const task of fixedTasks) {
+    const fixedStart = timeToMinutes(task.fixed_time!);
+    const travel = task.travel_minutes;
+    const slot   = travel + task.duration_minutes + travel;
+    const brk    = task.break_after ?? config.buffer;
+
+    if (fixedStart <= cursor) {
+      // Fixed time already passed → place at current cursor
+      if (cursor + slot > sleep) { overflow.push(task); continue; }
+      blocks.push({ task, start_minutes: cursor, end_minutes: cursor + slot, is_overflow: false });
+      cursor += slot;
+      if (brk > 0 && cursor + brk <= sleep) {
+        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+        cursor += brk;
+      }
+      continue;
     }
 
-    if (cursor + totalSlot > sleep) { overflow.push(task); continue; }
+    // Fill the gap before this anchor with floating tasks
+    fillGap(fixedStart);
 
-    blocks.push({ task, start_minutes: cursor, end_minutes: cursor + totalSlot, is_overflow: false });
-    cursor += totalSlot;
+    // Any remaining gap → free time
+    if (cursor < fixedStart) {
+      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: fixedStart, label: 'Free time' });
+      cursor = fixedStart;
+    }
 
-    if (breakAfter > 0 && cursor + breakAfter <= sleep) {
-      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + breakAfter, label: '☕ Break' });
-      cursor += breakAfter;
+    // Place the fixed task
+    if (cursor + slot > sleep) { overflow.push(task); continue; }
+    blocks.push({ task, start_minutes: cursor, end_minutes: cursor + slot, is_overflow: false });
+    cursor += slot;
+    if (brk > 0 && cursor + brk <= sleep) {
+      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+      cursor += brk;
     }
   }
 
-  const totalMinutes = sorted
-    .filter(t => !overflow.find(o => o.id === t.id))
+  // ── Place remaining floating tasks after all anchors ──────────────
+  fillGap(sleep);
+
+  // Any unplaced floaters → overflow
+  while (floatIdx < floatingTasks.length) {
+    overflow.push(floatingTasks[floatIdx++]);
+  }
+
+  // ── Compute totals ─────────────────────────────────────────────────
+  const placed = new Set(
+    blocks
+      .filter((b): b is { task: Task; start_minutes: number; end_minutes: number; is_overflow: boolean } => !('type' in b))
+      .map(b => b.task.id)
+  );
+  const totalMinutes = pendingTasks
+    .filter(t => placed.has(t.id))
     .reduce((s, t) => s + t.travel_minutes + t.duration_minutes + t.travel_minutes, 0);
 
   return { blocks, overflow, totalMinutes, availableMinutes };

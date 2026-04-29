@@ -448,7 +448,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   const t = useT();
   const lang = useStore(s => s.config.language ?? 'en');
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
-  const [hovered, setHovered] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -457,11 +457,13 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   const startY = useRef(0);
   const dirLocked = useRef<'h'|'v'|null>(null);
   const isSwiping = useRef(false);
+  const didSwipe = useRef(false);
 
   if (isDragging && (swipeRevealed || swipeOffset !== 0)) {
     setSwipeOffset(0);
     setSwipeRevealed(false);
   }
+  if ((isDragging || isDraggingAny) && expanded) setExpanded(false);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (isDone) return;
@@ -469,6 +471,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
     startY.current = e.touches[0].clientY;
     dirLocked.current = null;
     isSwiping.current = true;
+    didSwipe.current = false;
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
@@ -482,6 +485,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
     }
     if (dirLocked.current === 'v') return;
     if (dx > 0 && !swipeRevealed) return;
+    didSwipe.current = true;
     const next = swipeRevealed
       ? Math.max(-MAX_SWIPE, Math.min(0, -MAX_SWIPE + dx))
       : Math.max(-MAX_SWIPE, Math.min(0, dx));
@@ -501,6 +505,12 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
 
   const closeSwipe = () => { setSwipeRevealed(false); setSwipeOffset(0); };
 
+  const handleCardTap = () => {
+    if (didSwipe.current) return;
+    if (swipeRevealed) { closeSwipe(); return; }
+    if (!isDone) setExpanded(s => !s);
+  };
+
   if (editing) {
     return (
       <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
@@ -510,12 +520,14 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   }
 
   const hasNotes = !!(task.notes && task.notes.trim());
+  const moveLabel = task.day === 'today' ? t('day.tomorrow') : t('day.today');
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, position: 'relative', borderRadius: 10, overflow: 'hidden' }}
     >
+      {/* Swipe-reveal action buttons (behind card) */}
       {!isDragging && !isDraggingAny && (
         <div style={{
           position: 'absolute', right: 0, top: 0, bottom: 0,
@@ -529,7 +541,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
             gap: 3, fontSize: 10, fontWeight: 600, fontFamily: 'inherit',
           }}>
             <ArrowRight size={16} />
-            {task.day === 'today' ? t('day.tomorrow') : t('day.today')}
+            {moveLabel}
           </button>
           <button onClick={() => { closeSwipe(); onDelete(); }} style={{
             flex: 1, border: 'none', cursor: 'pointer',
@@ -547,7 +559,6 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        onClick={swipeRevealed ? closeSwipe : undefined}
         style={{
           transform: `translateX(${isDragging || isDraggingAny ? 0 : swipeOffset}px)`,
           transition: isSwiping.current ? 'none' : 'transform .25s cubic-bezier(.4,0,.2,1)',
@@ -555,15 +566,17 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
         }}
       >
         <div
-          style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : 'var(--bdr)'}`, borderRadius: 10, padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8, opacity: isDragging ? 0.5 : 1 }}
-          onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+          style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : (expanded ? 'var(--ind-m)' : 'var(--bdr)')}`, borderRadius: expanded ? '10px 10px 0 0' : 10, padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8, opacity: isDragging ? 0.5 : 1 }}
+          onClick={handleCardTap}
         >
           {!isDone && (
-            <div {...attributes} {...listeners} style={{ cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--tx3)', marginTop: 2, flexShrink: 0, touchAction: 'none' }}>
+            <div {...attributes} {...listeners}
+              onClick={e => e.stopPropagation()}
+              style={{ cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--tx3)', marginTop: 2, flexShrink: 0, touchAction: 'none' }}>
               <GripVertical size={13} />
             </div>
           )}
-          <button onClick={onToggle} className="btn-icon" style={{ padding: 2, marginTop: 1, flexShrink: 0 }}>
+          <button onClick={e => { e.stopPropagation(); onToggle(); }} className="btn-icon" style={{ padding: 2, marginTop: 1, flexShrink: 0 }}>
             {task.is_done ? <CheckCircle size={15} color="var(--sage)" /> : <Circle size={15} color="var(--tx3)" />}
           </button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -585,7 +598,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               )}
             </div>
             <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2, fontFamily: "'DM Mono', monospace" }}>
-              {formatDuration(task.duration_minutes)}
+              {formatDuration(task.duration_minutes, lang)}
               {task.travel_minutes > 0 && ` · +${task.travel_minutes}${lang === 'ru' ? 'м дорога' : 'm road'}`}
               {task.break_after > 0 && ` · +${task.break_after}${lang === 'ru' ? 'м перерыв' : 'm break'}`}
               {task.fixed_time && ` · @${task.fixed_time}`}
@@ -601,21 +614,61 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               </div>
             )}
           </div>
-          {hovered && !isDone && (
-            <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-              <button className="btn-icon" onClick={onStar} style={{ padding: 4 }}>
-                <Star size={12} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
-              </button>
-              <button className="btn-icon" onClick={() => setEditing(true)} style={{ padding: 4 }}><Pencil size={12} /></button>
-              <button className="btn-icon" onClick={onMove} style={{ padding: 4 }}><ArrowRight size={12} /></button>
-              <button className="btn-icon" onClick={onDelete} style={{ padding: 4 }}><Trash2 size={12} /></button>
-            </div>
-          )}
         </div>
+
+        {/* Tap-expanded action bar — shown on card tap, large touch targets */}
+        {expanded && !isDone && (
+          <div style={{
+            display: 'flex',
+            border: '1px solid var(--ind-m)', borderTop: 'none',
+            borderRadius: '0 0 10px 10px',
+            overflow: 'hidden',
+          }}>
+            {/* Star/Pin */}
+            <button
+              onClick={e => { e.stopPropagation(); onStar(); }}
+              style={actionBtnStyle(task.is_starred ? 'var(--must-l, #fff8e1)' : 'var(--sf2)')}>
+              <Star size={15} fill={task.is_starred ? 'var(--must)' : 'none'} color={task.is_starred ? 'var(--must)' : 'var(--tx3)'} />
+              <span style={{ fontSize: 10, color: task.is_starred ? 'var(--must)' : 'var(--tx3)' }}>
+                {task.is_starred ? (lang === 'ru' ? 'Откреп' : 'Unpin') : (lang === 'ru' ? 'Пин' : 'Pin')}
+              </span>
+            </button>
+            <div style={{ width: 1, background: 'var(--bdr)' }} />
+            {/* Edit */}
+            <button
+              onClick={e => { e.stopPropagation(); setExpanded(false); setEditing(true); }}
+              style={actionBtnStyle('var(--sf2)')}>
+              <Pencil size={15} color="var(--ind)" />
+              <span style={{ fontSize: 10, color: 'var(--ind)' }}>{lang === 'ru' ? 'Изменить' : 'Edit'}</span>
+            </button>
+            <div style={{ width: 1, background: 'var(--bdr)' }} />
+            {/* Move */}
+            <button
+              onClick={e => { e.stopPropagation(); setExpanded(false); onMove(); }}
+              style={actionBtnStyle('var(--sf2)')}>
+              <ArrowRight size={15} color="var(--tx2)" />
+              <span style={{ fontSize: 10, color: 'var(--tx2)' }}>{moveLabel}</span>
+            </button>
+            <div style={{ width: 1, background: 'var(--bdr)' }} />
+            {/* Delete */}
+            <button
+              onClick={e => { e.stopPropagation(); setExpanded(false); onDelete(); }}
+              style={actionBtnStyle('var(--sf2)')}>
+              <Trash2 size={15} color="var(--coral)" />
+              <span style={{ fontSize: 10, color: 'var(--coral)' }}>{lang === 'ru' ? 'Удалить' : 'Delete'}</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const actionBtnStyle = (bg: string): React.CSSProperties => ({
+  flex: 1, border: 'none', cursor: 'pointer', background: bg,
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  gap: 4, padding: '10px 4px', minHeight: 52, fontFamily: 'inherit',
+});
 
 // Edit task as bottom sheet
 function EditTaskSheet({ task, onDone }: { task: Task; onDone: () => void }) {
@@ -630,6 +683,13 @@ function EditTaskSheet({ task, onDone }: { task: Task; onDone: () => void }) {
 
 const DAY_LABELS_KEYS = ['day.short.sun', 'day.short.mon', 'day.short.tue', 'day.short.wed', 'day.short.thu', 'day.short.fri', 'day.short.sat'] as const;
 
+const CAT_RU: Record<string, string> = {
+  'workout': 'тренировка', 'deep work': 'глубокая работа', 'meetings': 'встречи',
+  'meals': 'еда', 'creative': 'творчество', 'admin': 'admin', 'walks': 'прогулки',
+  'general': 'общее', 'reading': 'чтение', 'meditation': 'медитация',
+  'running': 'бег', 'study': 'учёба',
+};
+
 /** Shared category select with "other (custom)" support. */
 function CategorySelect({
   value, onChange, allCategories, showAuto,
@@ -640,9 +700,12 @@ function CategorySelect({
   showAuto?: boolean;
 }) {
   const t = useT();
+  const lang = useStore(s => s.config.language ?? 'en');
   const isCustom = value !== '' && !allCategories.includes(value);
   const [mode, setMode] = useState<'preset' | 'other'>(isCustom ? 'other' : 'preset');
   const [customText, setCustomText] = useState(isCustom ? value : '');
+
+  const catLabel = (c: string) => lang === 'ru' ? (CAT_RU[c] ?? c) : c;
 
   const handleSelectChange = (v: string) => {
     if (v === '__other__') {
@@ -667,7 +730,7 @@ function CategorySelect({
         {t('task.category')}{showAuto && <span style={{ marginLeft: 4, color: 'var(--ind)', fontWeight: 600 }}>{t('task.category.auto')}</span>}
       </div>
       <select value={selectValue} onChange={e => handleSelectChange(e.target.value)} style={{ fontSize: 13, padding: '9px 8px' }}>
-        {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+        {allCategories.map(c => <option key={c} value={c}>{catLabel(c)}</option>)}
         <option value="__other__">{t('task.category.other')}</option>
       </select>
       {mode === 'other' && (
