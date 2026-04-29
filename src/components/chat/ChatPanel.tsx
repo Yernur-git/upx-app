@@ -23,9 +23,9 @@ export function ChatPanel() {
 
   const [retryText, setRetryText] = useState<string | null>(null);
 
-  // Action-claim words — if AI says these but applied=0, show retry button
+  // Words that indicate AI claims to have taken action
   const claimsAction = (msg: string) =>
-    /переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|готово|сделал|I['']ll|I will|adding|moving|creating|deleting|updating|done\b|scheduled/i.test(msg);
+    /переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|готово|сделал|сделано|выполнено|перенёс|добавил|удалил|изменил|обновил|I['']ll|I will|I('ve| have) (moved|added|deleted|updated|created|scheduled)|adding|moving|creating|deleting|updating|done\b|scheduled|completed/i.test(msg);
 
   const sendText = async (text: string) => {
     if (!text || isTyping) return;
@@ -44,8 +44,12 @@ export function ChatPanel() {
         applied = await applyActions(result.actions);
       }
 
-      // If AI claimed an action but nothing was applied, show retry
-      if (applied === 0 && claimsAction(result.message)) {
+      // Show retry if:
+      // 1. Actions were returned but none could be applied (ID mismatch etc.)
+      // 2. AI claimed to do something but sent no actions at all
+      const actionsFailed   = result.actions.length > 0 && applied === 0;
+      const claimedNothing  = result.actions.length === 0 && claimsAction(result.message);
+      if (actionsFailed || claimedNothing) {
         setRetryText(text);
       }
 
@@ -168,18 +172,27 @@ export function ChatPanel() {
             </div>
           ))}
 
-          {/* Retry chip — shown when AI claimed an action but nothing was applied */}
+          {/* Retry banner — shown when actions failed to apply */}
           {retryText && !isTyping && (
-            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              padding: '10px 14px', borderRadius: 12,
+              background: 'var(--must-l, #fff8e1)',
+              border: '1px solid var(--must, #e0a800)',
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--must, #b7890a)', fontWeight: 500, lineHeight: 1.4 }}>
+                ⚠️ {config.language === 'ru'
+                  ? 'Действие не применилось'
+                  : 'Action didn\'t apply'}
+              </div>
               <button
-                onClick={() => sendText(retryText)}
+                onClick={() => sendText(retryText!)}
                 style={{
-                  fontSize: 11, padding: '5px 12px', borderRadius: 20,
-                  background: 'var(--must-l, #fff8e1)', color: 'var(--must, #b7890a)',
-                  border: '1px solid var(--must, #b7890a)',
-                  cursor: 'pointer', fontFamily: 'inherit', display: 'flex', gap: 5, alignItems: 'center',
+                  fontSize: 12, padding: '6px 14px', borderRadius: 20, flexShrink: 0,
+                  background: 'var(--must, #b7890a)', color: '#fff',
+                  border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
                 }}>
-                ⚠️ {config.language === 'ru' ? 'Не сработало — повторить' : 'Didn\'t apply — retry'}
+                {config.language === 'ru' ? 'Повторить' : 'Retry'}
               </button>
             </div>
           )}
