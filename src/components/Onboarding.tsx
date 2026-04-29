@@ -110,9 +110,9 @@ export function Onboarding({ onDone }: OnboardingProps) {
           background: 'var(--sf)', borderRadius: 24,
           border: '1px solid var(--bdr2)', padding: '32px 24px 24px',
           boxShadow: 'var(--shd2)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+          display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8,
         }}>
-          <div style={{ fontSize: 48, marginBottom: 4 }}>{current.emoji}</div>
+          <div style={{ fontSize: 48, marginBottom: 4, textAlign: 'center' }}>{current.emoji}</div>
           <h1 style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', letterSpacing: '-.3px', margin: 0 }}>
             {current.title}
           </h1>
@@ -147,7 +147,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                 value={taskTitle}
                 onChange={e => setTaskTitle(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && canNext() && handleNext()}
-                style={{ fontSize: 15, padding: '12px 14px' }}
+                style={{ fontSize: 15, padding: '12px 14px', width: '100%', boxSizing: 'border-box' }}
               />
               <div>
                 <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 5 }}>{t('onb.taskDuration')}</label>
@@ -193,7 +193,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
               </div>
               <input placeholder={t('onb.goalPlaceholder')} value={goalCat}
                 onChange={e => setGoalCat(e.target.value)}
-                style={{ fontSize: 14, padding: '11px 14px' }} />
+                style={{ fontSize: 14, padding: '11px 14px', width: '100%', boxSizing: 'border-box' }} />
               <div>
                 <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 6 }}>
                   {t('onb.goalHours')}
