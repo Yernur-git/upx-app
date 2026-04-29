@@ -14,7 +14,7 @@ export default async function handler(req: Request) {
     return new Response('Invalid JSON', { status: 400 });
   }
 
-  const { subscription, userId } = body;
+  const { subscription, userId, tzOffset } = body as { subscription: unknown; userId: string; tzOffset?: number };
   if (!subscription || !userId) {
     return new Response('Missing subscription or userId', { status: 400 });
   }
@@ -33,6 +33,7 @@ export default async function handler(req: Request) {
       user_id: userId,
       endpoint: sub.endpoint,
       subscription,
+      tz_offset: tzOffset ?? 0,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'endpoint' }
