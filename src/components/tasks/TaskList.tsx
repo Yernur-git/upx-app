@@ -86,6 +86,11 @@ export function QuickActionSheet({ open, onClose, day }: {
   const quickTasks: QuickTask[] = config.quick_tasks ?? [];
   const [done, setDone] = useState<string | null>(null);
 
+  // Reset "Added" state when sheet opens
+  useEffect(() => {
+    if (open) setDone(null);
+  }, [open]);
+
   const handleTap = async (qt: QuickTask) => {
     if (editMode || adding) return;
     setAdding(qt.id);
@@ -105,7 +110,9 @@ export function QuickActionSheet({ open, onClose, day }: {
         fixed_time: qt.fixed_time || undefined,
       });
       setDone(qt.id);
-      setTimeout(onClose, 700); // brief "✓ Added" moment before close
+      // Reset tile back to normal after animation — don't auto-close
+      // so user can add multiple tasks from templates
+      setTimeout(() => setDone(null), 900);
     } finally {
       setAdding(null);
     }
