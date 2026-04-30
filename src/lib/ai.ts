@@ -136,39 +136,57 @@ ${taskList}
 ## Tomorrow's Tasks
 ${tmrwList}
 
-## Weekly History (last 7 days)
+## Weekly History (last 7 days, newest first)
 ${(() => {
-  const last7 = dayHistory
-    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+  // Include today's snapshot from live tasks
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayDone = todayTasks.filter(t => t.is_done);
+  const todayDoneMins = todayDone.reduce((s, t) => s + t.duration_minutes, 0);
+  const todayEntry = todayTasks.length > 0 ? [{
+    date: todayStr + ' (today)',
+    done_count: todayDone.length,
+    total_count: todayTasks.length,
+    done_minutes: todayDoneMins,
+    tasks: todayDone.map(t => ({ title: t.title, category: t.category, duration_minutes: t.duration_minutes, is_done: true, notes: t.notes })),
+  }] : [];
+
+  const past = dayHistory
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== todayStr)
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 7);
-  if (last7.length === 0) return 'No history yet.';
-  return last7.map(d => {
+    .slice(0, 6);
+
+  const all = [...todayEntry, ...past];
+  if (all.length === 0) return 'No history yet — this is the first day of tracking.';
+
+  return all.map(d => {
     const doneMins = d.done_minutes ?? 0;
     const h = Math.floor(doneMins / 60);
     const m = doneMins % 60;
-    const timeStr = h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}m`;
-    // Include per-task breakdown if available (shows categories + mood)
+    const timeStr = doneMins > 0 ? (h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}m`) : '0m';
     const taskLines = (d.tasks ?? [])
-      .filter(t => t.is_done)
-      .slice(0, 5)
-      .map(t => `    · ${t.title} (${t.category}, ${t.duration_minutes}min)`)
+      .filter((t: { is_done: boolean }) => t.is_done)
+      .map((t: { title: string; category: string; duration_minutes: number; notes?: string }) =>
+        `    · ${t.title} (${t.category}, ${t.duration_minutes}min)${t.notes ? ' ' + t.notes.slice(0, 30) : ''}`)
       .join('\n');
     return `- ${d.date}: ${d.done_count}/${d.total_count} done, ${timeStr} productive${taskLines ? '\n' + taskLines : ''}`;
   }).join('\n');
 })()}
 
-## Category Goals Progress
+## Category Goals Progress (this week)
 ${config.category_goals.length > 0
   ? config.category_goals.map(g => {
-      const last7 = dayHistory.slice(-7);
-      const doneThisWeek = last7.reduce((sum, d) =>
-        sum + (d.tasks ?? []).filter(t => t.is_done && t.category === g.category)
-              .reduce((s, t) => s + t.duration_minutes, 0), 0);
+      const todayStr2 = new Date().toISOString().slice(0, 10);
+      const todayDoneCat = todayTasks.filter(t => t.is_done && t.category === g.category)
+        .reduce((s, t) => s + t.duration_minutes, 0);
+      const pastDoneCat = dayHistory.slice(-6).reduce((sum, d) =>
+        sum + (d.tasks ?? []).filter((t: { is_done: boolean; category: string }) => t.is_done && t.category === g.category)
+              .reduce((s: number, t: { duration_minutes: number }) => s + t.duration_minutes, 0), 0);
+      const doneThisWeek = todayDoneCat + pastDoneCat;
+      void todayStr2;
       const pct = g.weekly_goal_minutes > 0 ? Math.round((doneThisWeek / g.weekly_goal_minutes) * 100) : 0;
       const h = Math.floor(doneThisWeek / 60), m = doneThisWeek % 60;
       const goalH = Math.floor(g.weekly_goal_minutes / 60);
-      return `- ${g.category}: ${h}h${m > 0 ? m + 'm' : ''} / ${goalH}h goal (${pct}%)`;
+      return `- ${g.category}: ${h > 0 ? h + 'h' : ''}${m > 0 ? m + 'm' : '0m'} / ${goalH}h goal (${pct}%)`;
     }).join('\n')
   : 'No goals set.'}
 
@@ -179,6 +197,16 @@ ${config.category_goals.length > 0
 - Free remaining: ${formatDuration(freeMinutes)}
 - Tasks in overflow (don't fit today):
 ${overflowList}
+
+## WEEKLY REVIEW — CRITICAL
+When user asks for a weekly review / "обзор недели" / "what did I do this week":
+- Use the "Weekly History" section above — it IS your data source for past days
+- NEVER say "I don't have access to past data" or "I can only see today/tomorrow" — that is WRONG
+- Always give a real analysis: what was completed, productive time, patterns, which days were best/worst
+- Reference specific tasks and categories from the history
+- Give 2-3 concrete improvement suggestions based on actual patterns
+- If history shows only 1 day: acknowledge it's early, but still analyse what's there
+- Include category goals progress in the review
 
 ## RESPONSE FOCUS — CRITICAL
 Always respond to the user's LATEST message only. Do NOT repeat or re-execute actions from previous messages in the conversation history.
