@@ -7,7 +7,7 @@ import { track } from '../../lib/analytics';
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput, dayHistory } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -47,7 +47,7 @@ export function ChatPanel() {
     setIsTyping(true);
 
     try {
-      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey);
+      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory);
 
       let applied = 0;
       if (result.actions.length > 0) {
