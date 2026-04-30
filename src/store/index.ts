@@ -411,7 +411,20 @@ export const useStore = create<Store>()(
         set(s => ({ config: { ...s.config, ...updates } }));
         const { userId, config } = get();
         if (userId) {
-          await supabase.from('user_config').upsert({ ...config, ...updates, user_id: userId });
+          const merged = { ...config, ...updates };
+          // Exclude fields that require a DB migration (quick_tasks, peak_focus_time).
+          // Including unknown columns causes the ENTIRE upsert to fail silently,
+          // which means wake/sleep/buffer/etc. also stop syncing across devices.
+          // Run this SQL to unlock full sync:
+          //   ALTER TABLE user_config
+          //     ADD COLUMN IF NOT EXISTS quick_tasks jsonb,
+          //     ADD COLUMN IF NOT EXISTS peak_focus_time text;
+          const { quick_tasks, peak_focus_time, ...safeConfig } = merged;
+          void quick_tasks; void peak_focus_time; // kept in local state only for now
+          const { error } = await supabase
+            .from('user_config')
+            .upsert({ ...safeConfig, user_id: userId });
+          if (error) console.error('[updateConfig] Supabase error:', error.message);
         }
       },
 
