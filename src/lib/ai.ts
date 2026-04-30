@@ -1,4 +1,4 @@
-import type { Task, UserConfig, ChatMessage, ParsedAction } from '../types';
+import type { Task, UserConfig, ChatMessage, ParsedAction, DayStats } from '../types';
 import { minutesToTime, buildSchedule, formatDuration } from './scheduler';
 
 export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
@@ -57,7 +57,7 @@ export interface AIResponse {
   actions: ParsedAction[];
 }
 
-function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow'): string {
+function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = []): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
@@ -135,6 +135,42 @@ ${taskList}
 
 ## Tomorrow's Tasks
 ${tmrwList}
+
+## Weekly History (last 7 days)
+${(() => {
+  const last7 = dayHistory
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 7);
+  if (last7.length === 0) return 'No history yet.';
+  return last7.map(d => {
+    const doneMins = d.done_minutes ?? 0;
+    const h = Math.floor(doneMins / 60);
+    const m = doneMins % 60;
+    const timeStr = h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}m`;
+    // Include per-task breakdown if available (shows categories + mood)
+    const taskLines = (d.tasks ?? [])
+      .filter(t => t.is_done)
+      .slice(0, 5)
+      .map(t => `    · ${t.title} (${t.category}, ${t.duration_minutes}min)`)
+      .join('\n');
+    return `- ${d.date}: ${d.done_count}/${d.total_count} done, ${timeStr} productive${taskLines ? '\n' + taskLines : ''}`;
+  }).join('\n');
+})()}
+
+## Category Goals Progress
+${config.category_goals.length > 0
+  ? config.category_goals.map(g => {
+      const last7 = dayHistory.slice(-7);
+      const doneThisWeek = last7.reduce((sum, d) =>
+        sum + (d.tasks ?? []).filter(t => t.is_done && t.category === g.category)
+              .reduce((s, t) => s + t.duration_minutes, 0), 0);
+      const pct = g.weekly_goal_minutes > 0 ? Math.round((doneThisWeek / g.weekly_goal_minutes) * 100) : 0;
+      const h = Math.floor(doneThisWeek / 60), m = doneThisWeek % 60;
+      const goalH = Math.floor(g.weekly_goal_minutes / 60);
+      return `- ${g.category}: ${h}h${m > 0 ? m + 'm' : ''} / ${goalH}h goal (${pct}%)`;
+    }).join('\n')
+  : 'No goals set.'}
 
 ## Live Schedule Status
 - Status: ${scheduleStatus}
@@ -435,6 +471,7 @@ export async function sendChatMessage(
   customBaseURL?: string,
   customModel?: string,
   useDefaultKey?: boolean,
+  dayHistory: DayStats[] = [],
 ): Promise<AIResponse> {
   // Default mode: ignore any client-side credentials, force the proxy path.
   // This is what makes "Default" actually default — even stale state can't leak through.
@@ -443,7 +480,7 @@ export async function sendChatMessage(
   const effectiveModel = useDefaultKey ? undefined : customModel;
   const provider = detectProvider(effectiveKey, effectiveBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: effectiveBaseURL, model: effectiveModel };
-  const systemPrompt = buildSystemPrompt(tasks, config, activeDay);
+  const systemPrompt = buildSystemPrompt(tasks, config, activeDay, dayHistory);
 
   const rawText = provider === 'anthropic'
     ? await callAnthropic(userMessage, history, systemPrompt, cfg)
