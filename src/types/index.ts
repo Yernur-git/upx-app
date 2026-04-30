@@ -57,6 +57,8 @@ export interface QuickTask {
   fixed_time?: string; // optional HH:MM — locks the task to a specific time
 }
 
+export type PeakFocusTime = 'morning' | 'afternoon' | 'evening';
+
 export interface UserConfig {
   wake: string;
   sleep: string;
@@ -68,6 +70,7 @@ export interface UserConfig {
   known_contexts: Record<string, number>;
   category_goals: CategoryGoal[];
   quick_tasks?: QuickTask[];
+  peak_focus_time?: PeakFocusTime;
 }
 
 export interface ChatMessage {

@@ -1,28 +1,54 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { useT } from '../lib/i18n';
+import type { PeakFocusTime } from '../types';
 
 interface OnboardingProps {
   onDone: () => void;
 }
 
+// ── Habit packs — concrete presets for step 3 ─────────────────────
+const HABIT_PACKS = [
+  { emoji: '🏋️', en: 'Fitness',    ru: 'Фитнес',        cat: 'workout',   mins: 180, color: '#5FA35F', hintEn: '3× / week', hintRu: '3× в нед.' },
+  { emoji: '💻', en: 'Deep Work',  ru: 'Глубокая работа', cat: 'deep work', mins: 600, color: '#4C5EE8', hintEn: '10h / week', hintRu: '10ч / нед.' },
+  { emoji: '📚', en: 'Reading',    ru: 'Чтение',          cat: 'reading',   mins: 210, color: '#F0B429', hintEn: '30min / day', hintRu: '30мин / день' },
+  { emoji: '🧘', en: 'Mindfulness',ru: 'Медитация',       cat: 'meditation',mins: 120, color: '#8B5CF6', hintEn: '20min / day', hintRu: '20мин / день' },
+  { emoji: '🏃', en: 'Running',    ru: 'Бег',             cat: 'running',   mins: 150, color: '#EF6060', hintEn: '3× / week', hintRu: '3× в нед.' },
+  { emoji: '🌱', en: 'Learning',   ru: 'Учёба',           cat: 'learning',  mins: 300, color: '#06B6D4', hintEn: '1h / day', hintRu: '1ч / день' },
+];
+
+const PEAK_TIMES: { key: PeakFocusTime; emoji: string; en: string; ru: string; hint: string }[] = [
+  { key: 'morning',   emoji: '🌅', en: 'Morning',   ru: 'Утро',   hint: '6–12' },
+  { key: 'afternoon', emoji: '☀️', en: 'Afternoon', ru: 'День',   hint: '12–18' },
+  { key: 'evening',   emoji: '🌙', en: 'Evening',   ru: 'Вечер',  hint: '18–22' },
+];
+
 export function Onboarding({ onDone }: OnboardingProps) {
   const t = useT();
   const { updateConfig, addTask, config } = useStore();
+  const lang = config.language ?? 'en';
+
   const [step, setStep] = useState(0);
   const [wake, setWake] = useState('07:00');
   const [sleep, setSleep] = useState('23:00');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDuration, setTaskDuration] = useState('30');
-  const [goalCat, setGoalCat] = useState('workout');
-  const [goalHours, setGoalHours] = useState('6');
+  // Step 3
+  const [selectedPacks, setSelectedPacks] = useState<string[]>(['workout', 'deep work']);
+  const [peakTime, setPeakTime] = useState<PeakFocusTime>('morning');
   const [loading, setLoading] = useState(false);
 
   const STEPS = [
     { emoji: '⏰', title: t('onb.wake.title'), subtitle: t('onb.wake.subtitle') },
     { emoji: '🎯', title: t('onb.task.title'), subtitle: t('onb.task.subtitle') },
-    { emoji: '📊', title: t('onb.goal.title'), subtitle: t('onb.goal.subtitle') },
+    { emoji: '🔋', title: lang === 'ru' ? 'Твои привычки и ритм' : 'Your habits & rhythm', subtitle: lang === 'ru' ? 'Выбери что хочешь развивать и когда ты продуктивнее всего' : 'Pick what you want to build and when you do your best work' },
   ];
+
+  const togglePack = (cat: string) => {
+    setSelectedPacks(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
 
   const canNext = () => {
     if (step === 1 && !taskTitle.trim()) return false;
@@ -51,19 +77,22 @@ export function Onboarding({ onDone }: OnboardingProps) {
           });
         }
       } else if (step === 2) {
-        if (goalCat.trim()) {
-          const existing = config.category_goals.find((g: { category: string }) => g.category === goalCat.trim().toLowerCase());
-          if (!existing) {
-            const COLORS = ['#5FA35F', '#4C5EE8', '#EF6060', '#F0B429', '#8B5CF6'];
-            await updateConfig({
-              category_goals: [...config.category_goals, {
-                category: goalCat.trim().toLowerCase(),
-                weekly_goal_minutes: Math.round(parseFloat(goalHours) * 60),
-                color: COLORS[config.category_goals.length % COLORS.length],
-              }],
-            });
-          }
-        }
+        // Save selected habit packs as category_goals
+        const COLORS = ['#5FA35F', '#4C5EE8', '#EF6060', '#F0B429', '#8B5CF6', '#06B6D4'];
+        const newGoals = selectedPacks
+          .map(cat => HABIT_PACKS.find(p => p.cat === cat)!)
+          .filter(Boolean)
+          .filter(p => !config.category_goals.find(g => g.category === p.cat))
+          .map((p, i) => ({
+            category: p.cat,
+            weekly_goal_minutes: p.mins,
+            color: p.color ?? COLORS[i % COLORS.length],
+          }));
+
+        await updateConfig({
+          category_goals: [...config.category_goals, ...newGoals],
+          peak_focus_time: peakTime,
+        });
         onDone();
         return;
       }
@@ -83,7 +112,6 @@ export function Onboarding({ onDone }: OnboardingProps) {
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch' as any,
     }}>
-      {/* Scrollable inner — top-aligned with safe-area padding */}
       <div style={{
         flex: 1,
         display: 'flex', flexDirection: 'column',
@@ -121,6 +149,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
             {current.subtitle}
           </p>
 
+          {/* ── Step 0: Wake / Sleep ── */}
           {step === 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -140,6 +169,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
             </div>
           )}
 
+          {/* ── Step 1: First task ── */}
           {step === 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
@@ -176,44 +206,88 @@ export function Onboarding({ onDone }: OnboardingProps) {
             </div>
           )}
 
+          {/* ── Step 2: Habits & Peak time ── */}
           {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {['workout', 'deep work', 'reading', 'meditation', 'running'].map(preset => (
-                  <button key={preset} onClick={() => setGoalCat(preset)}
-                    style={{
-                      padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500,
-                      border: `1.5px solid ${goalCat === preset ? 'var(--ind)' : 'var(--bdr2)'}`,
-                      background: goalCat === preset ? 'var(--ind-l)' : 'transparent',
-                      color: goalCat === preset ? 'var(--ind)' : 'var(--tx3)',
-                      cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                    {preset}
-                  </button>
-                ))}
-              </div>
-              <input placeholder={t('onb.goalPlaceholder')} value={goalCat}
-                onChange={e => setGoalCat(e.target.value)}
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box', fontSize: 14, padding: '11px 14px' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+              {/* Habit packs */}
               <div>
-                <label style={{ fontSize: 11, color: 'var(--tx3)', display: 'block', marginBottom: 6 }}>
-                  {t('onb.goalHours')}
-                </label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[2, 3, 5, 6, 8, 10].map(h => (
-                    <button key={h} onClick={() => setGoalHours(String(h))}
-                      style={{
-                        flex: 1, padding: '9px 4px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        border: `1.5px solid ${goalHours === String(h) ? 'var(--ind)' : 'var(--bdr2)'}`,
-                        background: goalHours === String(h) ? 'var(--ind-l)' : 'transparent',
-                        color: goalHours === String(h) ? 'var(--ind)' : 'var(--tx3)',
-                        cursor: 'pointer', fontFamily: 'inherit',
-                      }}>
-                      {h}h
-                    </button>
-                  ))}
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--tx3)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 10 }}>
+                  {lang === 'ru' ? 'Что хочешь развивать' : 'What to build'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {HABIT_PACKS.map(p => {
+                    const sel = selectedPacks.includes(p.cat);
+                    return (
+                      <button
+                        key={p.cat}
+                        type="button"
+                        onClick={() => togglePack(p.cat)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                          padding: '12px 12px 10px',
+                          borderRadius: 14,
+                          border: `2px solid ${sel ? p.color : 'var(--bdr2)'}`,
+                          background: sel ? `${p.color}18` : 'var(--sf2)',
+                          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                          transition: 'border-color .15s, background .15s',
+                          position: 'relative',
+                        }}>
+                        {sel && (
+                          <div style={{
+                            position: 'absolute', top: 8, right: 8,
+                            width: 16, height: 16, borderRadius: '50%',
+                            background: p.color,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, color: '#fff', fontWeight: 700,
+                          }}>✓</div>
+                        )}
+                        <span style={{ fontSize: 22, marginBottom: 4 }}>{p.emoji}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: sel ? p.color : 'var(--tx)' }}>
+                          {lang === 'ru' ? p.ru : p.en}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 2 }}>
+                          {lang === 'ru' ? p.hintRu : p.hintEn}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+
+              {/* Peak focus time */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--tx3)', letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 10 }}>
+                  {lang === 'ru' ? 'Когда ты продуктивнее' : 'Peak focus time'}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {PEAK_TIMES.map(pt => {
+                    const sel = peakTime === pt.key;
+                    return (
+                      <button
+                        key={pt.key}
+                        type="button"
+                        onClick={() => setPeakTime(pt.key)}
+                        style={{
+                          flex: 1,
+                          padding: '10px 6px',
+                          borderRadius: 12,
+                          border: `2px solid ${sel ? 'var(--ind)' : 'var(--bdr2)'}`,
+                          background: sel ? 'var(--ind-l)' : 'transparent',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                        }}>
+                        <span style={{ fontSize: 20 }}>{pt.emoji}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--ind)' : 'var(--tx)' }}>
+                          {lang === 'ru' ? pt.ru : pt.en}
+                        </span>
+                        <span style={{ fontSize: 10, color: 'var(--tx3)' }}>{pt.hint}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <button className="btn btn-ghost" style={{ fontSize: 12, justifyContent: 'center' }}
                 onClick={onDone}>
                 {t('onb.skip')}

@@ -86,7 +86,24 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
   const nowStr = minutesToTime(nowMinutes);
   const earliestStartStr = minutesToTime(earliestStart);
 
-  // Build live schedule context
+  // ── Energy & fatigue context ────────────────────────────────────
+  const hour = now.getHours();
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
+  const baseEnergy  = hour < 12 ? 'high' : hour < 17 ? 'medium' : 'lower';
+
+  // Parse mood tags from completed tasks' notes: [💪 Огонь!], [😴 Устал], etc.
+  const doneMoods = todayTasks
+    .filter(t => t.is_done && t.notes)
+    .flatMap(t => Array.from(t.notes!.matchAll(/\[([💪😊😤😴][^\]]+)\]/gu), m => m[1]));
+
+  let inferredEnergy = baseEnergy;
+  if (doneMoods.some(m => /😴|Уст|Tired/i.test(m)))     inferredEnergy = 'low — user reported feeling tired';
+  else if (doneMoods.some(m => /😤|Тяжело|Tough/i.test(m))) inferredEnergy = 'medium-low — tasks felt tough';
+  else if (doneMoods.some(m => /💪|Огонь|Crushed/i.test(m))) inferredEnergy = 'high — user is in the zone';
+
+  const moodSummary = doneMoods.length > 0 ? doneMoods.join(', ') : null;
+
+  // ── Build live schedule context ─────────────────────────────────
   const schedule = buildSchedule(tasks, config);
   const freeMinutes = Math.max(0, schedule.availableMinutes - schedule.totalMinutes);
   const overflowList = schedule.overflow.length
@@ -102,9 +119,16 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
 - Wake: ${config.wake} | Sleep: ${config.sleep}
 - Default break between tasks: ${config.buffer} min
 - Road time for gym/workout: ${config.road_time_minutes} min each way
-- Current time: ${nowStr}
+- Current time: ${nowStr} (${timeOfDay})
 - Earliest task start: ${earliestStartStr} (now + ${bufferMinutes}min buffer)
+- Peak focus window: ${config.peak_focus_time ?? 'not set'}
 - **User is currently viewing: ${activeDay.toUpperCase()} tab** — when adding tasks without explicit day, use "${activeDay}"
+
+## Energy & Fatigue Context
+- Time of day: ${timeOfDay} | Baseline energy: ${baseEnergy}
+- Inferred energy: ${inferredEnergy}
+${moodSummary ? `- Mood signals from completed tasks: ${moodSummary}` : '- No mood signals yet today'}
+- Done today: ${todayTasks.filter(t => t.is_done).length} / ${todayTasks.length} tasks
 
 ## Today's Tasks
 ${taskList}
@@ -173,11 +197,25 @@ Always convert duration to MINUTES (integer):
 - Respect fixed_time if user specifies a time (e.g. "meeting at 3pm" → fixed_time: "15:00")
 - Use fixed_time: null if no specific time mentioned
 
+## FATIGUE-AWARE SCHEDULING — CRITICAL
+Use the Energy & Fatigue Context above to give smarter advice:
+- Schedule deep work / high-priority tasks during the user's peak focus window (${config.peak_focus_time ?? 'morning by default'})
+- If energy is "low" or tired mood signals detected (😴/Tired/Устал):
+  → Suggest shorter sessions (break 60min blocks into 30min)
+  → Recommend a break or walk before the next task
+  → Proactively offer to move low-priority tasks to tomorrow
+- If energy is "high" and user has free time:
+  → Suggest adding a productive task from their habits/goals
+- Evening (after 20:00): don't pile new demanding tasks; if user is adding hard tasks late, warn them
+- If user says "я устал" / "I'm tired" / "exhausted" / "не могу":
+  → Acknowledge it, then suggest what to cut or reschedule — don't just add more tasks
+- Overloaded schedule + tired mood → automatically recommend moving lowest-priority tasks to tomorrow
+
 ## CAPABILITIES
 1. Parse tasks from natural language → create_task action
-2. Build/optimize the day schedule → reschedule action  
+2. Build/optimize the day schedule → reschedule action
 3. Move/delete/update tasks
-4. Give productivity advice
+4. Give productivity advice based on energy level
 
 ## RESPONSE FORMAT — STRICT JSON ONLY
 No markdown, no text outside JSON:
