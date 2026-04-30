@@ -1,11 +1,17 @@
 /// <reference lib="webworker" />
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
+import { clientsClaim } from 'workbox-core';
 import { registerRoute } from 'workbox-routing';
 import { NetworkFirst, CacheFirst, NetworkOnly } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 
 declare const self: ServiceWorkerGlobalScope;
+
+// Auto-update: skip waiting and claim all clients immediately on new deploy
+// Without this, iOS PWA never auto-updates because "waiting" state never clears
+self.addEventListener('install', () => self.skipWaiting());
+clientsClaim();
 
 // Workbox injects the precache manifest here
 cleanupOutdatedCaches();
