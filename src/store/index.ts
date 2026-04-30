@@ -597,26 +597,11 @@ export const useStore = create<Store>()(
           supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
         ]);
         if (tasksRes.data) {
-          const { lastRolloverDate } = get();
-          const today = todayDateStr();
-          const alreadyRolledToday = lastRolloverDate === today;
-          // If rollover already ran today, Supabase might still have stale done
-          // one-shot tasks (delete failed or was never flushed). Filter them out
-          // so they don't "come back" after reload.
-          const tasks = alreadyRolledToday
-            ? tasksRes.data.filter(t => !(t.day === 'today' && t.is_done && t.recurrence === 'none'))
-            : tasksRes.data;
-          set({ tasks });
-          // Also delete any stale done tasks from Supabase so they don't return again
-          if (alreadyRolledToday) {
-            const staleIds = tasksRes.data
-              .filter(t => t.day === 'today' && t.is_done && t.recurrence === 'none')
-              .map(t => t.id);
-            if (staleIds.length > 0) {
-              supabase.from('tasks').delete().in('id', staleIds).eq('user_id', userId)
-                .then(({ error }) => { if (error) console.error('[loadFromSupabase] stale cleanup failed', error); });
-            }
-          }
+          // Load tasks exactly as stored in Supabase.
+          // Rollover already deletes done one-shot tasks when it runs each morning,
+          // so no client-side filtering is needed here. Filtering caused a bug where
+          // tasks marked done during the day disappeared on page reload.
+          set({ tasks: tasksRes.data });
         }
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
