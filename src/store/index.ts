@@ -433,9 +433,8 @@ export const useStore = create<Store>()(
             road_time_minutes:  merged.road_time_minutes,
             known_contexts:     merged.known_contexts,
             category_goals:     merged.category_goals,
-            // peak_focus_time and quick_tasks need a DB migration before they can sync:
-            // peak_focus_time: merged.peak_focus_time,
-            // quick_tasks:     merged.quick_tasks,
+            peak_focus_time:    merged.peak_focus_time,
+            quick_tasks:        merged.quick_tasks,
           };
           const { error } = await supabase.from('user_config').upsert(payload);
           if (error) console.error('[updateConfig] Supabase error:', error.message, payload);
