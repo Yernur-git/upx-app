@@ -412,19 +412,33 @@ export const useStore = create<Store>()(
         const { userId, config } = get();
         if (userId) {
           const merged = { ...config, ...updates };
-          // Exclude fields that require a DB migration (quick_tasks, peak_focus_time).
-          // Including unknown columns causes the ENTIRE upsert to fail silently,
-          // which means wake/sleep/buffer/etc. also stop syncing across devices.
-          // Run this SQL to unlock full sync:
+          // Use an EXPLICIT payload — never spread the whole config object.
+          // If ANY unknown column is included, PostgREST rejects the entire upsert
+          // silently (all settings stop syncing). Explicit list = safe by default.
+          // To enable quick_tasks / peak_focus_time sync, run the SQL migration first:
           //   ALTER TABLE user_config
-          //     ADD COLUMN IF NOT EXISTS quick_tasks jsonb,
-          //     ADD COLUMN IF NOT EXISTS peak_focus_time text;
-          const { quick_tasks, peak_focus_time, ...safeConfig } = merged;
-          void quick_tasks; void peak_focus_time; // kept in local state only for now
-          const { error } = await supabase
-            .from('user_config')
-            .upsert({ ...safeConfig, user_id: userId });
-          if (error) console.error('[updateConfig] Supabase error:', error.message);
+          //     ADD COLUMN IF NOT EXISTS morning_buffer   integer DEFAULT 15,
+          //     ADD COLUMN IF NOT EXISTS road_time_minutes integer DEFAULT 20,
+          //     ADD COLUMN IF NOT EXISTS known_contexts   jsonb   DEFAULT '{}',
+          //     ADD COLUMN IF NOT EXISTS quick_tasks      jsonb,
+          //     ADD COLUMN IF NOT EXISTS peak_focus_time  text;
+          const payload: Record<string, unknown> = {
+            user_id:            userId,
+            wake:               merged.wake,
+            sleep:              merged.sleep,
+            buffer:             merged.buffer,
+            morning_buffer:     merged.morning_buffer,
+            theme:              merged.theme,
+            language:           merged.language,
+            road_time_minutes:  merged.road_time_minutes,
+            known_contexts:     merged.known_contexts,
+            category_goals:     merged.category_goals,
+            // peak_focus_time and quick_tasks need a DB migration before they can sync:
+            // peak_focus_time: merged.peak_focus_time,
+            // quick_tasks:     merged.quick_tasks,
+          };
+          const { error } = await supabase.from('user_config').upsert(payload);
+          if (error) console.error('[updateConfig] Supabase error:', error.message, payload);
         }
       },
 
