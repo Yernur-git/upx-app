@@ -620,7 +620,13 @@ export const useStore = create<Store>()(
         }
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
-          set({ config: { ...DEFAULT_CONFIG, ...cfg } });
+          // Strip null values so they don't override DEFAULT_CONFIG fallbacks.
+          // e.g. quick_tasks column is NULL for existing users after migration →
+          // without this, null would overwrite the default template list.
+          const cleanCfg = Object.fromEntries(
+            Object.entries(cfg).filter(([, v]) => v !== null)
+          );
+          set({ config: { ...DEFAULT_CONFIG, ...cleanCfg } });
         }
         {
           const remoteStats: DayStats[] = (statsRes.data ?? []).map(r => ({
