@@ -70,9 +70,11 @@ export function ChatPanel() {
 
   const [retryText, setRetryText] = useState<string | null>(null);
 
-  // Words that indicate AI claims to have taken action
+  // Detect AI promising an action (future/past tense verbs) but returning no actions[].
+  // Keep this tight — analytical words like "completed", "done", "scheduled" appear
+  // in weekly reviews and must NOT trigger the retry banner.
   const claimsAction = (msg: string) =>
-    /переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|готово|сделал|сделано|выполнено|перенёс|добавил|удалил|изменил|обновил|I['']ll|I will|I('ve| have) (moved|added|deleted|updated|created|scheduled)|adding|moving|creating|deleting|updating|done\b|scheduled|completed/i.test(msg);
+    /\b(переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|перенёс|добавил|удалил|изменил|обновил)\b|I'(ll|ve) (moved|added|deleted|updated|created)|I will (move|add|delete|update|create)/i.test(msg);
 
   const sendText = async (text: string) => {
     if (!text || isTyping) return;
