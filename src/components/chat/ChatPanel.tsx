@@ -5,6 +5,43 @@ import { sendChatMessage } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
 
+// ── Simple markdown renderer for assistant messages ───────────────
+function parseBold(text: string): React.ReactNode {
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} style={{ fontWeight: 700 }}>{part}</strong> : part
+  );
+}
+
+function MsgContent({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <>
+      {lines.map((line, i) => {
+        if (/^###? /.test(line)) {
+          const content = line.replace(/^###? /, '');
+          return (
+            <div key={i} style={{ fontWeight: 700, fontSize: 13, marginTop: i > 0 ? 10 : 0, marginBottom: 2 }}>
+              {parseBold(content)}
+            </div>
+          );
+        }
+        if (line.startsWith('- ') || line.startsWith('• ')) {
+          return (
+            <div key={i} style={{ display: 'flex', gap: 6, marginTop: 3, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, opacity: 0.6, marginTop: 1 }}>•</span>
+              <span>{parseBold(line.slice(2))}</span>
+            </div>
+          );
+        }
+        if (line.trim() === '') return <div key={i} style={{ height: 6 }} />;
+        return <div key={i} style={{ marginTop: i > 0 && lines[i-1]?.trim() !== '' ? 2 : 0 }}>{parseBold(line)}</div>;
+      })}
+    </>
+  );
+}
+
 export function ChatPanel() {
   const t = useT();
   const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput, dayHistory } = useStore();
@@ -169,10 +206,11 @@ export function ChatPanel() {
                 background: msg.role === 'user' ? 'var(--ind)' : 'var(--sf2)',
                 color: msg.role === 'user' ? '#fff' : 'var(--tx)',
                 fontSize: 13,
-                lineHeight: 1.55,
-                whiteSpace: 'pre-wrap',
+                lineHeight: 1.6,
               }}>
-                {msg.content}
+                {msg.role === 'assistant'
+                  ? <MsgContent text={msg.content} />
+                  : msg.content}
                 {msg.actions && msg.actions.length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>
                     {t('chat.actionsApplied', { n: msg.actions.length })}
