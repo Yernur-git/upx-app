@@ -4,7 +4,7 @@ import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
 import { supportsPush, getPushSubscription, subscribeToPush, unsubscribeFromPush } from '../../lib/push';
-import type { CategoryGoal, Lang } from '../../types';
+import type { CategoryGoal, Lang, PeakFocusTime } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
 
@@ -157,6 +157,32 @@ export function ProfilePanel() {
                 onChange={e => updateConfig({ road_time_minutes: parseInt(e.target.value) || 0 })}
                 style={numInput} />
               <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('profile.min')}</span>
+            </div>
+          </Row>
+          <Divider />
+          <Row label={config.language === 'ru' ? 'Пик продуктивности' : 'Peak focus time'}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([
+                { key: 'morning'   as PeakFocusTime, emoji: '🌅', labelEn: 'Morn',  labelRu: 'Утро'   },
+                { key: 'afternoon' as PeakFocusTime, emoji: '☀️', labelEn: 'Day',   labelRu: 'День'   },
+                { key: 'evening'   as PeakFocusTime, emoji: '🌙', labelEn: 'Eve',   labelRu: 'Вечер'  },
+              ]).map(pt => {
+                const sel = (config.peak_focus_time ?? 'morning') === pt.key;
+                return (
+                  <button key={pt.key} onClick={() => updateConfig({ peak_focus_time: pt.key })}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      padding: '6px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                      border: `1.5px solid ${sel ? 'var(--ind)' : 'var(--bdr2)'}`,
+                      background: sel ? 'var(--ind-l)' : 'transparent',
+                      color: sel ? 'var(--ind)' : 'var(--tx3)',
+                      cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.2,
+                    }}>
+                    <span style={{ fontSize: 16 }}>{pt.emoji}</span>
+                    {config.language === 'ru' ? pt.labelRu : pt.labelEn}
+                  </button>
+                );
+              })}
             </div>
           </Row>
         </div>
