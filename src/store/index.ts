@@ -46,6 +46,7 @@ interface Store {
   lastMorningBriefDate: string | null;
   lastEveningPromptDate: string | null;
   aiUndoSnapshot: Task[] | null;
+  lastLoadedUserId: string | null;
 
   setUserId: (id: string | null) => void;
   setUserEmail: (email: string | null) => void;
@@ -195,6 +196,7 @@ export const useStore = create<Store>()(
       lastMorningBriefDate: null,
       lastEveningPromptDate: null,
       aiUndoSnapshot: null,
+      lastLoadedUserId: null,
       pendingChatInput: '',
 
       setUserId: (id) => set({ userId: id }),
@@ -544,8 +546,24 @@ export const useStore = create<Store>()(
       },
 
       loadFromSupabase: async () => {
-        const { userId } = get();
+        const { userId, lastLoadedUserId } = get();
         if (!userId) return;
+
+        // Different user → wipe ALL local state before loading so account A's
+        // data never bleeds into account B's session.
+        if (lastLoadedUserId && lastLoadedUserId !== userId) {
+          set({
+            tasks: [],
+            config: DEFAULT_CONFIG,
+            dayHistory: [],
+            chatMessages: [],
+            aiUndoSnapshot: null,
+            lastRolloverDate: null,
+            lastMorningBriefDate: null,
+            lastEveningPromptDate: null,
+          });
+        }
+
         set({ isLoading: true });
         const [tasksRes, configRes, statsRes] = await Promise.all([
           supabase.from('tasks').select('*').eq('user_id', userId).order('sort_order'),
@@ -578,8 +596,8 @@ export const useStore = create<Store>()(
           const { user_id, updated_at, ...cfg } = configRes.data;
           set({ config: { ...DEFAULT_CONFIG, ...cfg } });
         }
-        if (statsRes.data && statsRes.data.length > 0) {
-          const remoteStats: DayStats[] = statsRes.data.map(r => ({
+        {
+          const remoteStats: DayStats[] = (statsRes.data ?? []).map(r => ({
             date: r.date,
             total_count: r.total_count,
             done_count: r.done_count,
@@ -587,20 +605,39 @@ export const useStore = create<Store>()(
             done_minutes: r.done_minutes,
             tasks: r.tasks || [],
           }));
-          // Merge remote into local — remote wins for same date
-          const { dayHistory } = get();
-          const merged = new Map<string, DayStats>(dayHistory.map(d => [d.date, d]));
-          for (const r of remoteStats) merged.set(r.date, r);
-          set({ dayHistory: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30) });
+          // For same user: merge (remote wins same date). For new user: only remote.
+          const isSameUser = get().lastLoadedUserId === userId;
+          if (isSameUser && remoteStats.length > 0) {
+            const { dayHistory } = get();
+            const merged = new Map<string, DayStats>(dayHistory.map(d => [d.date, d]));
+            for (const r of remoteStats) merged.set(r.date, r);
+            set({ dayHistory: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30) });
+          } else {
+            // Different (or new) user — use only what Supabase returned
+            set({ dayHistory: remoteStats.sort((a, b) => a.date.localeCompare(b.date)) });
+          }
         }
-        set({ isLoading: false });
+        set({ isLoading: false, lastLoadedUserId: userId });
         get().checkAndRollover();
       },
 
       signOut: async () => {
         track('signed_out');
         await supabase.auth.signOut();
-        set({ userId: null, userEmail: null, tasks: [], chatMessages: [], aiUndoSnapshot: null });
+        // Full wipe — next login starts clean regardless of who logs in next
+        set({
+          userId: null,
+          userEmail: null,
+          tasks: [],
+          config: DEFAULT_CONFIG,
+          dayHistory: [],
+          chatMessages: [],
+          aiUndoSnapshot: null,
+          lastLoadedUserId: null,
+          lastRolloverDate: null,
+          lastMorningBriefDate: null,
+          lastEveningPromptDate: null,
+        });
       },
     }),
     {
@@ -618,6 +655,7 @@ export const useStore = create<Store>()(
         lastRolloverDate: s.lastRolloverDate,
         lastMorningBriefDate: s.lastMorningBriefDate,
         lastEveningPromptDate: s.lastEveningPromptDate,
+        lastLoadedUserId: s.lastLoadedUserId,
       }),
     }
   )
