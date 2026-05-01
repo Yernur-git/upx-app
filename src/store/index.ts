@@ -603,20 +603,23 @@ export const useStore = create<Store>()(
           supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
         ]);
         if (tasksRes.data) {
-          // Always convert 'tomorrow' → 'today' on load, regardless of whether
-          // checkAndRollover already ran today. If the Supabase sync during rollover
-          // failed previously, DB still has day:'tomorrow' and rollover would skip
-          // (lastRolloverDate===today). This ensures tasks are always shown correctly.
+          // Only convert 'tomorrow' → 'today' if the calendar day has actually changed
+          // (i.e. lastRolloverDate is not today). This prevents overwriting intentional
+          // "move to tomorrow" when the user is still on the same day.
+          const today = todayDateStr();
+          const { lastRolloverDate } = get();
+          const needsRollover = !lastRolloverDate || lastRolloverDate !== today;
+
           const tomorrowIds: string[] = [];
           const normalised = tasksRes.data.map(t => {
-            if (t.day === 'tomorrow') {
+            if (t.day === 'tomorrow' && needsRollover) {
               tomorrowIds.push(t.id);
               return { ...t, day: 'today' as const, is_done: false };
             }
             return t;
           });
           set({ tasks: normalised });
-          // Sync the day change back to Supabase so it's not stale next load
+          // Sync the rollover back to Supabase
           if (tomorrowIds.length > 0 && userId) {
             for (const id of tomorrowIds) {
               supabase.from('tasks')
