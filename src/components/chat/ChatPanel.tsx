@@ -6,9 +6,10 @@ import { useT } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
 import {
   isSpeechInputSupported, isSpeechOutputSupported,
-  createSpeechRecognizer, speak, stopSpeaking, unlockSpeechSynthesis,
+  createSpeechRecognizer, speakElevenLabs, stopSpeaking, unlockSpeechSynthesis,
   type SpeechRecognizer,
 } from '../../lib/voice';
+import { supabase } from '../../lib/supabase';
 
 // ── Simple markdown renderer for assistant messages ───────────────
 function parseBold(text: string): React.ReactNode {
@@ -138,7 +139,11 @@ export function ChatPanel() {
       // Auto-speak AI response if TTS is enabled
       if (ttsEnabled && result.message) {
         setIsSpeakingNow(true);
-        speak(result.message, lang, () => setIsSpeakingNow(false));
+        // Get current auth token for the /api/tts proxy auth gate
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token ?? null;
+        // speakElevenLabs calls /api/tts proxy; falls back to browser TTS on error
+        speakElevenLabs(result.message, lang, token, () => setIsSpeakingNow(false));
       }
     } catch (err) {
       addChatMessage({

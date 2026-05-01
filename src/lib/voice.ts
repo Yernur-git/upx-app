@@ -1,6 +1,7 @@
 // ── Voice I/O utilities ────────────────────────────────────────────
-// STT: Web Speech API — Chrome, Safari, Edge, PWA
-// TTS: Web Speech Synthesis — all modern browsers
+// STT : Web Speech API — Chrome, Safari, Edge, PWA
+// TTS : /api/tts proxy → ElevenLabs (key stays server-side)
+//       Fallback: Web Speech API if proxy unavailable
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -10,23 +11,23 @@ declare global {
   }
 }
 
-// ── STT ───────────────────────────────────────────────────────────
+// ── STT ──────────────────────────────────────────────────────────
 export function isSpeechInputSupported(): boolean {
   return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 }
 
 export interface SpeechRecognizer {
   start: () => void;
-  stop: () => void;
+  stop:  () => void;
   abort: () => void;
 }
 
 export function createSpeechRecognizer(
   lang: 'en' | 'ru',
   onInterim: (text: string) => void,
-  onFinal: (text: string) => void,
-  onEnd: () => void,
-  onError: (err: string) => void,
+  onFinal:   (text: string) => void,
+  onEnd:     () => void,
+  onError:   (err: string) => void,
 ): SpeechRecognizer | null {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
@@ -38,8 +39,7 @@ export function createSpeechRecognizer(
   rec.lang = lang === 'ru' ? 'ru-RU' : 'en-US';
 
   rec.onresult = (e: any) => {
-    let interim = '';
-    let final   = '';
+    let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const txt = e.results[i][0].transcript;
       if (e.results[i].isFinal) final += txt;
@@ -61,12 +61,75 @@ export function createSpeechRecognizer(
   };
 }
 
-// ── TTS ───────────────────────────────────────────────────────────
+// ── TTS ── ElevenLabs via /api/tts proxy ─────────────────────────
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/^#{1,3} /gm, '')
+    .replace(/^[-•] /gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/`[^`]+`/g, '')
+    .replace(/[⚠️✓★↩️]/gu, '')
+    .trim();
+}
+
+let _elAudio: HTMLAudioElement | null = null;
+
+/**
+ * Speak via ElevenLabs through the /api/tts proxy.
+ * The ElevenLabs API key never leaves the server.
+ * Falls back to browser TTS if the proxy returns an error.
+ *
+ * @param authToken  Supabase JWT from the current session (for auth gate)
+ */
+export async function speakElevenLabs(
+  text: string,
+  lang: 'en' | 'ru',
+  authToken: string | null,
+  onEnd?: () => void,
+): Promise<void> {
+  stopSpeaking();
+
+  const clean = stripMarkdown(text);
+  if (!clean) { onEnd?.(); return; }
+
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({ text: clean }),
+    });
+
+    if (!res.ok) {
+      console.warn('[TTS proxy] error', res.status);
+      // Fallback to browser voice
+      speak(clean, lang, onEnd);
+      return;
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    _elAudio = audio;
+
+    audio.onended = () => { URL.revokeObjectURL(url); _elAudio = null; onEnd?.(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); _elAudio = null; speak(clean, lang, onEnd); };
+    audio.play().catch(() => { speak(clean, lang, onEnd); });
+  } catch (err) {
+    console.warn('[TTS proxy] fetch failed', err);
+    speak(clean, lang, onEnd);
+  }
+}
+
+// ── TTS — Web Speech fallback ─────────────────────────────────────
 export function isSpeechOutputSupported(): boolean {
   return 'speechSynthesis' in window;
 }
 
-// Eagerly cache voices — Chrome loads them async via voiceschanged.
 let _voices: SpeechSynthesisVoice[] = [];
 function refreshVoices() {
   const v = window.speechSynthesis?.getVoices() ?? [];
@@ -86,40 +149,15 @@ function pickVoice(prefix: string): SpeechSynthesisVoice | null {
   );
 }
 
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1')
-    .replace(/^#{1,3} /gm, '')
-    .replace(/^[-•] /gm, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/`[^`]+`/g, '')
-    .replace(/[⚠️✓★↩️]/gu, '')
-    .trim();
-}
-
-/**
- * Unlock speech synthesis on iOS/Safari.
- * Must be called SYNCHRONOUSLY inside a user-gesture handler (e.g. button click).
- * After this, subsequent speak() calls work even after async operations.
- */
+/** Unlock iOS audio context — call synchronously in a button click handler */
 export function unlockSpeechSynthesis(): void {
   if (!isSpeechOutputSupported()) return;
-  // Speak + immediately cancel an empty utterance to "unlock" the audio context.
   const utt = new SpeechSynthesisUtterance('');
   utt.volume = 0;
   window.speechSynthesis.speak(utt);
-  // Cancel after a tick — the unlock effect persists for the session.
   setTimeout(() => window.speechSynthesis.cancel(), 0);
 }
 
-/**
- * Speak text. Can be called after async operations IF unlockSpeechSynthesis()
- * was called first in a synchronous gesture handler.
- *
- * Chrome bug: calling speak() immediately after cancel() is sometimes silently
- * swallowed. We use a short setTimeout to work around it.
- */
 export function speak(
   text: string,
   lang: 'en' | 'ru',
@@ -132,19 +170,17 @@ export function speak(
 
   window.speechSynthesis.cancel();
 
-  const utt      = new SpeechSynthesisUtterance(clean);
-  utt.lang       = lang === 'ru' ? 'ru-RU' : 'en-US';
-  utt.rate       = 1.0;
-  utt.pitch      = 1.0;
-  utt.volume     = 1.0;
-  utt.onend      = () => onEnd?.();
-  utt.onerror    = () => onEnd?.();
+  const utt   = new SpeechSynthesisUtterance(clean);
+  utt.lang    = lang === 'ru' ? 'ru-RU' : 'en-US';
+  utt.rate    = 1.0;
+  utt.pitch   = 1.0;
+  utt.volume  = 1.0;
+  utt.onend   = () => onEnd?.();
+  utt.onerror = () => onEnd?.();
 
   const voice = pickVoice(lang === 'ru' ? 'ru' : 'en');
   if (voice) utt.voice = voice;
 
-  // setTimeout fixes Chrome's cancel() → immediate speak() silent-drop bug.
-  // 50 ms is imperceptible to the user.
   setTimeout(() => {
     if (window.speechSynthesis.paused) window.speechSynthesis.resume();
     window.speechSynthesis.speak(utt);
@@ -152,5 +188,10 @@ export function speak(
 }
 
 export function stopSpeaking(): void {
+  if (_elAudio) {
+    _elAudio.pause();
+    _elAudio.src = '';
+    _elAudio = null;
+  }
   window.speechSynthesis?.cancel();
 }
