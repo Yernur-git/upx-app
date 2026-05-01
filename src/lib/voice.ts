@@ -142,11 +142,24 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 
 function pickVoice(prefix: string): SpeechSynthesisVoice | null {
   refreshVoices();
-  return (
-    _voices.find(v => v.lang.startsWith(prefix) && v.localService) ??
-    _voices.find(v => v.lang.startsWith(prefix)) ??
-    null
+  const lang = _voices.filter(v => v.lang.startsWith(prefix));
+
+  // 1. Siri voice (iOS/macOS)
+  const siri = lang.find(v => v.name.toLowerCase().includes('siri'));
+  if (siri) return siri;
+
+  // 2. Apple Premium / Enhanced (macOS high-quality Neural voices)
+  const premium = lang.find(v =>
+    v.localService && (v.name.includes('Premium') || v.name.includes('Enhanced'))
   );
+  if (premium) return premium;
+
+  // 3. Any local (on-device) voice for the language
+  const local = lang.find(v => v.localService);
+  if (local) return local;
+
+  // 4. Any voice for the language
+  return lang[0] ?? null;
 }
 
 /** Unlock iOS audio context — call synchronously in a button click handler */
