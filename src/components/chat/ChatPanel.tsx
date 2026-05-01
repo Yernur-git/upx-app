@@ -1,9 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Undo2, Settings2, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, X, Bot, Undo2, Settings2, Sparkles, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
+import {
+  isSpeechInputSupported, isSpeechOutputSupported,
+  createSpeechRecognizer, speak, stopSpeaking,
+  type SpeechRecognizer,
+} from '../../lib/voice';
 
 // ── Simple markdown renderer for assistant messages ───────────────
 function parseBold(text: string): React.ReactNode {
@@ -44,11 +49,28 @@ function MsgContent({ text }: { text: string }) {
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput, dayHistory, todayCheckin } = useStore();
+  const {
+    chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions,
+    undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL,
+    customModel, useDefaultKey, activeChatDay, setActivePanel,
+    pendingChatInput, setPendingChatInput, dayHistory, todayCheckin,
+  } = useStore();
+
+  const lang = config.language ?? 'en';
+
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Voice state ───────────────────────────────────────────────
+  const [isListening, setIsListening]     = useState(false);
+  const [ttsEnabled, setTtsEnabled]       = useState(false);
+  const [isSpeakingNow, setIsSpeakingNow] = useState(false);
+  const [interimText, setInterimText]     = useState('');
+  const recognizerRef = useRef<SpeechRecognizer | null>(null);
+  const hasStt = isSpeechInputSupported();
+  const hasTts = isSpeechOutputSupported();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,45 +90,57 @@ export function ChatPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, pendingChatInput]);
 
+  // Stop TTS when chat closes
+  useEffect(() => {
+    if (!chatOpen) stopSpeaking();
+  }, [chatOpen]);
+
   const [retryText, setRetryText] = useState<string | null>(null);
 
-  // Detect AI promising an action (future/past tense verbs) but returning no actions[].
-  // Keep this tight — analytical words like "completed", "done", "scheduled" appear
-  // in weekly reviews and must NOT trigger the retry banner.
   const claimsAction = (msg: string) =>
     /\b(переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|перенёс|добавил|удалил|изменил|обновил)\b|I'(ll|ve) (moved|added|deleted|updated|created)|I will (move|add|delete|update|create)/i.test(msg);
 
-  const sendText = async (text: string) => {
+  const sendText = useCallback(async (text: string) => {
     if (!text || isTyping) return;
     setInput('');
+    setInterimText('');
     setRetryText(null);
+
+    // Stop any ongoing TTS before sending new message
+    stopSpeaking();
+    setIsSpeakingNow(false);
 
     addChatMessage({ role: 'user', content: text });
     track('ai_chat_sent', { day: activeChatDay, message_length: text.length });
     setIsTyping(true);
 
     try {
-      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory, todayCheckin ?? undefined);
+      const result = await sendChatMessage(
+        text, chatMessages, tasks, config, apiKey, activeChatDay,
+        customBaseURL, customModel, useDefaultKey, dayHistory,
+        todayCheckin ?? undefined,
+      );
 
       let applied = 0;
       if (result.actions.length > 0) {
         applied = await applyActions(result.actions);
       }
 
-      // Show retry if:
-      // 1. Actions were returned but none could be applied (ID mismatch etc.)
-      // 2. AI claimed to do something but sent no actions at all
-      const actionsFailed   = result.actions.length > 0 && applied === 0;
-      const claimedNothing  = result.actions.length === 0 && claimsAction(result.message);
-      if (actionsFailed || claimedNothing) {
-        setRetryText(text);
-      }
+      const actionsFailed  = result.actions.length > 0 && applied === 0;
+      const claimedNothing = result.actions.length === 0 && claimsAction(result.message);
+      if (actionsFailed || claimedNothing) setRetryText(text);
 
       addChatMessage({
         role: 'assistant',
         content: result.message,
         actions: applied > 0 ? result.actions.slice(0, applied) : [],
       });
+
+      // Auto-speak AI response if TTS is enabled
+      if (ttsEnabled && result.message) {
+        setIsSpeakingNow(true);
+        speak(result.message, lang, () => setIsSpeakingNow(false));
+      }
     } catch (err) {
       addChatMessage({
         role: 'assistant',
@@ -116,7 +150,8 @@ export function ChatPanel() {
     } finally {
       setIsTyping(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTyping, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory, todayCheckin, ttsEnabled, lang]);
 
   const send = () => sendText(input.trim());
 
@@ -124,7 +159,53 @@ export function ChatPanel() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  const HINTS = config.language === 'ru'
+  // ── Voice input ───────────────────────────────────────────────
+  const startListening = useCallback(() => {
+    if (isListening || isTyping) return;
+    stopSpeaking();
+    setIsSpeakingNow(false);
+    setInterimText('');
+
+    const rec = createSpeechRecognizer(
+      lang,
+      (interim) => setInterimText(interim),
+      (final) => {
+        setInput(prev => (prev ? prev + ' ' : '') + final);
+        setInterimText('');
+        // Auto-send after voice input completes
+        setTimeout(() => {
+          setInput(prev => {
+            const trimmed = (prev + (prev.endsWith(final) ? '' : ' ' + final)).trim();
+            if (trimmed) sendText(trimmed);
+            return '';
+          });
+        }, 300);
+      },
+      () => { setIsListening(false); setInterimText(''); },
+      () => { setIsListening(false); setInterimText(''); },
+    );
+
+    if (!rec) return;
+    recognizerRef.current = rec;
+    rec.start();
+    setIsListening(true);
+    track('voice_input_start', { lang });
+  }, [isListening, isTyping, lang, sendText]);
+
+  const stopListening = useCallback(() => {
+    recognizerRef.current?.stop();
+    recognizerRef.current = null;
+    setIsListening(false);
+    setInterimText('');
+  }, []);
+
+  const toggleTts = () => {
+    const next = !ttsEnabled;
+    setTtsEnabled(next);
+    if (!next) { stopSpeaking(); setIsSpeakingNow(false); }
+  };
+
+  const HINTS = lang === 'ru'
     ? ['монтаж 60мин', 'тренировка 60мин', 'построй мой день', 'я перегружен, помоги']
     : ['edit video 60min', 'workout 60min', 'build my day', "I'm overloaded, help"];
 
@@ -144,9 +225,15 @@ export function ChatPanel() {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>{t('chat.title')}</div>
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>{t('chat.subtitle')}</div>
+            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
+              {isListening
+                ? (lang === 'ru' ? 'Слушаю…' : 'Listening…')
+                : isSpeakingNow
+                  ? (lang === 'ru' ? 'Говорю…' : 'Speaking…')
+                  : t('chat.subtitle')}
+            </div>
           </div>
-          <button className="btn-icon" title={config.language === 'ru' ? 'Настройки AI' : 'AI settings'} onClick={() => { setChatOpen(false); setActivePanel('profile'); }}>
+          <button className="btn-icon" title={lang === 'ru' ? 'Настройки AI' : 'AI settings'} onClick={() => { setChatOpen(false); setActivePanel('profile'); }}>
             <Settings2 size={15} />
           </button>
           <button className="btn-icon" onClick={() => setChatOpen(false)}>
@@ -224,7 +311,21 @@ export function ChatPanel() {
             </div>
           ))}
 
-          {/* Retry banner — shown when actions failed to apply */}
+          {/* Interim voice transcript */}
+          {interimText && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{
+                maxWidth: '82%', padding: '9px 13px',
+                borderRadius: 'var(--r) var(--r) 4px var(--r)',
+                background: 'var(--ind)', color: '#fff', fontSize: 13,
+                opacity: 0.5, fontStyle: 'italic',
+              }}>
+                {interimText}
+              </div>
+            </div>
+          )}
+
+          {/* Retry banner */}
           {retryText && !isTyping && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
@@ -233,9 +334,7 @@ export function ChatPanel() {
               border: '1px solid var(--must, #e0a800)',
             }}>
               <div style={{ fontSize: 12, color: 'var(--must, #b7890a)', fontWeight: 500, lineHeight: 1.4 }}>
-                ⚠️ {config.language === 'ru'
-                  ? 'Действие не применилось'
-                  : 'Action didn\'t apply'}
+                ⚠️ {lang === 'ru' ? 'Действие не применилось' : "Action didn't apply"}
               </div>
               <button
                 onClick={() => sendText(retryText!)}
@@ -244,7 +343,7 @@ export function ChatPanel() {
                   background: 'var(--must, #b7890a)', color: '#fff',
                   border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
                 }}>
-                {config.language === 'ru' ? 'Повторить' : 'Retry'}
+                {lang === 'ru' ? 'Повторить' : 'Retry'}
               </button>
             </div>
           )}
@@ -269,21 +368,78 @@ export function ChatPanel() {
           <div ref={bottomRef} />
         </div>
 
+        {/* Input bar */}
         <div style={{
           padding: '10px 12px', borderTop: '1px solid var(--bdr)',
-          display: 'flex', gap: 8, flexShrink: 0,
+          display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center',
         }}>
+
+          {/* TTS toggle */}
+          {hasTts && (
+            <button
+              className="btn-icon"
+              title={ttsEnabled ? (lang === 'ru' ? 'Выключить голос' : 'Mute voice') : (lang === 'ru' ? 'Включить голос' : 'Enable voice')}
+              onClick={toggleTts}
+              style={{
+                color: ttsEnabled ? 'var(--ind)' : 'var(--tx3)',
+                background: ttsEnabled ? 'var(--ind-l)' : 'transparent',
+                borderRadius: 10, padding: 7, flexShrink: 0,
+                position: 'relative',
+              }}>
+              {ttsEnabled
+                ? <Volume2 size={16} />
+                : <VolumeX size={16} />}
+              {/* Speaking pulse dot */}
+              {isSpeakingNow && (
+                <span style={{
+                  position: 'absolute', top: 3, right: 3,
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: 'var(--ind)',
+                  animation: 'voice-pulse 1s ease-in-out infinite',
+                }} />
+              )}
+            </button>
+          )}
+
           <input
             ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
+            value={isListening ? interimText || input : input}
+            onChange={e => !isListening && setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder={t('chat.placeholder')}
-            style={{ flex: 1, fontSize: 13, padding: '9px 12px' }}
-            disabled={isTyping}
+            placeholder={
+              isListening
+                ? (lang === 'ru' ? 'Говорите…' : 'Speak now…')
+                : t('chat.placeholder')
+            }
+            style={{
+              flex: 1, fontSize: 13, padding: '9px 12px',
+              opacity: isListening ? 0.7 : 1,
+            }}
+            disabled={isTyping || isListening}
+            readOnly={isListening}
           />
-          <button className="btn btn-primary" style={{ padding: '9px 12px' }}
-            onClick={send} disabled={isTyping || !input.trim()}>
+
+          {/* Mic button */}
+          {hasStt && (
+            <button
+              className="btn-icon"
+              title={isListening ? (lang === 'ru' ? 'Остановить' : 'Stop') : (lang === 'ru' ? 'Голосовой ввод' : 'Voice input')}
+              onPointerDown={startListening}
+              onClick={isListening ? stopListening : undefined}
+              disabled={isTyping}
+              style={{
+                color: isListening ? '#fff' : 'var(--tx3)',
+                background: isListening ? 'var(--coral)' : 'transparent',
+                borderRadius: 10, padding: 7, flexShrink: 0,
+                animation: isListening ? 'mic-pulse 1.2s ease-in-out infinite' : 'none',
+                transition: 'background .15s, color .15s',
+              }}>
+              {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+            </button>
+          )}
+
+          <button className="btn btn-primary" style={{ padding: '9px 12px', flexShrink: 0 }}
+            onClick={send} disabled={isTyping || isListening || !input.trim()}>
             <Send size={14} />
           </button>
         </div>
