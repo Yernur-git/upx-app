@@ -92,7 +92,7 @@ export function ChatPanel() {
 
   // Stop TTS when chat closes
   useEffect(() => {
-    if (!chatOpen) stopSpeaking();
+    if (!chatOpen) { stopSpeaking(); setIsSpeakingNow(false); }
   }, [chatOpen]);
 
   const [retryText, setRetryText] = useState<string | null>(null);
@@ -106,7 +106,6 @@ export function ChatPanel() {
     setInterimText('');
     setRetryText(null);
 
-    // Stop any ongoing TTS before sending new message
     stopSpeaking();
     setIsSpeakingNow(false);
 
@@ -160,28 +159,28 @@ export function ChatPanel() {
   };
 
   // ── Voice input ───────────────────────────────────────────────
+  // Tap to START recording → transcript fills input field
+  // Tap again to STOP → user can edit → press Send manually
   const startListening = useCallback(() => {
-    if (isListening || isTyping) return;
+    if (isTyping) return;
     stopSpeaking();
     setIsSpeakingNow(false);
     setInterimText('');
 
     const rec = createSpeechRecognizer(
-      lang,
+      // Interim: show live preview above input
       (interim) => setInterimText(interim),
+      // Final: append to input field — user edits and sends manually
       (final) => {
-        setInput(prev => (prev ? prev + ' ' : '') + final);
+        setInput(prev => {
+          const joined = (prev.trim() ? prev.trim() + ' ' : '') + final;
+          return joined;
+        });
         setInterimText('');
-        // Auto-send after voice input completes
-        setTimeout(() => {
-          setInput(prev => {
-            const trimmed = (prev + (prev.endsWith(final) ? '' : ' ' + final)).trim();
-            if (trimmed) sendText(trimmed);
-            return '';
-          });
-        }, 300);
       },
+      // End: stop listening indicator
       () => { setIsListening(false); setInterimText(''); },
+      // Error
       () => { setIsListening(false); setInterimText(''); },
     );
 
@@ -189,15 +188,22 @@ export function ChatPanel() {
     recognizerRef.current = rec;
     rec.start();
     setIsListening(true);
-    track('voice_input_start', { lang });
-  }, [isListening, isTyping, lang, sendText]);
+    track('voice_input_start', {});
+  }, [isTyping]);
 
   const stopListening = useCallback(() => {
     recognizerRef.current?.stop();
     recognizerRef.current = null;
     setIsListening(false);
     setInterimText('');
+    // Focus input so user can edit / send
+    setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) stopListening();
+    else startListening();
+  }, [isListening, startListening, stopListening]);
 
   const toggleTts = () => {
     const next = !ttsEnabled;
@@ -219,15 +225,19 @@ export function ChatPanel() {
         }}>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
-            background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: isListening ? 'rgba(239,96,96,.15)' : 'var(--ind-l)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background .2s',
           }}>
-            <Bot size={16} color="var(--ind)" />
+            {isListening
+              ? <Mic size={16} color="var(--coral)" />
+              : <Bot size={16} color="var(--ind)" />}
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>{t('chat.title')}</div>
-            <div style={{ fontSize: 11, color: 'var(--tx3)' }}>
+            <div style={{ fontSize: 11, color: isListening ? 'var(--coral)' : isSpeakingNow ? 'var(--ind)' : 'var(--tx3)' }}>
               {isListening
-                ? (lang === 'ru' ? 'Слушаю…' : 'Listening…')
+                ? (lang === 'ru' ? 'Слушаю… (нажмите ещё раз чтобы остановить)' : 'Listening… (tap mic to stop)')
                 : isSpeakingNow
                   ? (lang === 'ru' ? 'Говорю…' : 'Speaking…')
                   : t('chat.subtitle')}
@@ -311,14 +321,14 @@ export function ChatPanel() {
             </div>
           ))}
 
-          {/* Interim voice transcript */}
+          {/* Live interim voice transcript */}
           {interimText && (
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <div style={{
                 maxWidth: '82%', padding: '9px 13px',
                 borderRadius: 'var(--r) var(--r) 4px var(--r)',
-                background: 'var(--ind)', color: '#fff', fontSize: 13,
-                opacity: 0.5, fontStyle: 'italic',
+                background: 'var(--coral)', color: '#fff', fontSize: 13,
+                opacity: 0.55, fontStyle: 'italic',
               }}>
                 {interimText}
               </div>
@@ -378,7 +388,9 @@ export function ChatPanel() {
           {hasTts && (
             <button
               className="btn-icon"
-              title={ttsEnabled ? (lang === 'ru' ? 'Выключить голос' : 'Mute voice') : (lang === 'ru' ? 'Включить голос' : 'Enable voice')}
+              title={ttsEnabled
+                ? (lang === 'ru' ? 'Выключить голос ИИ' : 'Mute AI voice')
+                : (lang === 'ru' ? 'Включить голос ИИ' : 'Enable AI voice')}
               onClick={toggleTts}
               style={{
                 color: ttsEnabled ? 'var(--ind)' : 'var(--tx3)',
@@ -386,10 +398,8 @@ export function ChatPanel() {
                 borderRadius: 10, padding: 7, flexShrink: 0,
                 position: 'relative',
               }}>
-              {ttsEnabled
-                ? <Volume2 size={16} />
-                : <VolumeX size={16} />}
-              {/* Speaking pulse dot */}
+              {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+              {/* Pulse dot while speaking */}
               {isSpeakingNow && (
                 <span style={{
                   position: 'absolute', top: 3, right: 3,
@@ -403,35 +413,32 @@ export function ChatPanel() {
 
           <input
             ref={inputRef}
-            value={isListening ? interimText || input : input}
-            onChange={e => !isListening && setInput(e.target.value)}
+            value={input}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
             placeholder={
               isListening
-                ? (lang === 'ru' ? 'Говорите…' : 'Speak now…')
+                ? (lang === 'ru' ? 'Говорите… нажмите микрофон ещё раз чтобы остановить' : 'Speak… tap mic again to stop')
                 : t('chat.placeholder')
             }
-            style={{
-              flex: 1, fontSize: 13, padding: '9px 12px',
-              opacity: isListening ? 0.7 : 1,
-            }}
-            disabled={isTyping || isListening}
-            readOnly={isListening}
+            style={{ flex: 1, fontSize: 13, padding: '9px 12px' }}
+            disabled={isTyping}
           />
 
-          {/* Mic button */}
+          {/* Mic toggle button */}
           {hasStt && (
             <button
               className="btn-icon"
-              title={isListening ? (lang === 'ru' ? 'Остановить' : 'Stop') : (lang === 'ru' ? 'Голосовой ввод' : 'Voice input')}
-              onPointerDown={startListening}
-              onClick={isListening ? stopListening : undefined}
+              title={isListening
+                ? (lang === 'ru' ? 'Остановить запись' : 'Stop recording')
+                : (lang === 'ru' ? 'Голосовой ввод' : 'Voice input')}
+              onClick={toggleListening}
               disabled={isTyping}
               style={{
                 color: isListening ? '#fff' : 'var(--tx3)',
                 background: isListening ? 'var(--coral)' : 'transparent',
                 borderRadius: 10, padding: 7, flexShrink: 0,
-                animation: isListening ? 'mic-pulse 1.2s ease-in-out infinite' : 'none',
+                animation: isListening ? 'mic-pulse 1.4s ease-in-out infinite' : 'none',
                 transition: 'background .15s, color .15s',
               }}>
               {isListening ? <MicOff size={16} /> : <Mic size={16} />}
@@ -439,7 +446,7 @@ export function ChatPanel() {
           )}
 
           <button className="btn btn-primary" style={{ padding: '9px 12px', flexShrink: 0 }}
-            onClick={send} disabled={isTyping || isListening || !input.trim()}>
+            onClick={send} disabled={isTyping || !input.trim()}>
             <Send size={14} />
           </button>
         </div>
