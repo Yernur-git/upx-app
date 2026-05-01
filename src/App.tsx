@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { BarChart2, CalendarDays, User, Sparkles, X, Plus } from 'lucide-react';
+import { BarChart2, CalendarDays, User, Sparkles, X, Plus, Sunrise, Moon } from 'lucide-react';
 import { useStore } from './store';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
 import { SplashScreen } from './components/SplashScreen';
 import { Onboarding } from './components/Onboarding';
+import { MorningCheckin } from './components/MorningCheckin';
 import { TaskList, QuickActionSheet } from './components/tasks/TaskList';
 import { Timeline } from './components/timeline/Timeline';
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -48,6 +49,7 @@ export default function App() {
     setChatOpen,
     lastMorningBriefDate, setLastMorningBriefDate,
     lastEveningPromptDate, setLastEveningPromptDate,
+    isLoading, lastCheckinDate, todayCheckin,
   } = useStore();
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -57,6 +59,7 @@ export default function App() {
   const [showMorningBanner, setShowMorningBanner] = useState(false);
   const [showEveningBanner, setShowEveningBanner] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showCheckin, setShowCheckin] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
     try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
   });
@@ -90,6 +93,13 @@ export default function App() {
     if (userId && userId !== 'local-user') loadFromSupabase();
     else checkAndRollover(); // offline mode still needs rollover
   }, [userId]);
+
+  // Show morning check-in once per day after data loads
+  useEffect(() => {
+    if (authChecked && userId && !isLoading && lastCheckinDate !== todayStr()) {
+      setShowCheckin(true);
+    }
+  }, [authChecked, userId, isLoading]);
 
   // saveDayStats every 5 minutes so it's not lost on tab close
   useEffect(() => {
@@ -134,14 +144,15 @@ export default function App() {
     try {
       const result = await sendChatMessage(
         text, chatMessages, tasks, config,
-        apiKey, 'today', customBaseURL, customModel, useDefaultKey,
+        apiKey, 'today', customBaseURL, customModel, useDefaultKey, [],
+        todayCheckin ?? undefined,
       );
       const applied = result.actions.length > 0 ? await applyActions(result.actions) : 0;
       addChatMessage({ role: 'assistant', content: result.message, actions: applied > 0 ? result.actions.slice(0, applied) : [] });
     } catch (err) {
       addChatMessage({ role: 'assistant', content: tr('chat.error', { err: err instanceof Error ? err.message : 'Error' }), actions: [] });
     }
-  }, [tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, chatMessages, addChatMessage, applyActions]);
+  }, [tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, chatMessages, addChatMessage, applyActions, todayCheckin]);
 
   // Morning briefing banner: show once per day between 06:00–11:00 if there are tasks
   useEffect(() => {
@@ -198,6 +209,10 @@ export default function App() {
         }} />
       )}
 
+      {showCheckin && !showOnboarding && !showSplash && (
+        <MorningCheckin onDone={() => setShowCheckin(false)} />
+      )}
+
       {/* ── DESKTOP SIDEBAR NAV (≥900px) ── */}
       <DesktopNav
         activePanel={activePanel}
@@ -229,7 +244,7 @@ export default function App() {
                     }}
                   />
                   <div id="upx-text-logo" style={{ display: 'none', fontSize: 13, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--ind)', marginBottom: 2 }}>UpX</div>
-                  <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.2px' }}>{greeting()} 👋</div>
+                  <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.2px' }}>{greeting()}</div>
                   <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 1 }}>
                     {new Date().toLocaleDateString(config.language === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                   </div>
@@ -253,7 +268,7 @@ export default function App() {
                   border: '1px solid var(--ind-m)', borderRadius: 12,
                   display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: 18 }}>☀️</span>
+                  <Sunrise size={18} color="var(--ind)" strokeWidth={1.8} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ind)' }}>
                       {config.language === 'ru' ? 'Утренний брифинг готов' : 'Morning briefing ready'}
@@ -288,7 +303,7 @@ export default function App() {
                   border: '1px solid var(--must)', borderRadius: 12,
                   display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
                 }}>
-                  <span style={{ fontSize: 18 }}>🌙</span>
+                  <Moon size={18} color="var(--must)" strokeWidth={1.8} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>
                       {config.language === 'ru' ? 'День заканчивается' : 'Day wrapping up'}

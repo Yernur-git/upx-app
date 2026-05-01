@@ -59,6 +59,15 @@ export interface QuickTask {
 
 export type PeakFocusTime = 'morning' | 'afternoon' | 'evening';
 
+export type CheckinMood = 'calm' | 'focused' | 'stressed' | 'sick';
+
+export interface DayCheckin {
+  sleep_hours: number;
+  energy: 1 | 2 | 3 | 4 | 5;
+  mood: CheckinMood;
+  note?: string;
+}
+
 export interface UserConfig {
   wake: string;
   sleep: string;

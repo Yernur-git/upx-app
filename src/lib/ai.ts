@@ -57,7 +57,7 @@ export interface AIResponse {
   actions: ParsedAction[];
 }
 
-function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = []): string {
+function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = [], checkin?: import('../types').DayCheckin): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
@@ -124,9 +124,14 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
 - Peak focus window: ${config.peak_focus_time ?? 'not set'}
 - **User is currently viewing: ${activeDay.toUpperCase()} tab** — when adding tasks without explicit day, use "${activeDay}"
 
+## Morning Check-in
+${checkin
+  ? `- Sleep: ${checkin.sleep_hours}h | Energy: ${checkin.energy}/5 | Mood: ${checkin.mood}${checkin.note ? ` | Note: "${checkin.note}"` : ''}`
+  : '- No check-in today (user skipped or first open)'}
+
 ## Energy & Fatigue Context
 - Time of day: ${timeOfDay} | Baseline energy: ${baseEnergy}
-- Inferred energy: ${inferredEnergy}
+- Inferred energy: ${checkin ? `${checkin.energy <= 2 ? 'low' : checkin.energy === 3 ? 'medium' : 'high'} (from check-in: ${checkin.energy}/5)` : inferredEnergy}
 ${moodSummary ? `- Mood signals from completed tasks: ${moodSummary}` : '- No mood signals yet today'}
 - Done today: ${todayTasks.filter(t => t.is_done).length} / ${todayTasks.length} tasks
 
@@ -503,6 +508,7 @@ export async function sendChatMessage(
   customModel?: string,
   useDefaultKey?: boolean,
   dayHistory: DayStats[] = [],
+  checkin?: import('../types').DayCheckin,
 ): Promise<AIResponse> {
   // Default mode: ignore any client-side credentials, force the proxy path.
   // This is what makes "Default" actually default — even stale state can't leak through.
@@ -511,7 +517,7 @@ export async function sendChatMessage(
   const effectiveModel = useDefaultKey ? undefined : customModel;
   const provider = detectProvider(effectiveKey, effectiveBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: effectiveBaseURL, model: effectiveModel };
-  const systemPrompt = buildSystemPrompt(tasks, config, activeDay, dayHistory);
+  const systemPrompt = buildSystemPrompt(tasks, config, activeDay, dayHistory, checkin);
 
   const rawText = provider === 'anthropic'
     ? await callAnthropic(userMessage, history, systemPrompt, cfg)

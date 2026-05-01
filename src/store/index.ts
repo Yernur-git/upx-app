@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Task, UserConfig, ChatMessage, ParsedAction, AppPanel, DayStats } from '../types';
+import type { Task, UserConfig, ChatMessage, ParsedAction, AppPanel, DayStats, DayCheckin } from '../types';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 
@@ -18,12 +18,12 @@ const DEFAULT_CONFIG: UserConfig = {
     { category: 'deep work', weekly_goal_minutes: 1200, color: '#5C6B9C' },
   ],
   quick_tasks: [
-    { id: 'qt-1', emoji: '🏋️', title: 'Training',   duration_minutes: 60,  category: 'workout',    priority: 'high'   },
-    { id: 'qt-2', emoji: '💻', title: 'Deep Work',  duration_minutes: 90,  category: 'deep work',  priority: 'high'   },
-    { id: 'qt-3', emoji: '📅', title: 'Meeting',    duration_minutes: 30,  category: 'general',    priority: 'medium' },
-    { id: 'qt-4', emoji: '📚', title: 'Reading',    duration_minutes: 30,  category: 'reading',    priority: 'low'    },
-    { id: 'qt-5', emoji: '🧘', title: 'Meditation', duration_minutes: 20,  category: 'meditation', priority: 'low'    },
-    { id: 'qt-6', emoji: '🚶', title: 'Walk',       duration_minutes: 30,  category: 'general',    priority: 'low'    },
+    { id: 'qt-1', emoji: 'Dumbbell',  title: 'Training',   duration_minutes: 60,  category: 'workout',    priority: 'high'   },
+    { id: 'qt-2', emoji: 'Monitor',   title: 'Deep Work',  duration_minutes: 90,  category: 'deep work',  priority: 'high'   },
+    { id: 'qt-3', emoji: 'Calendar',  title: 'Meeting',    duration_minutes: 30,  category: 'general',    priority: 'medium' },
+    { id: 'qt-4', emoji: 'BookOpen',  title: 'Reading',    duration_minutes: 30,  category: 'reading',    priority: 'low'    },
+    { id: 'qt-5', emoji: 'Wind',      title: 'Meditation', duration_minutes: 20,  category: 'meditation', priority: 'low'    },
+    { id: 'qt-6', emoji: 'Footprints',title: 'Walk',       duration_minutes: 30,  category: 'general',    priority: 'low'    },
   ],
 };
 
@@ -47,6 +47,8 @@ interface Store {
   lastEveningPromptDate: string | null;
   aiUndoSnapshot: Task[] | null;
   lastLoadedUserId: string | null;
+  todayCheckin: DayCheckin | null;
+  lastCheckinDate: string | null;
 
   setUserId: (id: string | null) => void;
   setUserEmail: (email: string | null) => void;
@@ -62,6 +64,7 @@ interface Store {
   setLastEveningPromptDate: (date: string) => void;
   pendingChatInput: string;
   setPendingChatInput: (s: string) => void;
+  setCheckin: (c: DayCheckin) => void;
 
   addTask: (task: Omit<Task, 'id' | 'created_at'>) => Promise<Task>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -197,6 +200,8 @@ export const useStore = create<Store>()(
       lastEveningPromptDate: null,
       aiUndoSnapshot: null,
       lastLoadedUserId: null,
+      todayCheckin: null,
+      lastCheckinDate: null,
       pendingChatInput: '',
 
       setUserId: (id) => set({ userId: id }),
@@ -220,6 +225,7 @@ export const useStore = create<Store>()(
       setLastMorningBriefDate: (date) => set({ lastMorningBriefDate: date }),
       setLastEveningPromptDate: (date) => set({ lastEveningPromptDate: date }),
       setPendingChatInput: (s) => set({ pendingChatInput: s }),
+      setCheckin: (c) => set({ todayCheckin: c, lastCheckinDate: todayDateStr() }),
 
       checkAndRollover: async () => {
         const today = todayDateStr();

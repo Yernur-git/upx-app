@@ -1,4 +1,6 @@
 import { useMemo, useEffect, useState, useRef } from 'react';
+import { Coffee } from 'lucide-react';
+import { TaskIcon } from '../ui/TaskIcon';
 import { useStore } from '../../store';
 import { buildSchedule, getNowMinutes, minutesToTime, formatDuration, isBreakBlock } from '../../lib/scheduler';
 import { useT } from '../../lib/i18n';
@@ -20,13 +22,14 @@ function getCategoryColor(category: string, goals: CategoryGoal[]): string {
   return defaults[category?.toLowerCase()] || '#9EA0B8';
 }
 
-function getCategoryEmoji(category: string): string {
-  const emojis: Record<string, string> = {
-    workout: '💪', 'deep work': '💻', meetings: '🤝',
-    meals: '🍽️', creative: '🎨', admin: '📋',
-    walks: '🚶', general: '📌',
+function getCategoryIcon(category: string): string {
+  const icons: Record<string, string> = {
+    workout: 'Dumbbell', 'deep work': 'Monitor', meetings: 'Calendar',
+    meals: 'Coffee', creative: 'Pencil', admin: 'Briefcase',
+    walks: 'Footprints', running: 'Activity', meditation: 'Wind',
+    reading: 'BookOpen', learning: 'Leaf', general: 'Zap',
   };
-  return emojis[category?.toLowerCase()] || '📌';
+  return icons[category?.toLowerCase()] || 'Zap';
 }
 
 function hexToRgb(hex: string): string {
@@ -136,7 +139,7 @@ export function Timeline() {
             background: 'rgba(230,100,80,0.12)', color: 'var(--coral)',
             fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            ⏰ {config.language === 'ru'
+            <span style={{ fontSize: 13 }}>⏱</span> {config.language === 'ru'
               ? `Опаздываешь на ${formatDuration(lateMinutes, 'ru')} — расписание смещено`
               : `Running ${formatDuration(lateMinutes)} behind schedule`}
           </div>
@@ -204,7 +207,7 @@ export function Timeline() {
                 }}>
                   {rawHeight >= 20 && (
                     <span style={{ fontSize: 10, color: 'var(--brk-tx)', fontWeight: 500, userSelect: 'none', whiteSpace: 'nowrap' }}>
-                      ☕ {formatDuration(breakDur, lang)}
+                      <Coffee size={9} strokeWidth={1.8} style={{ marginRight: 3, verticalAlign: 'middle' }} />{formatDuration(breakDur, lang)}
                     </span>
                   )}
                 </div>
@@ -215,7 +218,7 @@ export function Timeline() {
             const height = Math.max(rawHeight - CARD_GAP, 24);
             const { task } = block;
             const catColor = getCategoryColor(task.category, config.category_goals);
-            const catEmoji = getCategoryEmoji(task.category);
+            const catEmoji = getCategoryIcon(task.category);
             const isPast = block.end_minutes < nowMins;
             const isCurrent = block.start_minutes <= nowMins && nowMins < block.end_minutes;
             const duration = block.end_minutes - block.start_minutes;
@@ -348,13 +351,11 @@ function ScheduleCard({
         {/* Title row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
           {!micro && (
-            <span style={{
-              fontSize: compact ? 12 : 13,
-              flexShrink: 0,
-              lineHeight: 1,
-              opacity: done ? 0.5 : 1,
-            }}>
-              {done ? '✓' : catEmoji}
+            <span style={{ flexShrink: 0, lineHeight: 1, opacity: done ? 0.4 : 0.75 }}>
+              {done
+                ? <span style={{ fontSize: compact ? 11 : 12, fontWeight: 700 }}>✓</span>
+                : <TaskIcon name={catEmoji} size={compact ? 11 : 13} color={catColor} strokeWidth={2} />
+              }
             </span>
           )}
           <span style={{

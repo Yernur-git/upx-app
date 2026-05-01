@@ -92,7 +92,7 @@ export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = fal
 
       // Add break only if it still fits before deadline
       if (brk > 0 && cursor + brk <= deadline) {
-        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: 'Break' });
         cursor += brk;
       }
     }
@@ -111,7 +111,7 @@ export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = fal
       blocks.push({ task, start_minutes: cursor, end_minutes: cursor + slot, is_overflow: false });
       cursor += slot;
       if (brk > 0 && cursor + brk <= sleep) {
-        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+        blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: 'Break' });
         cursor += brk;
       }
       continue;
@@ -131,7 +131,7 @@ export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = fal
     blocks.push({ task, start_minutes: cursor, end_minutes: cursor + slot, is_overflow: false });
     cursor += slot;
     if (brk > 0 && cursor + brk <= sleep) {
-      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: '☕ Break' });
+      blocks.push({ type: 'break', start_minutes: cursor, end_minutes: cursor + brk, label: 'Break' });
       cursor += brk;
     }
   }
