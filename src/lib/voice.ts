@@ -22,6 +22,7 @@ export interface SpeechRecognizer {
 }
 
 export function createSpeechRecognizer(
+  lang: 'en' | 'ru',
   onInterim: (text: string) => void,
   onFinal: (text: string) => void,
   onEnd: () => void,
@@ -34,8 +35,7 @@ export function createSpeechRecognizer(
   rec.continuous = false;
   rec.interimResults = true;
   rec.maxAlternatives = 1;
-  // No lang set → browser auto-detects from the user's OS / browser language
-  // This lets bilingual users speak in any language regardless of app language.
+  rec.lang = lang === 'ru' ? 'ru-RU' : 'en-US';
 
   rec.onresult = (e: any) => {
     let interim = '';
@@ -68,7 +68,32 @@ export function isSpeechOutputSupported(): boolean {
   return 'speechSynthesis' in window;
 }
 
-// Strip markdown before speaking
+// Eagerly load voices as soon as the module is imported.
+// Chrome loads voices asynchronously; we cache them so speak() stays synchronous.
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function loadVoices() {
+  const v = window.speechSynthesis?.getVoices() ?? [];
+  if (v.length) cachedVoices = v;
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  loadVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+}
+
+function pickVoice(langPrefix: string): SpeechSynthesisVoice | null {
+  // Re-check in case they loaded since last time
+  if (!cachedVoices.length) loadVoices();
+  const voices = cachedVoices;
+  return (
+    voices.find(v => v.lang.startsWith(langPrefix) && v.localService) ??
+    voices.find(v => v.lang.startsWith(langPrefix)) ??
+    null
+  );
+}
+
+// Strip markdown / symbols before speaking
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -77,46 +102,26 @@ function stripMarkdown(text: string): string {
     .replace(/^[-•] /gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/`[^`]+`/g, '')
-    .replace(/⚠️|✓|★|↩️/g, '')
+    .replace(/[⚠️✓★↩️]/gu, '')
     .trim();
 }
 
-// Get voices, waiting for voiceschanged if list is empty (Chrome async loading)
-function getVoices(lang: string): Promise<SpeechSynthesisVoice | null> {
-  return new Promise(resolve => {
-    const pick = () => {
-      const voices = window.speechSynthesis.getVoices();
-      if (!voices.length) return null;
-      // Prefer local (native) voice matching the language
-      const local = voices.find(v => v.lang.startsWith(lang) && v.localService);
-      const remote = voices.find(v => v.lang.startsWith(lang));
-      return local ?? remote ?? null;
-    };
-
-    const immediate = pick();
-    if (immediate !== null) { resolve(immediate); return; }
-
-    // Voices not loaded yet — wait for event (Chrome)
-    const onLoaded = () => {
-      window.speechSynthesis.removeEventListener('voiceschanged', onLoaded);
-      resolve(pick());
-    };
-    window.speechSynthesis.addEventListener('voiceschanged', onLoaded);
-    // Fallback: if event never fires, resolve after 1s
-    setTimeout(() => resolve(pick()), 1000);
-  });
-}
-
-export async function speak(
+/**
+ * Speak text via the browser's Speech Synthesis API.
+ * MUST stay synchronous — iOS/Safari blocks audio if there's an await
+ * between the user gesture and the speak() call.
+ */
+export function speak(
   text: string,
   lang: 'en' | 'ru',
   onEnd?: () => void,
-): Promise<void> {
+): void {
   if (!isSpeechOutputSupported()) { onEnd?.(); return; }
 
   const clean = stripMarkdown(text);
   if (!clean) { onEnd?.(); return; }
 
+  // Cancel any ongoing speech first
   window.speechSynthesis.cancel();
 
   const utt = new SpeechSynthesisUtterance(clean);
@@ -125,15 +130,15 @@ export async function speak(
   utt.pitch  = 1.0;
   utt.volume = 1.0;
 
-  const voice = await getVoices(lang === 'ru' ? 'ru' : 'en');
+  const voice = pickVoice(lang === 'ru' ? 'ru' : 'en');
   if (voice) utt.voice = voice;
 
-  if (onEnd) utt.onend = onEnd;
+  utt.onend   = () => onEnd?.();
   utt.onerror = () => onEnd?.();
 
-  // Workaround: Chrome sometimes pauses speech synthesis in background tabs.
-  // Resume before speaking.
+  // Chrome bug: synthesis pauses when tab goes to background — resume it
   if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+
   window.speechSynthesis.speak(utt);
 }
 

@@ -168,6 +168,7 @@ export function ChatPanel() {
     setInterimText('');
 
     const rec = createSpeechRecognizer(
+      lang,
       // Interim: show live preview above input
       (interim) => setInterimText(interim),
       // Final: append to input field — user edits and sends manually
