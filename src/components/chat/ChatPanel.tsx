@@ -6,7 +6,7 @@ import { useT } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
 import {
   isSpeechInputSupported, isSpeechOutputSupported,
-  createSpeechRecognizer, speak, stopSpeaking,
+  createSpeechRecognizer, speak, stopSpeaking, unlockSpeechSynthesis,
   type SpeechRecognizer,
 } from '../../lib/voice';
 
@@ -209,7 +209,15 @@ export function ChatPanel() {
   const toggleTts = () => {
     const next = !ttsEnabled;
     setTtsEnabled(next);
-    if (!next) { stopSpeaking(); setIsSpeakingNow(false); }
+    if (next) {
+      // Unlock speech synthesis SYNCHRONOUSLY in this gesture handler.
+      // iOS/Safari requires speechSynthesis.speak() to be called directly
+      // inside a user interaction — once unlocked, later async calls work too.
+      unlockSpeechSynthesis();
+    } else {
+      stopSpeaking();
+      setIsSpeakingNow(false);
+    }
   };
 
   const HINTS = lang === 'ru'
