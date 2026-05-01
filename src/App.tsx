@@ -46,7 +46,7 @@ export default function App() {
     checkAndRollover, saveDayStats,
     chatMessages, addChatMessage, applyActions,
     apiKey, customBaseURL, customModel, useDefaultKey,
-    setChatOpen,
+    chatOpen, setChatOpen,
     lastMorningBriefDate, setLastMorningBriefDate,
     lastEveningPromptDate, setLastEveningPromptDate,
     isLoading, lastCheckinDate, todayCheckin,
