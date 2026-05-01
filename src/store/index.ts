@@ -597,11 +597,28 @@ export const useStore = create<Store>()(
           supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
         ]);
         if (tasksRes.data) {
-          // Load tasks exactly as stored in Supabase.
-          // Rollover already deletes done one-shot tasks when it runs each morning,
-          // so no client-side filtering is needed here. Filtering caused a bug where
-          // tasks marked done during the day disappeared on page reload.
-          set({ tasks: tasksRes.data });
+          // Always convert 'tomorrow' → 'today' on load, regardless of whether
+          // checkAndRollover already ran today. If the Supabase sync during rollover
+          // failed previously, DB still has day:'tomorrow' and rollover would skip
+          // (lastRolloverDate===today). This ensures tasks are always shown correctly.
+          const tomorrowIds: string[] = [];
+          const normalised = tasksRes.data.map(t => {
+            if (t.day === 'tomorrow') {
+              tomorrowIds.push(t.id);
+              return { ...t, day: 'today' as const, is_done: false };
+            }
+            return t;
+          });
+          set({ tasks: normalised });
+          // Sync the day change back to Supabase so it's not stale next load
+          if (tomorrowIds.length > 0 && userId) {
+            for (const id of tomorrowIds) {
+              supabase.from('tasks')
+                .update({ day: 'today', is_done: false })
+                .eq('id', id).eq('user_id', userId)
+                .then(({ error }) => { if (error) console.error('[load] tomorrow→today sync failed', error); });
+            }
+          }
         }
         if (configRes.data) {
           const { user_id, updated_at, ...cfg } = configRes.data;
