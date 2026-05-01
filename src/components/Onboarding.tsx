@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useStore } from '../store';
 import { useT } from '../lib/i18n';
+import { Sunrise, Sun, Moon, Clock, Target, Battery } from 'lucide-react';
 import type { PeakFocusTime } from '../types';
+import { TaskIcon } from './ui/TaskIcon';
 
 interface OnboardingProps {
   onDone: () => void;
@@ -9,18 +11,18 @@ interface OnboardingProps {
 
 // ── Habit packs — concrete presets for step 3 ─────────────────────
 const HABIT_PACKS = [
-  { emoji: '🏋️', en: 'Fitness',    ru: 'Фитнес',        cat: 'workout',   mins: 180, color: '#5FA35F', hintEn: '3× / week', hintRu: '3× в нед.' },
-  { emoji: '💻', en: 'Deep Work',  ru: 'Глубокая работа', cat: 'deep work', mins: 600, color: '#4C5EE8', hintEn: '10h / week', hintRu: '10ч / нед.' },
-  { emoji: '📚', en: 'Reading',    ru: 'Чтение',          cat: 'reading',   mins: 210, color: '#F0B429', hintEn: '30min / day', hintRu: '30мин / день' },
-  { emoji: '🧘', en: 'Mindfulness',ru: 'Медитация',       cat: 'meditation',mins: 120, color: '#8B5CF6', hintEn: '20min / day', hintRu: '20мин / день' },
-  { emoji: '🏃', en: 'Running',    ru: 'Бег',             cat: 'running',   mins: 150, color: '#EF6060', hintEn: '3× / week', hintRu: '3× в нед.' },
-  { emoji: '🌱', en: 'Learning',   ru: 'Учёба',           cat: 'learning',  mins: 300, color: '#06B6D4', hintEn: '1h / day', hintRu: '1ч / день' },
+  { icon: 'Dumbbell',  en: 'Fitness',    ru: 'Фитнес',         cat: 'workout',   mins: 180, color: '#5FA35F', hintEn: '3× / week', hintRu: '3× в нед.' },
+  { icon: 'Monitor',   en: 'Deep Work',  ru: 'Глубокая работа', cat: 'deep work', mins: 600, color: '#4C5EE8', hintEn: '10h / week', hintRu: '10ч / нед.' },
+  { icon: 'BookOpen',  en: 'Reading',    ru: 'Чтение',          cat: 'reading',   mins: 210, color: '#F0B429', hintEn: '30min / day', hintRu: '30мин / день' },
+  { icon: 'Wind',      en: 'Mindfulness',ru: 'Медитация',       cat: 'meditation',mins: 120, color: '#8B5CF6', hintEn: '20min / day', hintRu: '20мин / день' },
+  { icon: 'Activity',  en: 'Running',    ru: 'Бег',             cat: 'running',   mins: 150, color: '#EF6060', hintEn: '3× / week', hintRu: '3× в нед.' },
+  { icon: 'Leaf',      en: 'Learning',   ru: 'Учёба',           cat: 'learning',  mins: 300, color: '#06B6D4', hintEn: '1h / day', hintRu: '1ч / день' },
 ];
 
-const PEAK_TIMES: { key: PeakFocusTime; emoji: string; en: string; ru: string; hint: string }[] = [
-  { key: 'morning',   emoji: '🌅', en: 'Morning',   ru: 'Утро',   hint: '6–12' },
-  { key: 'afternoon', emoji: '☀️', en: 'Afternoon', ru: 'День',   hint: '12–18' },
-  { key: 'evening',   emoji: '🌙', en: 'Evening',   ru: 'Вечер',  hint: '18–22' },
+const PEAK_TIMES: { key: PeakFocusTime; Icon: React.FC<{ size: number; color: string; strokeWidth: number }>; en: string; ru: string; hint: string }[] = [
+  { key: 'morning',   Icon: Sunrise, en: 'Morning',   ru: 'Утро',   hint: '6–12' },
+  { key: 'afternoon', Icon: Sun,     en: 'Afternoon', ru: 'День',   hint: '12–18' },
+  { key: 'evening',   Icon: Moon,    en: 'Evening',   ru: 'Вечер',  hint: '18–22' },
 ];
 
 export function Onboarding({ onDone }: OnboardingProps) {
@@ -39,9 +41,9 @@ export function Onboarding({ onDone }: OnboardingProps) {
   const [loading, setLoading] = useState(false);
 
   const STEPS = [
-    { emoji: '⏰', title: t('onb.wake.title'), subtitle: t('onb.wake.subtitle') },
-    { emoji: '🎯', title: t('onb.task.title'), subtitle: t('onb.task.subtitle') },
-    { emoji: '🔋', title: lang === 'ru' ? 'Твои привычки и ритм' : 'Your habits & rhythm', subtitle: lang === 'ru' ? 'Выбери что хочешь развивать и когда ты продуктивнее всего' : 'Pick what you want to build and when you do your best work' },
+    { Icon: Clock,  title: t('onb.wake.title'), subtitle: t('onb.wake.subtitle') },
+    { Icon: Target, title: t('onb.task.title'), subtitle: t('onb.task.subtitle') },
+    { Icon: Battery, title: lang === 'ru' ? 'Твои привычки и ритм' : 'Your habits & rhythm', subtitle: lang === 'ru' ? 'Выбери что хочешь развивать и когда ты продуктивнее всего' : 'Pick what you want to build and when you do your best work' },
   ];
 
   const togglePack = (cat: string) => {
@@ -141,7 +143,11 @@ export function Onboarding({ onDone }: OnboardingProps) {
           boxShadow: 'var(--shd2)',
           boxSizing: 'border-box',
         }}>
-          <div style={{ fontSize: 48, marginBottom: 4, textAlign: 'center' }}>{current.emoji}</div>
+          <div style={{ marginBottom: 8, textAlign: 'center', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <current.Icon size={26} color="var(--ind)" strokeWidth={1.8} />
+            </div>
+          </div>
           <h1 style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', letterSpacing: '-.3px', margin: '0 0 6px' }}>
             {current.title}
           </h1>
@@ -242,7 +248,9 @@ export function Onboarding({ onDone }: OnboardingProps) {
                             fontSize: 10, color: '#fff', fontWeight: 700,
                           }}>✓</div>
                         )}
-                        <span style={{ fontSize: 22, marginBottom: 4 }}>{p.emoji}</span>
+                        <div style={{ width: 32, height: 32, borderRadius: 9, background: `${p.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                          <TaskIcon name={p.icon} size={16} color={sel ? p.color : 'var(--tx3)'} strokeWidth={1.8} />
+                        </div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: sel ? p.color : 'var(--tx)' }}>
                           {lang === 'ru' ? p.ru : p.en}
                         </span>
@@ -277,7 +285,7 @@ export function Onboarding({ onDone }: OnboardingProps) {
                           cursor: 'pointer', fontFamily: 'inherit',
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                         }}>
-                        <span style={{ fontSize: 20 }}>{pt.emoji}</span>
+                        <pt.Icon size={20} color={sel ? 'var(--ind)' : 'var(--tx3)'} strokeWidth={1.8} />
                         <span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--ind)' : 'var(--tx)' }}>
                           {lang === 'ru' ? pt.ru : pt.en}
                         </span>

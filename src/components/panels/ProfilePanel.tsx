@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, LogOut, ChevronRight, Bell, BellOff } from 'lucide-react';
+import { Plus, Trash2, LogOut, ChevronRight, Bell, BellOff, Sunrise, Sun, Moon, User } from 'lucide-react';
 import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
@@ -102,7 +102,7 @@ export function ProfilePanel() {
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 46, height: 46, borderRadius: '50%', background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: 'var(--ind)', flexShrink: 0 }}>
-            {userEmail && userEmail !== 'local' ? userEmail[0].toUpperCase() : '👤'}
+            {userEmail && userEmail !== 'local' ? userEmail[0].toUpperCase() : <User size={20} strokeWidth={1.8} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -163,22 +163,22 @@ export function ProfilePanel() {
           <Row label={config.language === 'ru' ? 'Пик продуктивности' : 'Peak focus time'}>
             <div style={{ display: 'flex', gap: 6 }}>
               {([
-                { key: 'morning'   as PeakFocusTime, emoji: '🌅', labelEn: 'Morn',  labelRu: 'Утро'   },
-                { key: 'afternoon' as PeakFocusTime, emoji: '☀️', labelEn: 'Day',   labelRu: 'День'   },
-                { key: 'evening'   as PeakFocusTime, emoji: '🌙', labelEn: 'Eve',   labelRu: 'Вечер'  },
+                { key: 'morning'   as PeakFocusTime, Icon: Sunrise, labelEn: 'Morn',  labelRu: 'Утро'   },
+                { key: 'afternoon' as PeakFocusTime, Icon: Sun,     labelEn: 'Day',   labelRu: 'День'   },
+                { key: 'evening'   as PeakFocusTime, Icon: Moon,    labelEn: 'Eve',   labelRu: 'Вечер'  },
               ]).map(pt => {
                 const sel = (config.peak_focus_time ?? 'morning') === pt.key;
                 return (
                   <button key={pt.key} onClick={() => updateConfig({ peak_focus_time: pt.key })}
                     style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                      padding: '6px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                      padding: '7px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600,
                       border: `1.5px solid ${sel ? 'var(--ind)' : 'var(--bdr2)'}`,
                       background: sel ? 'var(--ind-l)' : 'transparent',
                       color: sel ? 'var(--ind)' : 'var(--tx3)',
                       cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.2,
                     }}>
-                    <span style={{ fontSize: 16 }}>{pt.emoji}</span>
+                    <pt.Icon size={15} color={sel ? 'var(--ind)' : 'var(--tx3)'} strokeWidth={1.8} />
                     {config.language === 'ru' ? pt.labelRu : pt.labelEn}
                   </button>
                 );
@@ -272,7 +272,7 @@ export function ProfilePanel() {
 
         {pushStatus === 'subscribed' && (
           <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--sf2)', borderRadius: 10, fontSize: 12, color: 'var(--tx2)', lineHeight: 1.6 }}>
-            ☀️ {t('profile.pushMorningHint')}
+            <Sun size={13} color="var(--tx2)" strokeWidth={1.8} style={{ flexShrink: 0 }} /> {t('profile.pushMorningHint')}
           </div>
         )}
       </Card>
@@ -360,9 +360,9 @@ export function ProfilePanel() {
                     style={{ fontSize: 13, padding: '10px 12px' }} />
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
-                  🆓 <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
-                  🔀 <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> &nbsp;·&nbsp;
-                  🤖 <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
+                  <a href="https://console.groq.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Groq</a> — free &nbsp;·&nbsp;
+                  <a href="https://openrouter.ai" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>OpenRouter</a> &nbsp;·&nbsp;
+                  <a href="https://console.anthropic.com" target="_blank" rel="noreferrer" style={{ color: 'var(--ind)' }}>Anthropic</a>
                 </div>
               </>
             )}
@@ -383,7 +383,9 @@ export function ProfilePanel() {
               borderColor: config.theme === themeOpt ? 'var(--ind-m)' : 'var(--bdr2)',
             }}
               onClick={() => { updateConfig({ theme: themeOpt }); document.documentElement.setAttribute('data-theme', themeOpt); }}>
-              {themeOpt === 'light' ? t('profile.themeLight') : t('profile.themeDark')}
+              {themeOpt === 'light'
+                ? <><Sun size={14} strokeWidth={1.8} style={{ marginRight: 6 }} />{t('profile.themeLight')}</>
+                : <><Moon size={14} strokeWidth={1.8} style={{ marginRight: 6 }} />{t('profile.themeDark')}</>}
             </button>
           ))}
         </div>

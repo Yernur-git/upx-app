@@ -63,7 +63,7 @@ export function scheduleTaskNotifications(
     if (remindAt > 0) {
       const id = scheduleAt(
         remindAt,
-        `⏰ Starting in ${reminderMinutes}min`,
+        `Starting in ${reminderMinutes}min`,
         task.title
       );
       if (id) activeTimers.add(id);
@@ -72,7 +72,7 @@ export function scheduleTaskNotifications(
     // At start time
     const id2 = scheduleAt(
       start_minutes,
-      `🚀 Time to start`,
+      `Time to start`,
       task.title
     );
     if (id2) activeTimers.add(id2);
@@ -85,7 +85,7 @@ export function scheduleMorningBriefing(wakeTime: string, taskCount: number) {
   const wakeMin = timeToMinutes(wakeTime);
   const id = scheduleAt(
     wakeMin + 1,
-    '☀️ Good morning!',
+    'Good morning',
     taskCount > 0 ? `You have ${taskCount} tasks planned today` : 'No tasks yet — open UpX to plan your day'
   );
   if (id) activeTimers.add(id);

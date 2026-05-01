@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Mail, Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type Mode = 'login' | 'register' | 'forgot' | 'verify' | 'forgot-sent';
@@ -57,7 +57,7 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
   // ── Verify screen ──
   if (mode === 'verify') return (
     <Screen>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>📬</div>
+      <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}><Mail size={28} color="var(--ind)" strokeWidth={1.5} /></div>
       <h2 style={h2}>Check your email</h2>
       <p style={sub}>We sent a verification link to<br /><strong style={{ color: 'var(--tx)' }}>{email}</strong></p>
       <Btn onClick={() => reset('login')} ghost>Back to Sign In</Btn>
@@ -67,7 +67,7 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
   // ── Forgot sent screen ──
   if (mode === 'forgot-sent') return (
     <Screen>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>✉️</div>
+      <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}><Send size={28} color="var(--ind)" strokeWidth={1.5} /></div>
       <h2 style={h2}>Reset link sent</h2>
       <p style={sub}>Check your inbox for a password reset link.</p>
       <Btn onClick={() => reset('login')} ghost>Back to Sign In</Btn>

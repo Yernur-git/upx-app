@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, Undo2, Settings2 } from 'lucide-react';
+import { Send, X, Bot, Undo2, Settings2, Sparkles } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
@@ -44,7 +44,7 @@ function MsgContent({ text }: { text: string }) {
 
 export function ChatPanel() {
   const t = useT();
-  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput, dayHistory } = useStore();
+  const { chatOpen, setChatOpen, chatMessages, addChatMessage, applyActions, undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, activeChatDay, setActivePanel, pendingChatInput, setPendingChatInput, dayHistory, todayCheckin } = useStore();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -86,7 +86,7 @@ export function ChatPanel() {
     setIsTyping(true);
 
     try {
-      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory);
+      const result = await sendChatMessage(text, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory, todayCheckin ?? undefined);
 
       let applied = 0;
       if (result.actions.length > 0) {
@@ -178,7 +178,9 @@ export function ChatPanel() {
 
           {chatMessages.length === 0 && (
             <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>✨</div>
+              <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>
+                <Sparkles size={28} color="var(--ind)" strokeWidth={1.5} />
+              </div>
               <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{t('chat.hi')}</div>
               <div style={{ fontSize: 12, color: 'var(--tx3)', lineHeight: 1.6 }}>
                 {t('chat.hiDesc')}

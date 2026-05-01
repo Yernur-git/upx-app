@@ -119,7 +119,7 @@ const DICT = {
     'profile.notifDisabled':    'Get notified before tasks start',
     'profile.notifOn':          '✓ Enabled',
     'profile.enable':           'Enable',
-    'profile.test':             'Test 🔔',
+    'profile.test':             'Test',
     'profile.pushTitle':        'Push notifications',
     'profile.pushOn':           'Active — works even when app is closed',
     'profile.pushOff':          'Off — get reminders even when app is closed',
@@ -136,11 +136,11 @@ const DICT = {
     'profile.baseURLHint':     '(leave empty for auto)',
     'profile.model':           'Model',
     'profile.appearance':      'Appearance',
-    'profile.themeLight':      '☀️ Light',
-    'profile.themeDark':       '🌙 Dark',
+    'profile.themeLight':      'Light',
+    'profile.themeDark':       'Dark',
     'profile.language':        'Language',
     'profile.danger':          'Danger zone',
-    'profile.deleteAll':       '🗑️ Delete all tasks',
+    'profile.deleteAll':       'Delete all tasks',
     'profile.deleteAllConfirm':'Delete ALL tasks? This cannot be undone.',
 
     // Chat
@@ -158,7 +158,7 @@ const DICT = {
     // Timeline
     'timeline.title':   "Today's Schedule",
     'timeline.overflow':"⚠️ {n} task{s} won't fit today",
-    'timeline.break':   '☕ Break',
+    'timeline.break':   'Break',
     'timeline.freeTime':'Free time',
 
     // Common
@@ -180,7 +180,7 @@ const DICT = {
     'onb.goalPlaceholder':  'Or type your own category…',
     'onb.goalHours':        'Weekly goal (hours)',
     'onb.continue':         'Continue',
-    'onb.lets':             "Let's go 🚀",
+    'onb.lets':             "Let's go",
   },
   ru: {
     // Greetings
@@ -298,7 +298,7 @@ const DICT = {
     'profile.notifDisabled':    'Получайте уведомления перед задачами',
     'profile.notifOn':          '✓ Включены',
     'profile.enable':           'Включить',
-    'profile.test':             'Тест 🔔',
+    'profile.test':             'Тест',
     'profile.pushTitle':        'Push-уведомления',
     'profile.pushOn':           'Активны — работают даже когда приложение закрыто',
     'profile.pushOff':          'Выкл — напоминания даже когда приложение закрыто',
@@ -315,11 +315,11 @@ const DICT = {
     'profile.baseURLHint':     '(пусто = авто)',
     'profile.model':           'Модель',
     'profile.appearance':      'Внешний вид',
-    'profile.themeLight':      '☀️ Светлая',
-    'profile.themeDark':       '🌙 Тёмная',
+    'profile.themeLight':      'Светлая',
+    'profile.themeDark':       'Тёмная',
     'profile.language':        'Язык',
     'profile.danger':          'Опасная зона',
-    'profile.deleteAll':       '🗑️ Удалить все задачи',
+    'profile.deleteAll':       'Удалить все задачи',
     'profile.deleteAllConfirm':'Удалить ВСЕ задачи? Это нельзя отменить.',
 
     // Chat
@@ -359,7 +359,7 @@ const DICT = {
     'onb.goalPlaceholder':  'Или введи свою категорию…',
     'onb.goalHours':        'Недельная цель (часов)',
     'onb.continue':         'Дальше',
-    'onb.lets':             'Поехали 🚀',
+    'onb.lets':             'Поехали',
   },
 } satisfies Record<Lang, Record<string, string>>;
 

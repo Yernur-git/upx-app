@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2 } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2, Flame, ThumbsUp, CloudRain, Moon as MoonIcon, BarChart2, ClipboardList, ChevronRight, RefreshCw } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -13,6 +13,7 @@ import { useStore } from '../../store';
 import { detectCategory, getAllCategories } from '../../lib/categories';
 import { useT } from '../../lib/i18n';
 import type { Task, Priority, Recurrence, QuickTask } from '../../types';
+import { TaskIcon } from '../ui/TaskIcon';
 import { formatDuration } from '../../lib/scheduler';
 
 // ─── Bottom Sheet wrapper ──────────────────────────────────────────
@@ -172,11 +173,13 @@ export function QuickActionSheet({ open, onClose, day }: {
               }}>
               {done === qt.id
                 ? <>
-                    <span style={{ fontSize: 28 }}>✅</span>
+                    <CheckCircle size={24} color="var(--sage)" strokeWidth={1.8} />
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--sage)' }}>Added!</span>
                   </>
                 : <>
-                    <span style={{ fontSize: 28 }}>{qt.emoji}</span>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--sf2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <TaskIcon name={qt.emoji} size={18} color="var(--ind)" strokeWidth={1.8} />
+                    </div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--tx)', textAlign: 'center' }}>{qt.title}</span>
                     <span style={{ fontSize: 10, color: 'var(--tx3)' }}>
                       {qt.duration_minutes}min{qt.fixed_time ? ` · ${qt.fixed_time}` : ''}
@@ -224,7 +227,7 @@ export function QuickActionSheet({ open, onClose, day }: {
 function AddQuickTaskTile({ onAdd, lang }: {
   onAdd: (qt: QuickTask) => void; lang: string;
 }) {
-  const [emoji, setEmoji] = useState('⚡');
+  const [emoji, setEmoji] = useState('Zap');
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
   const [fixedTime, setFixedTime] = useState('');
@@ -269,7 +272,8 @@ function AddQuickTaskTile({ onAdd, lang }: {
       {/* Row 1: emoji + name */}
       <div style={{ display: 'flex', gap: 8 }}>
         <input value={emoji} onChange={e => setEmoji(e.target.value)}
-          style={{ width: 46, fontSize: 20, textAlign: 'center', padding: '8px 4px', flexShrink: 0 }} maxLength={2} />
+          style={{ width: 56, fontSize: 12, textAlign: 'center', padding: '8px 4px', flexShrink: 0 }} maxLength={20}
+          placeholder="Zap" />
         <input
           autoFocus value={title} onChange={e => setTitle(e.target.value)}
           placeholder={lang === 'ru' ? 'Название' : 'Task name'}
@@ -318,10 +322,10 @@ function AddQuickTaskTile({ onAdd, lang }: {
 
 // ─── TaskList ─────────────────────────────────────────────────────
 const MOODS = [
-  { emoji: '💪', ru: 'Огонь!',  en: 'Crushed it' },
-  { emoji: '😊', ru: 'Хорошо',  en: 'Good' },
-  { emoji: '😤', ru: 'Тяжело',  en: 'Tough' },
-  { emoji: '😴', ru: 'Устал',   en: 'Tired' },
+  { emoji: '💪', icon: Flame,     color: '#EF6060', ru: 'Огонь!',  en: 'Crushed it' },
+  { emoji: '😊', icon: ThumbsUp,  color: '#5FA35F', ru: 'Хорошо',  en: 'Good' },
+  { emoji: '😤', icon: CloudRain, color: '#F0B429', ru: 'Тяжело',  en: 'Tough' },
+  { emoji: '😴', icon: MoonIcon,  color: '#8B5CF6', ru: 'Устал',   en: 'Tired' },
 ];
 
 export function TaskList() {
@@ -424,7 +428,7 @@ export function TaskList() {
           className="btn btn-ghost"
           title={lang === 'ru' ? 'Обзор недели' : 'Week review'}
           style={{ flexShrink: 0, padding: '6px 10px', fontSize: 13, color: 'var(--ind)', borderColor: 'var(--ind-m)', background: 'var(--ind-l)' }}>
-          📊
+          <BarChart2 size={15} strokeWidth={1.8} />
         </button>
       </div>
 
@@ -432,7 +436,9 @@ export function TaskList() {
         {pendingTasks.length === 0 && doneTasks.length === 0 && (
           <div className="empty-state" style={{ marginTop: 16 }}>
             <div className="empty-icon">
-              {activeDay === 'today' ? '🗓️' : '🌅'}
+              {activeDay === 'today'
+                ? <ClipboardList size={32} strokeWidth={1.5} color="var(--tx3)" />
+                : <ChevronRight size={32} strokeWidth={1.5} color="var(--tx3)" />}
             </div>
             <h3>{activeDay === 'today' ? t('task.empty.today.title') : t('task.empty.tomorrow.title')}</h3>
             <p>{activeDay === 'today' ? t('task.empty.today.desc') : t('task.empty.tomorrow.desc')}</p>
@@ -489,17 +495,17 @@ export function TaskList() {
             {' — '}{lang === 'ru' ? 'Как прошло?' : 'How did it go?'}
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            {MOODS.map(({ emoji, ru, en }) => (
+            {MOODS.map(({ emoji, icon: MoodIcon, color, ru, en }) => (
               <button
                 key={emoji}
                 onClick={() => saveMood(emoji, lang === 'ru' ? ru : en)}
                 style={{
-                  flex: 1, border: '1.5px solid var(--bdr2)', borderRadius: 12,
-                  background: 'var(--sf2)', cursor: 'pointer', padding: '8px 4px',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  flex: 1, border: `1.5px solid ${color}30`, borderRadius: 12,
+                  background: `${color}10`, cursor: 'pointer', padding: '10px 4px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                   fontFamily: 'inherit',
                 }}>
-                <span style={{ fontSize: 22 }}>{emoji}</span>
+                <MoodIcon size={20} color={color} strokeWidth={1.8} />
                 <span style={{ fontSize: 9, color: 'var(--tx3)', fontWeight: 600 }}>
                   {lang === 'ru' ? ru : en}
                 </span>
@@ -678,7 +684,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               {task.is_starred && <Star size={10} fill="var(--must)" color="var(--must)" />}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
               {task.recurrence !== 'none' && (
-                <span style={{ fontSize: 9, background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>🔁</span>
+                <span style={{ display: 'flex', alignItems: 'center', background: 'var(--ind-l)', color: 'var(--ind)', padding: '1px 4px', borderRadius: 4, flexShrink: 0 }}><RefreshCw size={8} strokeWidth={2} /></span>
               )}
               {hasNotes && (
                 <button

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: string) => void }) {
@@ -33,7 +33,7 @@ export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: st
 
   if (done) return (
     <Screen>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+      <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--sage-l, #e8f5e9)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}><CheckCircle size={28} color="var(--sage, #5FA35F)" strokeWidth={1.5} /></div>
       <h2 style={h2}>Password updated!</h2>
       <p style={sub}>Logging you in…</p>
     </Screen>
@@ -41,7 +41,7 @@ export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: st
 
   return (
     <Screen>
-      <div style={{ fontSize: 36, marginBottom: 12 }}>🔐</div>
+      <div style={{ width: 56, height: 56, borderRadius: 18, background: 'var(--ind-l)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}><Lock size={24} color="var(--ind)" strokeWidth={1.5} /></div>
       <h1 style={h1}>Set new password</h1>
       <p style={sub}>Choose a strong password for your account.</p>
 
