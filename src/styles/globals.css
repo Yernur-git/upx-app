@@ -129,10 +129,12 @@ input[type="time"] { min-width: 0; }
   z-index: 50;
 }
 @media (min-width: 900px) {
-  .desktop-nav { display: flex; }
-  .bottom-nav  { display: none !important; }
+  .desktop-nav  { display: flex; }
+  .bottom-nav   { display: none !important; }
   .sidebar-logo { display: none !important; }
-  .chat-panel  { bottom: 16px; right: 16px; border-radius: var(--r); }
+  .chat-panel   { bottom: 16px; right: 16px; border-radius: var(--r); width: 440px; height: 620px; }
+  .desk-show    { display: flex !important; }
+  .desk-hide    { display: none !important; }
 }
 
 /* ── SHELL (desktop two-column) ── */

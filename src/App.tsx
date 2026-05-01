@@ -121,6 +121,18 @@ export default function App() {
     };
   }, []);
 
+  // Keyboard shortcut: Cmd/Ctrl+K → toggle AI chat
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setChatOpen(!chatOpen);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [chatOpen, setChatOpen]);
+
   // Analytics: identify user on sign-in
   useEffect(() => {
     if (userId && userId !== 'local-user') {
@@ -217,6 +229,7 @@ export default function App() {
       <DesktopNav
         activePanel={activePanel}
         onNav={(id) => { setActivePanel(id); setShowTimeline(false); }}
+        onAdd={() => setShowQuickAdd(true)}
       />
 
       {/* ── MAIN COLUMN ── */}
@@ -250,14 +263,24 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Mobile: schedule toggle */}
-                <button
-                  id="timeline-toggle"
-                  className="btn btn-ghost"
-                  style={{ fontSize: 11, padding: '7px 12px', display: 'none', gap: 5 }}
-                  onClick={() => setShowTimeline(true)}>
-                  <CalendarDays size={13} /> {tr('nav.schedule')}
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {/* Desktop: quick-add button (hidden on mobile — bottom nav has +) */}
+                  <button
+                    className="btn btn-ghost desk-show"
+                    style={{ fontSize: 11, padding: '7px 12px', gap: 5, display: 'none' }}
+                    onClick={() => setShowQuickAdd(true)}>
+                    <Plus size={13} /> {config.language === 'ru' ? 'Добавить' : 'Add task'}
+                  </button>
+
+                  {/* Mobile: schedule toggle */}
+                  <button
+                    id="timeline-toggle"
+                    className="btn btn-ghost"
+                    style={{ fontSize: 11, padding: '7px 12px', display: 'none', gap: 5 }}
+                    onClick={() => setShowTimeline(true)}>
+                    <CalendarDays size={13} /> {tr('nav.schedule')}
+                  </button>
+                </div>
               </div>
 
               {/* Morning & evening banners */}
@@ -432,11 +455,13 @@ export default function App() {
   );
 }
 
-function DesktopNav({ activePanel, onNav }: {
+function DesktopNav({ activePanel, onNav, onAdd }: {
   activePanel: string;
   onNav: (id: 'plan' | 'stats' | 'profile') => void;
+  onAdd: () => void;
 }) {
   const { chatOpen, setChatOpen } = useStore();
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
   const navBtn = (id: 'plan' | 'stats' | 'profile', Icon: React.ElementType, label: string) => {
     const active = activePanel === id;
@@ -470,12 +495,32 @@ function DesktopNav({ activePanel, onNav }: {
         {navBtn('stats', BarChart2,    tr('nav.stats'))}
       </div>
 
+      {/* Quick-add — below plan/stats */}
+      <div style={{ padding: '8px 8px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+        <button onClick={onAdd} title={tr('task.add.btn')}
+          style={{
+            width: 40, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer',
+            background: 'var(--sf2)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all var(--tr)',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--sf3)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'var(--sf2)')}>
+          <Plus size={18} color="var(--tx2)" />
+        </button>
+        <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--tx3)' }}>
+          {tr('task.add.btn')}
+        </span>
+      </div>
+
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
       {/* AI button — center */}
       <div style={{ padding: '0 8px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-        <button onClick={() => setChatOpen(!chatOpen)} title="AI"
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          title={`AI  ${isMac ? '⌘K' : 'Ctrl+K'}`}
           style={{
             width: 40, height: 40, borderRadius: 12, border: 'none', cursor: 'pointer',
             background: chatOpen ? 'var(--ind)' : 'var(--ind-l)',
