@@ -1,6 +1,6 @@
 // ── Voice I/O utilities ────────────────────────────────────────────
-// STT: Web Speech API (SpeechRecognition) — Chrome, Safari, Edge, PWA
-// TTS: Web Speech Synthesis API — all modern browsers
+// STT: Web Speech API — Chrome, Safari, Edge, PWA
+// TTS: Web Speech Synthesis — all modern browsers
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare global {
@@ -32,28 +32,26 @@ export function createSpeechRecognizer(
   if (!SR) return null;
 
   const rec = new SR();
-  rec.continuous = false;
-  rec.interimResults = true;
+  rec.continuous      = false;
+  rec.interimResults  = true;
   rec.maxAlternatives = 1;
   rec.lang = lang === 'ru' ? 'ru-RU' : 'en-US';
 
   rec.onresult = (e: any) => {
     let interim = '';
-    let final = '';
+    let final   = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      const text = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += text;
-      else interim += text;
+      const txt = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += txt;
+      else interim += txt;
     }
     if (interim) onInterim(interim);
     if (final)   onFinal(final.trim());
   };
-
   rec.onerror = (e: any) => {
     if (e.error !== 'aborted' && e.error !== 'no-speech') onError(e.error);
     onEnd();
   };
-
   rec.onend = onEnd;
 
   return {
@@ -68,32 +66,26 @@ export function isSpeechOutputSupported(): boolean {
   return 'speechSynthesis' in window;
 }
 
-// Eagerly load voices as soon as the module is imported.
-// Chrome loads voices asynchronously; we cache them so speak() stays synchronous.
-let cachedVoices: SpeechSynthesisVoice[] = [];
-
-function loadVoices() {
+// Eagerly cache voices — Chrome loads them async via voiceschanged.
+let _voices: SpeechSynthesisVoice[] = [];
+function refreshVoices() {
   const v = window.speechSynthesis?.getVoices() ?? [];
-  if (v.length) cachedVoices = v;
+  if (v.length) _voices = v;
 }
-
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-  loadVoices();
-  window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+  refreshVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
 }
 
-function pickVoice(langPrefix: string): SpeechSynthesisVoice | null {
-  // Re-check in case they loaded since last time
-  if (!cachedVoices.length) loadVoices();
-  const voices = cachedVoices;
+function pickVoice(prefix: string): SpeechSynthesisVoice | null {
+  refreshVoices();
   return (
-    voices.find(v => v.lang.startsWith(langPrefix) && v.localService) ??
-    voices.find(v => v.lang.startsWith(langPrefix)) ??
+    _voices.find(v => v.lang.startsWith(prefix) && v.localService) ??
+    _voices.find(v => v.lang.startsWith(prefix)) ??
     null
   );
 }
 
-// Strip markdown / symbols before speaking
 function stripMarkdown(text: string): string {
   return text
     .replace(/\*\*([^*]+)\*\*/g, '$1')
@@ -107,9 +99,26 @@ function stripMarkdown(text: string): string {
 }
 
 /**
- * Speak text via the browser's Speech Synthesis API.
- * MUST stay synchronous — iOS/Safari blocks audio if there's an await
- * between the user gesture and the speak() call.
+ * Unlock speech synthesis on iOS/Safari.
+ * Must be called SYNCHRONOUSLY inside a user-gesture handler (e.g. button click).
+ * After this, subsequent speak() calls work even after async operations.
+ */
+export function unlockSpeechSynthesis(): void {
+  if (!isSpeechOutputSupported()) return;
+  // Speak + immediately cancel an empty utterance to "unlock" the audio context.
+  const utt = new SpeechSynthesisUtterance('');
+  utt.volume = 0;
+  window.speechSynthesis.speak(utt);
+  // Cancel after a tick — the unlock effect persists for the session.
+  setTimeout(() => window.speechSynthesis.cancel(), 0);
+}
+
+/**
+ * Speak text. Can be called after async operations IF unlockSpeechSynthesis()
+ * was called first in a synchronous gesture handler.
+ *
+ * Chrome bug: calling speak() immediately after cancel() is sometimes silently
+ * swallowed. We use a short setTimeout to work around it.
  */
 export function speak(
   text: string,
@@ -121,31 +130,27 @@ export function speak(
   const clean = stripMarkdown(text);
   if (!clean) { onEnd?.(); return; }
 
-  // Cancel any ongoing speech first
   window.speechSynthesis.cancel();
 
-  const utt = new SpeechSynthesisUtterance(clean);
-  utt.lang   = lang === 'ru' ? 'ru-RU' : 'en-US';
-  utt.rate   = 1.0;
-  utt.pitch  = 1.0;
-  utt.volume = 1.0;
+  const utt      = new SpeechSynthesisUtterance(clean);
+  utt.lang       = lang === 'ru' ? 'ru-RU' : 'en-US';
+  utt.rate       = 1.0;
+  utt.pitch      = 1.0;
+  utt.volume     = 1.0;
+  utt.onend      = () => onEnd?.();
+  utt.onerror    = () => onEnd?.();
 
   const voice = pickVoice(lang === 'ru' ? 'ru' : 'en');
   if (voice) utt.voice = voice;
 
-  utt.onend   = () => onEnd?.();
-  utt.onerror = () => onEnd?.();
-
-  // Chrome bug: synthesis pauses when tab goes to background — resume it
-  if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-
-  window.speechSynthesis.speak(utt);
+  // setTimeout fixes Chrome's cancel() → immediate speak() silent-drop bug.
+  // 50 ms is imperceptible to the user.
+  setTimeout(() => {
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utt);
+  }, 50);
 }
 
 export function stopSpeaking(): void {
   window.speechSynthesis?.cancel();
-}
-
-export function isSpeaking(): boolean {
-  return window.speechSynthesis?.speaking ?? false;
 }
