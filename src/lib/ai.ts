@@ -69,9 +69,11 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
   const taskList = todayTasks.length
     ? todayTasks.map(t =>
         `- [id:${sid(t.id)}] [${t.is_done ? 'done' : t.priority}]${t.is_starred ? ' ★' : ''} "${t.title}" ${t.duration_minutes}min` +
+        `${t.category ? ` [${t.category}]` : ''}` +
         `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
-        `${t.travel_minutes ? ` 🚗${t.travel_minutes}m` : ''}` +
-        `${t.notes ? ` 💬${t.notes.slice(0, 60)}` : ''}`
+        `${t.travel_minutes ? ` +${t.travel_minutes}m travel` : ''}` +
+        `${t.recurrence && t.recurrence !== 'none' ? ` [repeats:${t.recurrence}]` : ''}` +
+        `${t.notes ? ` note:"${t.notes.slice(0, 60)}"` : ''}`
       ).join('\n')
     : 'No tasks yet.';
 
@@ -112,6 +114,18 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
   const scheduleStatus = schedule.overflow.length > 0
     ? `⚠️ OVERLOADED — ${schedule.overflow.length} task(s) do not fit today`
     : `✓ Fits — ${formatDuration(freeMinutes)} free remaining`;
+
+  // ── Computed timeline: actual start/end times per task ───────────
+  const timelineLines = schedule.blocks
+    .filter(b => 'task' in b)
+    .map(b => {
+      const blk = b as { task: Task; start_minutes: number; end_minutes: number };
+      const start = minutesToTime(blk.start_minutes);
+      const end   = minutesToTime(blk.end_minutes);
+      const status = blk.task.is_done ? 'done' : nowMinutes >= blk.start_minutes ? 'in progress' : 'upcoming';
+      return `- ${start}–${end} "${blk.task.title}" [${blk.task.category}] [${status}]`;
+    });
+  const timelineStr = timelineLines.length > 0 ? timelineLines.join('\n') : 'No scheduled blocks yet.';
 
   return `You are UpX — a smart daily planner assistant. You help the user plan their day, create tasks, reschedule, and give advice.
 
@@ -194,6 +208,9 @@ ${config.category_goals.length > 0
       return `- ${g.category}: ${h > 0 ? h + 'h' : ''}${m > 0 ? m + 'm' : '0m'} / ${goalH}h goal (${pct}%)`;
     }).join('\n')
   : 'No goals set.'}
+
+## Today's Computed Timeline (actual start/end times)
+${timelineStr}
 
 ## Live Schedule Status
 - Status: ${scheduleStatus}
