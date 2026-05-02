@@ -55,6 +55,7 @@ export function ChatPanel() {
     undoLastAI, aiUndoSnapshot, tasks, config, apiKey, customBaseURL,
     customModel, useDefaultKey, activeChatDay, setActivePanel,
     pendingChatInput, setPendingChatInput, dayHistory, todayCheckin,
+    todayMidEnergy, todayEveningMood,
   } = useStore();
 
   const lang = config.language ?? 'en';
@@ -119,6 +120,8 @@ export function ChatPanel() {
         text, chatMessages, tasks, config, apiKey, activeChatDay,
         customBaseURL, customModel, useDefaultKey, dayHistory,
         todayCheckin ?? undefined,
+        todayMidEnergy ?? undefined,
+        todayEveningMood ?? undefined,
       );
 
       let applied = 0;
@@ -155,7 +158,7 @@ export function ChatPanel() {
       setIsTyping(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTyping, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory, todayCheckin, ttsEnabled, lang]);
+  }, [isTyping, chatMessages, tasks, config, apiKey, activeChatDay, customBaseURL, customModel, useDefaultKey, dayHistory, todayCheckin, todayMidEnergy, todayEveningMood, ttsEnabled, lang]);
 
   const send = () => sendText(input.trim());
 
@@ -307,7 +310,7 @@ export function ChatPanel() {
             </div>
           )}
 
-          {chatMessages.map(msg => (
+          {chatMessages.map((msg, idx) => (
             <div key={msg.id} style={{
               display: 'flex',
               justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -331,6 +334,29 @@ export function ChatPanel() {
                     {t('chat.actionsApplied', { n: msg.actions.length })}
                   </div>
                 )}
+                {/* Inline retry — shown only on last AI message when action failed */}
+                {msg.role === 'assistant' && idx === chatMessages.length - 1 && retryText && !isTyping && (
+                  <div style={{
+                    marginTop: 8, paddingTop: 8,
+                    borderTop: '1px solid rgba(255,255,255,.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 11, opacity: 0.75 }}>
+                      ⚠️ {lang === 'ru' ? 'Не применилось' : "Didn't apply"}
+                    </span>
+                    <button
+                      onClick={() => sendText(retryText!)}
+                      style={{
+                        fontSize: 11, padding: '4px 12px', borderRadius: 20,
+                        background: 'rgba(255,255,255,.2)', color: 'inherit',
+                        border: '1px solid rgba(255,255,255,.25)',
+                        cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                        flexShrink: 0,
+                      }}>
+                      {lang === 'ru' ? 'Применить' : 'Apply'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -346,29 +372,6 @@ export function ChatPanel() {
               }}>
                 {interimText}
               </div>
-            </div>
-          )}
-
-          {/* Retry banner */}
-          {retryText && !isTyping && (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-              padding: '10px 14px', borderRadius: 12,
-              background: 'var(--must-l, #fff8e1)',
-              border: '1px solid var(--must, #e0a800)',
-            }}>
-              <div style={{ fontSize: 12, color: 'var(--must, #b7890a)', fontWeight: 500, lineHeight: 1.4 }}>
-                ⚠️ {lang === 'ru' ? 'Действие не применилось' : "Action didn't apply"}
-              </div>
-              <button
-                onClick={() => sendText(retryText!)}
-                style={{
-                  fontSize: 12, padding: '6px 14px', borderRadius: 20, flexShrink: 0,
-                  background: 'var(--must, #b7890a)', color: '#fff',
-                  border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                }}>
-                {lang === 'ru' ? 'Повторить' : 'Retry'}
-              </button>
             </div>
           )}
 
