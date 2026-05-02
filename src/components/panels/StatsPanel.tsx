@@ -4,7 +4,7 @@ import { useStore } from '../../store';
 import { formatDuration } from '../../lib/scheduler';
 import { taskMatchesGoal } from '../../lib/categories';
 import { getWeeklyFeedback } from '../../lib/ai';
-import { useT } from '../../lib/i18n';
+import { useT, pluralRu } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
 import type { DayStatTask } from '../../types';
 
@@ -303,10 +303,14 @@ export function StatsPanel() {
             {streak > 0 ? (
               <>
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--tx)', fontFamily: "'DM Mono', monospace" }}>
-                  {t('stats.streakDays', { n: streak })}
+                  {config.language === 'ru'
+                    ? `${streak} ${pluralRu(streak, 'день', 'дня', 'дней')}`
+                    : t('stats.streakDays', { n: streak })}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>
-                  {t('stats.streakDesc')}
+                  {config.language === 'ru'
+                    ? `${pluralRu(streak, 'день подряд', 'дня подряд', 'дней подряд')} с выполнением 80%+`
+                    : t('stats.streakDesc')}
                 </div>
               </>
             ) : (

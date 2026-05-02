@@ -3,7 +3,7 @@ import { Coffee } from 'lucide-react';
 import { TaskIcon } from '../ui/TaskIcon';
 import { useStore } from '../../store';
 import { buildSchedule, getNowMinutes, minutesToTime, formatDuration, isBreakBlock } from '../../lib/scheduler';
-import { useT } from '../../lib/i18n';
+import { useT, pluralRu } from '../../lib/i18n';
 import type { CategoryGoal } from '../../types';
 
 const HOUR_HEIGHT = 80;
@@ -151,8 +151,8 @@ export function Timeline() {
             fontSize: 12, fontWeight: 500,
           }}>
             {config.language === 'ru'
-              ? `Не влезает до ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`
-              : `Won't fit before ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`}
+              ? `${overflow.length} ${pluralRu(overflow.length, 'задача', 'задачи', 'задач')} не ${pluralRu(overflow.length, 'помещается', 'помещаются', 'помещаются')} до ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`
+              : `${overflow.length} task${overflow.length === 1 ? '' : 's'} won't fit before ${config.sleep}: ${overflow.map(t => t.title).join(', ')}`}
           </div>
         )}
       </div>

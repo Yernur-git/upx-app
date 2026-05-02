@@ -1,16 +1,40 @@
 {
+  "id": "upx-daily-planner",
   "name": "UpX — Daily Planner",
   "short_name": "UpX",
-  "description": "Smart AI-powered daily planner",
+  "description": "AI-powered daily planner: build your schedule with natural language, track habits, and stay focused.",
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
   ],
   "theme_color": "#4C5EE8",
   "background_color": "#F4F5FB",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
-  "start_url": "/",
-  "scope": "/"
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "categories": ["productivity", "utilities", "lifestyle"],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/screenshot-plan.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Daily plan with AI scheduling"
+    },
+    {
+      "src": "/screenshot-stats.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Weekly stats and streaks"
+    }
+  ]
 }
