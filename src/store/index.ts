@@ -127,6 +127,7 @@ function rolloverRecurring(tasks: Task[]): {
   dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }>;   // update day in DB
   resetIds: string[];                                             // is_done → false in DB
 } {
+  const today = todayDateStr();
   const dayOfWeek = new Date().getDay();
   const isWeekday = dayOfWeek > 0 && dayOfWeek < 6;
 
@@ -170,6 +171,11 @@ function rolloverRecurring(tasks: Task[]): {
 
     // One-shot tomorrow → today (ignore is_done — fresh start)
     if (t.day === 'tomorrow' && t.recurrence === 'none') {
+      // Don't promote if task is scheduled for a future specific date
+      if (t.planned_date && t.planned_date !== today) {
+        kept.push(t);
+        continue;
+      }
       kept.push({ ...t, day: 'today', is_done: false });
       dayChanges.push({ id: t.id, day: 'today' });
       if (t.is_done) resetIds.push(t.id);
@@ -376,6 +382,7 @@ export const useStore = create<Store>()(
             created_at: task.created_at,
             recurrence: task.recurrence,
             recurrence_days: task.recurrence_days ?? null,
+            planned_date: task.planned_date ?? null,
           };
           const { error } = await supabase.from('tasks').insert(row);
           if (error) {
@@ -668,7 +675,7 @@ export const useStore = create<Store>()(
 
           const tomorrowIds: string[] = [];
           const normalised = tasksRes.data.map(t => {
-            if (t.day === 'tomorrow' && needsRollover) {
+            if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date !== today)) {
               tomorrowIds.push(t.id);
               return { ...t, day: 'today' as const, is_done: false };
             }

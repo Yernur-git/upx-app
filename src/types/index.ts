@@ -20,6 +20,7 @@ export interface Task {
   notes?: string;
   recurrence: Recurrence;
   recurrence_days?: number[]; // 0=Sun,1=Mon,...,6=Sat for 'custom'
+  planned_date?: string;  // ISO YYYY-MM-DD — for tasks scheduled beyond tomorrow
   sort_order: number;
   created_at: string;
   user_id?: string;
