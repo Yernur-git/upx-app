@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2, Flame, ThumbsUp, CloudRain, Moon as MoonIcon, BarChart2, ClipboardList, ChevronRight, RefreshCw } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2, Flame, ThumbsUp, CloudRain, Moon as MoonIcon, BarChart2, ClipboardList, ChevronRight, RefreshCw, Play, StopCircle } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -546,6 +546,10 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
 }) {
   const t = useT();
   const lang = useStore(s => s.config.language ?? 'en');
+  const focusSession = useStore(s => s.focusSession);
+  const startFocus   = useStore(s => s.startFocus);
+  const stopFocus    = useStore(s => s.stopFocus);
+  const isFocused    = focusSession?.taskId === task.id;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, disabled: !!isDone });
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -665,7 +669,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
         }}
       >
         <div
-          style={{ background: 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : (expanded ? 'var(--ind-m)' : 'var(--bdr)')}`, borderRadius: expanded ? '10px 10px 0 0' : 10, padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8, opacity: isDragging ? 0.5 : 1 }}
+          style={{ background: isFocused ? 'var(--sage-l)' : 'var(--sf)', border: `1px solid ${isDragging ? 'var(--ind)' : isFocused ? 'var(--sage)' : expanded ? 'var(--ind-m)' : 'var(--bdr)'}`, borderRadius: expanded ? '10px 10px 0 0' : 10, padding: '9px 10px', display: 'flex', alignItems: 'flex-start', gap: 8, opacity: isDragging ? 0.5 : 1, transition: 'background .2s, border-color .2s' }}
           onClick={handleCardTap}
         >
           {!isDone && (
@@ -755,6 +759,22 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
               style={actionBtnStyle('var(--sf2)')}>
               <Trash2 size={15} color="var(--coral)" />
               <span style={{ fontSize: 10, color: 'var(--coral)' }}>{lang === 'ru' ? 'Удалить' : 'Delete'}</span>
+            </button>
+            <div style={{ width: 1, background: 'var(--bdr)' }} />
+            {/* Focus timer */}
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                setExpanded(false);
+                isFocused ? stopFocus() : startFocus(task);
+              }}
+              style={actionBtnStyle(isFocused ? 'var(--coral-l)' : 'var(--sage-l)')}>
+              {isFocused
+                ? <StopCircle size={15} color="var(--coral)" />
+                : <Play size={15} color="var(--sage)" />}
+              <span style={{ fontSize: 10, color: isFocused ? 'var(--coral)' : 'var(--sage)' }}>
+                {isFocused ? (lang === 'ru' ? 'Стоп' : 'Stop') : (lang === 'ru' ? 'Фокус' : 'Focus')}
+              </span>
             </button>
           </div>
         )}

@@ -9,6 +9,7 @@ import { MorningCheckin } from './components/MorningCheckin';
 import { TaskList, QuickActionSheet } from './components/tasks/TaskList';
 import { Timeline } from './components/timeline/Timeline';
 import { ChatPanel } from './components/chat/ChatPanel';
+import { FocusBar } from './components/focus/FocusBar';
 import { StatsPanel } from './components/panels/StatsPanel';
 import { ProfilePanel } from './components/panels/ProfilePanel';
 import { supabase } from './lib/supabase';
@@ -539,6 +540,7 @@ export default function App() {
         day={activeChatDay}
       />
 
+      <FocusBar />
       <ChatPanel />
 
       <style>{`
