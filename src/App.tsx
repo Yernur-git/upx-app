@@ -23,6 +23,37 @@ import { t as tr } from './lib/i18n';
 // Run once at module load — safe even if VITE_POSTHOG_KEY is not set
 initAnalytics();
 
+// ── Task list loading skeleton ────────────────────────────────────────────
+function TaskListSkeleton() {
+  const cards = [{ w: '70%' }, { w: '55%' }, { w: '80%' }, { w: '60%' }, { w: '45%' }];
+  return (
+    <div style={{ padding: '8px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Week strip skeleton */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+        {[...Array(7)].map((_, i) => (
+          <div key={i} className="skeleton-line" style={{ flex: 1, height: 52, borderRadius: 12 }} />
+        ))}
+      </div>
+      {/* Section label */}
+      <div className="skeleton-line" style={{ height: 11, width: 80, borderRadius: 6, marginBottom: 2 }} />
+      {/* Task cards */}
+      {cards.map((c, i) => (
+        <div key={i} style={{
+          background: 'var(--sf)', borderRadius: 14, padding: '12px 14px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: 'var(--shd)',
+        }}>
+          <div className="skeleton-line" style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div className="skeleton-line" style={{ height: 13, width: c.w, borderRadius: 6, marginBottom: 6 }} />
+            <div className="skeleton-line" style={{ height: 10, width: '35%', borderRadius: 6 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 
 function greeting() {
   const h = new Date().getHours();
@@ -306,7 +337,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Morning & evening banners */}
+              {/* Banners — show at most one at a time (priority: morning > mid > evening > evening-checkin) */}
               {showMorningBanner && (
                 <div style={{
                   margin: '0 18px 10px', padding: '10px 14px',
@@ -342,7 +373,7 @@ export default function App() {
                   </button>
                 </div>
               )}
-              {showEveningBanner && (
+              {!showMorningBanner && showEveningBanner && (
                 <div style={{
                   margin: '0 18px 10px', padding: '10px 14px',
                   background: 'linear-gradient(135deg, rgba(240,180,41,.12) 0%, var(--sf2) 100%)',
@@ -378,8 +409,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Mid-day energy check-in */}
-              {showMidCheckin && (
+              {/* Mid-day energy check-in (only when no morning banner) */}
+              {!showMorningBanner && !showEveningBanner && showMidCheckin && (
                 <div style={{
                   margin: '0 18px 10px', padding: '12px 14px',
                   background: 'var(--must-l)', border: '1px solid var(--must)',
@@ -415,8 +446,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* Evening reflection check-in */}
-              {showEveningCheckin && (
+              {/* Evening reflection check-in (lowest priority) */}
+              {!showMorningBanner && !showEveningBanner && !showMidCheckin && showEveningCheckin && (
                 <div style={{
                   margin: '0 18px 10px', padding: '12px 14px',
                   background: 'var(--ind-l)', border: '1px solid var(--ind-m)',
@@ -452,7 +483,7 @@ export default function App() {
                 </div>
               )}
 
-              <TaskList />
+              {isLoading ? <TaskListSkeleton /> : <TaskList />}
             </aside>
 
             {/* Main — timeline */}

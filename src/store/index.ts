@@ -171,8 +171,9 @@ function rolloverRecurring(tasks: Task[]): {
 
     // One-shot tomorrow → today (ignore is_done — fresh start)
     if (t.day === 'tomorrow' && t.recurrence === 'none') {
-      // Don't promote if task is scheduled for a future specific date
-      if (t.planned_date && t.planned_date !== today) {
+      // Don't promote if task is scheduled for a FUTURE specific date.
+      // Use > today (not !== today) so past/overdue planned_dates still roll over.
+      if (t.planned_date && t.planned_date > today) {
         kept.push(t);
         continue;
       }
@@ -212,10 +213,11 @@ export const useStore = create<Store>()(
       isLoading: false,
       userId: null,
       userEmail: null,
-      apiKey: '',
-      customBaseURL: '',
-      customModel: '',
-      useDefaultKey: true,
+      // API keys read from sessionStorage so they're never written to localStorage
+      apiKey:        (() => { try { return sessionStorage.getItem('upx_apikey') ?? ''; } catch { return ''; } })(),
+      customBaseURL: (() => { try { return sessionStorage.getItem('upx_baseurl') ?? ''; } catch { return ''; } })(),
+      customModel:   (() => { try { return sessionStorage.getItem('upx_model') ?? ''; } catch { return ''; } })(),
+      useDefaultKey: (() => { try { return sessionStorage.getItem('upx_defaultkey') !== 'false'; } catch { return true; } })(),
       chatOpen: false,
       activePanel: 'plan',
       activeChatDay: 'today',
@@ -235,12 +237,27 @@ export const useStore = create<Store>()(
 
       setUserId: (id) => set({ userId: id }),
       setUserEmail: (email) => set({ userEmail: email }),
-      setApiKey: (key) => set({ apiKey: key }),
-      setCustomBaseURL: (url) => set({ customBaseURL: url }),
-      setCustomModel: (model) => set({ customModel: model }),
+      setApiKey: (key) => {
+        try { sessionStorage.setItem('upx_apikey', key); } catch { /* private mode */ }
+        set({ apiKey: key });
+      },
+      setCustomBaseURL: (url) => {
+        try { sessionStorage.setItem('upx_baseurl', url); } catch { /* private mode */ }
+        set({ customBaseURL: url });
+      },
+      setCustomModel: (model) => {
+        try { sessionStorage.setItem('upx_model', model); } catch { /* private mode */ }
+        set({ customModel: model });
+      },
       setKeyMode: (mode) => {
         // Mandatory state cleanup on every switch — prevents stale credentials
         // from leaking between modes. Always clear, regardless of direction.
+        try {
+          sessionStorage.setItem('upx_defaultkey', String(mode === 'default'));
+          sessionStorage.removeItem('upx_apikey');
+          sessionStorage.removeItem('upx_baseurl');
+          sessionStorage.removeItem('upx_model');
+        } catch { /* private mode */ }
         set({
           useDefaultKey: mode === 'default',
           apiKey: '',
@@ -282,7 +299,34 @@ export const useStore = create<Store>()(
         if (!focusSession || !focusSession.pausedAt) return;
         set({ focusSession: { ...focusSession, pausedAt: null, pausedMs: focusSession.pausedMs + (Date.now() - focusSession.pausedAt) } });
       },
-      stopFocus: () => set({ focusSession: null }),
+      stopFocus: () => {
+        const { focusSession, dayHistory } = get();
+        if (focusSession) {
+          // Compute actual elapsed time (exclude paused time)
+          const snapNow = focusSession.pausedAt ?? Date.now();
+          const elapsedMs = snapNow - focusSession.startedAt - focusSession.pausedMs;
+          const elapsedMin = Math.max(0, Math.round(elapsedMs / 60000));
+          if (elapsedMin > 0) {
+            const today = todayDateStr();
+            const existing = dayHistory.find(d => d.date === today);
+            if (existing) {
+              const updated = dayHistory.map(d =>
+                d.date === today
+                  ? { ...d, focus_minutes: (d.focus_minutes ?? 0) + elapsedMin }
+                  : d
+              );
+              set({ dayHistory: updated });
+            } else {
+              // No entry yet for today — create a stub that will be filled by saveDayStats
+              set({ dayHistory: [...dayHistory, {
+                date: today, total_count: 0, done_count: 0,
+                total_minutes: 0, done_minutes: 0, focus_minutes: elapsedMin,
+              }] });
+            }
+          }
+        }
+        set({ focusSession: null });
+      },
       addFocusTime: (ms) => {
         const { focusSession } = get();
         if (!focusSession) return;
@@ -635,6 +679,8 @@ export const useStore = create<Store>()(
         // yesterday's leftover "today" tasks under today's date and corrupt stats.
         if (lastRolloverDate !== todayStr) return;
         const todayTasks = tasks.filter(t => t.day === 'today');
+        // Preserve accumulated focus_minutes from stopFocus calls
+        const existingToday = dayHistory.find(d => d.date === todayStr);
         const stat: DayStats = {
           date: todayStr,
           total_count: todayTasks.length,
@@ -645,6 +691,7 @@ export const useStore = create<Store>()(
             id: t.id, title: t.title, category: t.category,
             duration_minutes: t.duration_minutes, is_done: t.is_done,
           })),
+          ...(existingToday?.focus_minutes ? { focus_minutes: existingToday.focus_minutes } : {}),
         };
         const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== todayStr);
         set({ dayHistory: [...filtered.slice(-29), stat] });
@@ -695,7 +742,7 @@ export const useStore = create<Store>()(
 
           const tomorrowIds: string[] = [];
           const normalised = tasksRes.data.map(t => {
-            if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date !== today)) {
+            if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date > today)) {
               tomorrowIds.push(t.id);
               return { ...t, day: 'today' as const, is_done: false };
             }
@@ -774,10 +821,8 @@ export const useStore = create<Store>()(
         // chatMessages intentionally NOT persisted — each session starts fresh
         // so AI context is consistent across all devices
         dayHistory: s.dayHistory,
-        apiKey: s.apiKey,
-        customBaseURL: s.customBaseURL,
-        customModel: s.customModel,
-        useDefaultKey: s.useDefaultKey,
+        // apiKey/customBaseURL/customModel/useDefaultKey intentionally NOT persisted
+        // — stored in sessionStorage instead so they clear when the browser closes
         lastRolloverDate: s.lastRolloverDate,
         lastMorningBriefDate: s.lastMorningBriefDate,
         lastEveningPromptDate: s.lastEveningPromptDate,
