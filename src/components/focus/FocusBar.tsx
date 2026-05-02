@@ -99,7 +99,9 @@ export function FocusBar() {
   const isPaused = !!focusSession.pausedAt;
 
   // ── Fire notification + beep exactly once on completion ───────────
-  if (isDone && !doneNotified.current) {
+  // Guard: do NOT fire while paused — user may have paused past zero intentionally.
+  // Only notify when timer reaches zero while actively running (not paused).
+  if (isDone && !isPaused && !doneNotified.current) {
     doneNotified.current = true;
     playBeep();
     if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);

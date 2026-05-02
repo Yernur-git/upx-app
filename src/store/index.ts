@@ -450,7 +450,12 @@ export const useStore = create<Store>()(
           const reordered = orderedIds
             .map((id, i) => taskMap.has(id) ? { ...taskMap.get(id)!, sort_order: i } : null)
             .filter(Boolean) as Task[];
-          const rest = s.tasks.filter(t => !orderedIds.includes(t.id));
+          // Done tasks not in orderedIds get sort_orders starting AFTER all pending tasks
+          // so that if they are later unchecked they appear at the end, not at a
+          // conflicting position with pending tasks.
+          const rest = s.tasks
+            .filter(t => !orderedIds.includes(t.id))
+            .map((t, i) => ({ ...t, sort_order: orderedIds.length + i }));
           return { tasks: [...reordered, ...rest] };
         });
         const { userId } = get();
@@ -595,15 +600,30 @@ export const useStore = create<Store>()(
       },
 
       undoLastAI: async () => {
-        const { aiUndoSnapshot, userId } = get();
+        const { aiUndoSnapshot, tasks: currentTasks, userId } = get();
         if (!aiUndoSnapshot) return;
         set({ tasks: aiUndoSnapshot, aiUndoSnapshot: null });
-        if (userId) {
-          await supabase.from('tasks').delete().eq('user_id', userId);
-          if (aiUndoSnapshot.length > 0) {
-            await supabase.from('tasks').insert(
-              aiUndoSnapshot.map(t => ({ ...t, user_id: userId }))
-            );
+        if (userId && userId !== 'local-user') {
+          // Diff instead of delete-all: only touch tasks that actually changed.
+          // Prevents manually-added tasks (between AI action and undo) from being lost.
+          const snapIds  = new Set(aiUndoSnapshot.map(t => t.id));
+          const currIds  = new Set(currentTasks.map(t => t.id));
+          // AI created these → delete them
+          const toDelete = currentTasks.filter(t => !snapIds.has(t.id));
+          // AI deleted these → re-insert them
+          const toInsert = aiUndoSnapshot.filter(t => !currIds.has(t.id));
+          // AI modified these → restore snapshot version
+          const toUpdate = aiUndoSnapshot.filter(t => currIds.has(t.id));
+          if (toDelete.length > 0) {
+            await supabase.from('tasks').delete().in('id', toDelete.map(t => t.id));
+          }
+          if (toInsert.length > 0) {
+            await supabase.from('tasks').insert(toInsert.map(t => ({ ...t, user_id: userId })));
+          }
+          for (const t of toUpdate) {
+            await supabase.from('tasks')
+              .update({ ...t, user_id: userId })
+              .eq('id', t.id).eq('user_id', userId);
           }
         }
       },
@@ -762,6 +782,13 @@ export const useStore = create<Store>()(
         lastMorningBriefDate: s.lastMorningBriefDate,
         lastEveningPromptDate: s.lastEveningPromptDate,
         lastLoadedUserId: s.lastLoadedUserId,
+        // Checkin guards — persisted so banners don't reappear on every page reload
+        lastCheckinDate: s.lastCheckinDate,
+        lastMidCheckinDate: s.lastMidCheckinDate,
+        lastEveningCheckinDate: s.lastEveningCheckinDate,
+        todayCheckin: s.todayCheckin,
+        todayMidEnergy: s.todayMidEnergy,
+        todayEveningMood: s.todayEveningMood,
       }),
     }
   )
