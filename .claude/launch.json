@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "checkin-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", ".", "-l", "4201"],
+      "port": 4201
+    }
+  ]
+}

@@ -57,6 +57,75 @@ export interface AIResponse {
   actions: ParsedAction[];
 }
 
+// ── Behavioral pattern analysis from dayHistory ───────────────────
+function buildPatternInsights(dayHistory: DayStats[]): string {
+  const recent = dayHistory
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 14);
+
+  if (recent.length < 3) return 'Not enough history yet (need 3+ days).';
+
+  // Overall completion rate
+  const avgRate = recent.reduce((s, d) =>
+    s + (d.total_count > 0 ? d.done_count / d.total_count : 0), 0) / recent.length;
+
+  // Avg productive minutes/day
+  const avgMins = recent.reduce((s, d) => s + (d.done_minutes ?? 0), 0) / recent.length;
+  const avgH = Math.floor(avgMins / 60), avgM = Math.round(avgMins % 60);
+
+  // Completion rate by day-of-week
+  const byDow: Record<number, { done: number; total: number; count: number }> = {};
+  for (const d of recent) {
+    const dow = new Date(d.date + 'T12:00:00').getDay();
+    if (!byDow[dow]) byDow[dow] = { done: 0, total: 0, count: 0 };
+    byDow[dow].done += d.done_count;
+    byDow[dow].total += d.total_count;
+    byDow[dow].count++;
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const weakDays  = Object.entries(byDow).filter(([, s]) => s.total > 0 && s.done/s.total < 0.4).map(([d]) => DAYS[+d]);
+  const strongDays = Object.entries(byDow).filter(([, s]) => s.total > 0 && s.done/s.total > 0.85).map(([d]) => DAYS[+d]);
+
+  // Category completion rates
+  const catStats: Record<string, { done: number; total: number }> = {};
+  for (const d of recent) {
+    for (const t of d.tasks ?? []) {
+      if (!catStats[t.category]) catStats[t.category] = { done: 0, total: 0 };
+      catStats[t.category].total++;
+      if (t.is_done) catStats[t.category].done++;
+    }
+  }
+  const skippedCats  = Object.entries(catStats).filter(([, s]) => s.total >= 2 && s.done/s.total < 0.4).map(([c, s]) => `${c}(${Math.round(s.done/s.total*100)}%)`);
+  const strongCats   = Object.entries(catStats).filter(([, s]) => s.total >= 2 && s.done/s.total >= 0.85).map(([c, s]) => `${c}(${Math.round(s.done/s.total*100)}%)`);
+
+  // Current streak
+  let streak = 0;
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().slice(0, 10);
+    const rec = recent.find(r => r.date === ds);
+    if (rec && rec.done_count > 0) streak++; else break;
+  }
+
+  // Overload tendency
+  const overloaded = recent.filter(d => d.total_count > 0 && d.done_count / d.total_count < 0.5).length;
+  const overloadPct = Math.round(overloaded / recent.length * 100);
+
+  const lines: string[] = [
+    `- Avg completion: ${Math.round(avgRate * 100)}% over last ${recent.length} days`,
+    `- Avg productive time/day: ${avgH > 0 ? avgH+'h' : ''}${avgM > 0 ? avgM+'m' : '0m'}`,
+    streak > 1 ? `- Active streak: ${streak} days in a row` : null,
+    weakDays.length  ? `- Low-completion days: ${weakDays.join(', ')} — don't overload these` : null,
+    strongDays.length ? `- Strong days: ${strongDays.join(', ')} — good for deep work` : null,
+    skippedCats.length ? `- Often skipped categories: ${skippedCats.join(', ')} — suggest lighter load or reschedule` : null,
+    strongCats.length  ? `- Reliable categories: ${strongCats.join(', ')}` : null,
+    overloadPct > 40 ? `- Overload tendency: ${overloadPct}% of days had <50% completion — user often plans too much` : null,
+  ].filter(Boolean) as string[];
+
+  return lines.join('\n');
+}
+
 function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = [], checkin?: import('../types').DayCheckin, midEnergy?: number | null, eveningMood?: string | null): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
@@ -192,6 +261,9 @@ ${(() => {
     return `- ${d.date}: ${d.done_count}/${d.total_count} done, ${timeStr} productive${taskLines ? '\n' + taskLines : ''}`;
   }).join('\n');
 })()}
+
+## Behavioral Patterns (auto-detected from last 14 days)
+${buildPatternInsights(dayHistory)}
 
 ## Category Goals Progress (this week)
 ${config.category_goals.length > 0

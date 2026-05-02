@@ -6,7 +6,19 @@
       "Bash(npm list *)",
       "Bash(npx tsc *)",
       "Bash(npm run *)",
-      "Bash(gh pr create --title 'feat: quick add, desktop nav, PWA service worker' --body ' *)"
+      "Bash(gh pr create --title 'feat: quick add, desktop nav, PWA service worker' --body ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit -m 'fix: retry banner no longer triggers on analysis/review responses *)",
+      "Bash(git commit -m 'fix: config sync broken by unknown Supabase columns *)",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_in_Chrome__list_connected_browsers",
+      "WebSearch",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(['Dumbbell','Monitor','Calendar','BookOpen','Wind','Footprints','PersonStanding','Bike','Brain','Leaf','Zap','Sunrise','Sun','Moon','Clock','Target','Battery','Flame','Activity','Heart','Coffee','BookMarked'].filter\\(n => l[n]\\).join\\(', '\\)\\)\")",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(['Sparkles','WavesLadder','Waves','Timer','AlarmClock','BellRing','Siren','Bolt','Focus','Crosshair'].filter\\(n => l[n]\\).join\\(', '\\)\\)\")",
+      "Bash(gh pr *)",
+      "Bash(git commit -m 'fix: destructure chatOpen from useStore in App component *)"
     ]
   }
 }
