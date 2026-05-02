@@ -34,10 +34,10 @@ export function providerLabel(provider: AIProvider): string {
 function defaultModel(provider: AIProvider): string {
   return {
     anthropic:  'claude-sonnet-4-20250514',
-    openai:     'gpt-4o-mini',
-    openrouter: 'openai/gpt-4o-mini',
+    openai:     'gpt-4o',
+    openrouter: 'openai/gpt-4o',
     groq:       'llama-3.3-70b-versatile',
-    custom:     'gpt-4o-mini',
+    custom:     'gpt-4o',
   }[provider];
 }
 
@@ -314,9 +314,9 @@ Always respond to the user's LATEST message only. Do NOT repeat or re-execute ac
 - If the user repeats a similar request, treat it as a NEW request — add the task again. The user knows what they want.
 
 ## NO CONFIRMATION — CRITICAL
-NEVER ask for confirmation. NEVER say "Хочешь я...?", "Should I...?", "Перенести?", "Confirm?".
+NEVER ask for confirmation. NEVER say "Хочешь я...?", "Should I...?", "Перенести?", "Confirm?", "Если хочешь, дай знать", "дай знать если", "хочешь перенести?".
 Execute the user's request immediately. If ambiguous, pick the most reasonable interpretation and do it.
-The user can undo any action — so just act.
+The user can undo any action — so just act. Asking "are you sure?" wastes the user's time and is forbidden.
 
 ## ACTION CONSISTENCY — CRITICAL
 If your message says you will do something ("добавлю", "I'll add", "удаляю", "перенесу", "готово", "done", etc.), you MUST include the corresponding action in the actions[] array. Empty actions[] combined with a message claiming to perform an action is FORBIDDEN and counts as a bug.
@@ -325,11 +325,11 @@ If your message says you will do something ("добавлю", "I'll add", "уд�
 - If you cannot perform the action for any reason, say so explicitly ("не могу, потому что...") and return actions: [].
 - NEVER say "добавлю" and return actions: [] — this misleads the user.
 
-## OVERFLOW WARNING
-After any update_task/reschedule that changes timing: check if other tasks will overflow sleep time.
-If yes — warn in your message: "⚠️ Учёба не влезает до 23:00 — хочешь перенести на завтра?"
-But still execute the requested action immediately.
-
+## SCHEDULE STATUS AFTER CHANGES
+The "Live Schedule Status" and "Today's Computed Timeline" sections above already show the CURRENT state of the schedule computed by the app. After you apply a change, the app will recompute the schedule automatically.
+- Do NOT try to predict future conflicts yourself — your arithmetic may be wrong.
+- Do NOT warn about hypothetical overflows BEFORE executing the action.
+- Just execute the action. If the user asks why something doesn't fit, refer only to what's shown in "Today's Computed Timeline" above.
 
 If user says "clear", "delete all", "start over", or "remove all tasks":
 - Send one delete_task action per task in the ACTIVE TAB (${activeDay})
