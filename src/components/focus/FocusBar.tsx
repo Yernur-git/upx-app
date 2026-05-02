@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Pause, Play, StopCircle, Plus } from 'lucide-react';
+import { Pause, Play, StopCircle, Plus, ChevronDown } from 'lucide-react';
 import { useStore } from '../../store';
 import { canNotify } from '../../lib/notifications';
 
@@ -34,18 +34,60 @@ const ctrlBtn: React.CSSProperties = {
   justifyContent: 'center', gap: 1, cursor: 'pointer', flexShrink: 0,
 };
 
+// ── Big overlay controls button ───────────────────────────────────────
+function OverlayBtn({
+  onClick, label, children, color = 'rgba(255,255,255,.18)',
+}: {
+  onClick: () => void; label: string; children: React.ReactNode; color?: string;
+}) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        gap: 8, padding: '18px 28px',
+        background: color, border: '1.5px solid rgba(255,255,255,.18)',
+        borderRadius: 20, cursor: 'pointer', color: '#fff',
+        fontFamily: 'inherit', transition: 'background .15s',
+        WebkitTapHighlightColor: 'transparent',
+      }}>
+      {children}
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', opacity: 0.8 }}>
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export function FocusBar() {
   const { focusSession, pauseFocus, resumeFocus, stopFocus, addFocusTime, config } = useStore();
   const lang = config.language ?? 'en';
   const [, tick] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
   const doneNotified = useRef(false);
+  // Swipe-down to close
+  const touchStartY = useRef(0);
 
   // Re-render every 250ms while session is active
   useEffect(() => {
-    if (!focusSession) { doneNotified.current = false; return; }
+    if (!focusSession) {
+      doneNotified.current = false;
+      setFullscreen(false);
+      return;
+    }
     const id = setInterval(() => tick(n => n + 1), 250);
     return () => clearInterval(id);
   }, [!!focusSession]);
+
+  // Lock body scroll when fullscreen
+  useEffect(() => {
+    if (fullscreen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [fullscreen]);
 
   if (!focusSession) return null;
 
@@ -73,11 +115,9 @@ export function FocusBar() {
     }
   }
 
-  const bg = isDone
-    ? 'var(--coral)'
-    : isPaused
-      ? 'rgba(160,100,0,.92)'
-      : 'var(--ind)';
+  // ── Colors ────────────────────────────────────────────────────────
+  const accent = isDone ? '#EF4444' : isPaused ? '#B45309' : '#4C5EE8';
+  const bgBar  = isDone ? 'var(--coral)' : isPaused ? 'rgba(160,100,0,.92)' : 'var(--ind)';
 
   const label = isDone
     ? (lang === 'ru' ? '✓ Готово' : '✓ Done')
@@ -85,8 +125,131 @@ export function FocusBar() {
       ? (lang === 'ru' ? '⏸ Пауза' : '⏸ Paused')
       : (lang === 'ru' ? '🎯 Фокус' : '🎯 Focus');
 
+  // ── Fullscreen overlay ────────────────────────────────────────────
+  if (fullscreen) {
+    const gradBg = isDone
+      ? 'linear-gradient(160deg,#7f1d1d 0%,#1c0e0e 100%)'
+      : isPaused
+        ? 'linear-gradient(160deg,#422006 0%,#1c1207 100%)'
+        : 'linear-gradient(160deg,#1e2a7a 0%,#0a0e2a 100%)';
+
+    return (
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 800,
+          background: gradBg,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '40px 24px',
+          animation: 'focusOverlayIn .28s cubic-bezier(.4,0,.2,1)',
+          cursor: 'pointer',
+          userSelect: 'none',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+        onClick={() => setFullscreen(false)}
+        onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY; }}
+        onTouchEnd={(e) => {
+          const dy = e.changedTouches[0].clientY - touchStartY.current;
+          if (dy > 60) setFullscreen(false); // swipe down to close
+        }}
+      >
+        {/* Collapse hint */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setFullscreen(false); }}
+          style={{
+            position: 'absolute', top: 'env(safe-area-inset-top, 16px)',
+            left: '50%', transform: 'translateX(-50%)',
+            marginTop: 16,
+            background: 'rgba(255,255,255,.12)', border: 'none',
+            borderRadius: 20, padding: '8px 20px',
+            cursor: 'pointer', color: 'rgba(255,255,255,.6)',
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+            fontFamily: 'inherit',
+          }}>
+          <ChevronDown size={14} />
+          {lang === 'ru' ? 'Свернуть' : 'Collapse'}
+        </button>
+
+        {/* State badge */}
+        <div style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
+          color: 'rgba(255,255,255,.55)', marginBottom: 20,
+        }}>
+          {label}
+        </div>
+
+        {/* Task title */}
+        <div style={{
+          fontSize: 22, fontWeight: 700, color: '#fff',
+          textAlign: 'center', lineHeight: 1.35,
+          maxWidth: 320, marginBottom: 36,
+          textShadow: '0 2px 16px rgba(0,0,0,.4)',
+        }}>
+          {focusSession.taskTitle}
+        </div>
+
+        {/* Big timer */}
+        <div style={{
+          fontSize: 80, fontWeight: 700, color: '#fff',
+          fontFamily: "'DM Mono', monospace",
+          letterSpacing: '-4px', lineHeight: 1,
+          textShadow: `0 0 40px ${accent}88`,
+          marginBottom: 16,
+        }}>
+          {isDone ? `+${formatTime(-remaining)}` : formatTime(remaining)}
+        </div>
+
+        {/* Overtime label */}
+        {isDone && (
+          <div style={{ fontSize: 13, color: 'rgba(255,160,160,.85)', marginBottom: 32, fontWeight: 600 }}>
+            {lang === 'ru' ? 'Сверхурочно' : 'Overtime'}
+          </div>
+        )}
+        {!isDone && <div style={{ height: 32 }} />}
+
+        {/* Controls — stop propagation so taps don't close overlay */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}
+          onClick={e => e.stopPropagation()}>
+          {!isDone && (
+            <OverlayBtn onClick={() => addFocusTime(15 * 60 * 1000)} label={lang === 'ru' ? '+15 мин' : '+15 min'}>
+              <Plus size={22} color="#fff" />
+            </OverlayBtn>
+          )}
+          {!isDone && (
+            <OverlayBtn
+              onClick={() => isPaused ? resumeFocus() : pauseFocus()}
+              label={isPaused ? (lang === 'ru' ? 'Продолжить' : 'Resume') : (lang === 'ru' ? 'Пауза' : 'Pause')}>
+              {isPaused ? <Play size={22} color="#fff" /> : <Pause size={22} color="#fff" />}
+            </OverlayBtn>
+          )}
+          <OverlayBtn
+            onClick={() => { stopFocus(); setFullscreen(false); }}
+            label={lang === 'ru' ? 'Стоп' : 'Stop'}
+            color="rgba(239,68,68,.35)">
+            <StopCircle size={22} color="#fff" />
+          </OverlayBtn>
+        </div>
+
+        {/* Subtle ring animation behind timer */}
+        <div style={{
+          position: 'absolute',
+          width: 260, height: 260,
+          borderRadius: '50%',
+          border: `2px solid ${accent}33`,
+          animation: 'focusRingPulse 3s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+      </div>
+    );
+  }
+
+  // ── Compact bar (default) ─────────────────────────────────────────
   return (
-    <div className="focus-bar" style={{ background: bg }}>
+    <div
+      className="focus-bar"
+      style={{ background: bgBar, cursor: 'pointer' }}
+      onClick={() => setFullscreen(true)}
+    >
       {/* Task info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
@@ -114,9 +277,12 @@ export function FocusBar() {
         {isDone ? `+${formatTime(-remaining)}` : formatTime(remaining)}
       </div>
 
-      {/* Controls */}
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-        {/* +15 min — only while running/paused, not in overtime */}
+      {/* Controls — stop propagation so bar tap doesn't open fullscreen */}
+      <div
+        style={{ display: 'flex', gap: 6, flexShrink: 0 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* +15 min */}
         {!isDone && (
           <button
             onClick={() => addFocusTime(15 * 60 * 1000)}
