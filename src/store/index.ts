@@ -49,6 +49,15 @@ interface Store {
   lastLoadedUserId: string | null;
   todayCheckin: DayCheckin | null;
   lastCheckinDate: string | null;
+  lastMidCheckinDate: string | null;
+  lastEveningCheckinDate: string | null;
+  todayMidEnergy: number | null;
+  todayEveningMood: string | null;  // 'great' | 'ok' | 'rough'
+  dismissCheckin: () => void;
+  setMidCheckin: (energy: number) => void;
+  dismissMidCheckin: () => void;
+  setEveningCheckin: (mood: string) => void;
+  dismissEveningCheckin: () => void;
 
   setUserId: (id: string | null) => void;
   setUserEmail: (email: string | null) => void;
@@ -202,6 +211,10 @@ export const useStore = create<Store>()(
       lastLoadedUserId: null,
       todayCheckin: null,
       lastCheckinDate: null,
+      lastMidCheckinDate: null,
+      lastEveningCheckinDate: null,
+      todayMidEnergy: null,
+      todayEveningMood: null,
       pendingChatInput: '',
 
       setUserId: (id) => set({ userId: id }),
@@ -226,6 +239,11 @@ export const useStore = create<Store>()(
       setLastEveningPromptDate: (date) => set({ lastEveningPromptDate: date }),
       setPendingChatInput: (s) => set({ pendingChatInput: s }),
       setCheckin: (c) => set({ todayCheckin: c, lastCheckinDate: todayDateStr() }),
+      dismissCheckin: () => set({ lastCheckinDate: todayDateStr() }),
+      setMidCheckin: (energy) => set({ todayMidEnergy: energy, lastMidCheckinDate: todayDateStr() }),
+      dismissMidCheckin: () => set({ lastMidCheckinDate: todayDateStr() }),
+      setEveningCheckin: (mood) => set({ todayEveningMood: mood, lastEveningCheckinDate: todayDateStr() }),
+      dismissEveningCheckin: () => set({ lastEveningCheckinDate: todayDateStr() }),
 
       checkAndRollover: async () => {
         const today = todayDateStr();

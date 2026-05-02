@@ -57,7 +57,7 @@ export interface AIResponse {
   actions: ParsedAction[];
 }
 
-function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = [], checkin?: import('../types').DayCheckin): string {
+function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = [], checkin?: import('../types').DayCheckin, midEnergy?: number | null, eveningMood?: string | null): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
   const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
 
@@ -138,10 +138,12 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
 - Peak focus window: ${config.peak_focus_time ?? 'not set'}
 - **User is currently viewing: ${activeDay.toUpperCase()} tab** — when adding tasks without explicit day, use "${activeDay}"
 
-## Morning Check-in
+## Daily Check-ins
 ${checkin
-  ? `- Sleep: ${checkin.sleep_hours}h | Energy: ${checkin.energy}/5 | Mood: ${checkin.mood}${checkin.note ? ` | Note: "${checkin.note}"` : ''}`
-  : '- No check-in today (user skipped or first open)'}
+  ? `- Morning: Sleep ${checkin.sleep_hours}h | Energy ${checkin.energy}/5 | Mood: ${checkin.mood}${checkin.note ? ` | Note: "${checkin.note}"` : ''}`
+  : '- Morning: No check-in today'}
+${midEnergy != null ? `- Mid-day energy: ${midEnergy}/5` : ''}
+${eveningMood ? `- Evening mood: day went ${eveningMood}` : ''}
 
 ## Energy & Fatigue Context
 - Time of day: ${timeOfDay} | Baseline energy: ${baseEnergy}
@@ -526,6 +528,8 @@ export async function sendChatMessage(
   useDefaultKey?: boolean,
   dayHistory: DayStats[] = [],
   checkin?: import('../types').DayCheckin,
+  midEnergy?: number | null,
+  eveningMood?: string | null,
 ): Promise<AIResponse> {
   // Default mode: ignore any client-side credentials, force the proxy path.
   // This is what makes "Default" actually default — even stale state can't leak through.
@@ -534,7 +538,7 @@ export async function sendChatMessage(
   const effectiveModel = useDefaultKey ? undefined : customModel;
   const provider = detectProvider(effectiveKey, effectiveBaseURL);
   const cfg: AIConfig = { apiKey: effectiveKey, provider, baseURL: effectiveBaseURL, model: effectiveModel };
-  const systemPrompt = buildSystemPrompt(tasks, config, activeDay, dayHistory, checkin);
+  const systemPrompt = buildSystemPrompt(tasks, config, activeDay, dayHistory, checkin, midEnergy, eveningMood);
 
   const rawText = provider === 'anthropic'
     ? await callAnthropic(userMessage, history, systemPrompt, cfg)

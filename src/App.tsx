@@ -50,6 +50,8 @@ export default function App() {
     lastMorningBriefDate, setLastMorningBriefDate,
     lastEveningPromptDate, setLastEveningPromptDate,
     isLoading, lastCheckinDate, todayCheckin,
+    lastMidCheckinDate, lastEveningCheckinDate,
+    dismissCheckin, setMidCheckin, dismissMidCheckin, setEveningCheckin, dismissEveningCheckin,
   } = useStore();
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -58,6 +60,8 @@ export default function App() {
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [showMorningBanner, setShowMorningBanner] = useState(false);
   const [showEveningBanner, setShowEveningBanner] = useState(false);
+  const [showMidCheckin, setShowMidCheckin] = useState(false);
+  const [showEveningCheckin, setShowEveningCheckin] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showCheckin, setShowCheckin] = useState(false);
   const [showSplash, setShowSplash] = useState(() => {
@@ -186,6 +190,24 @@ export default function App() {
     }
   }, [authChecked, showSplash, tasks, lastEveningPromptDate]);
 
+  // Mid-day check-in banner: 12:00–15:00
+  useEffect(() => {
+    const h = new Date().getHours();
+    const today = todayStr();
+    if (h >= 12 && h < 15 && lastMidCheckinDate !== today && authChecked && !showSplash && userId) {
+      setShowMidCheckin(true);
+    }
+  }, [authChecked, showSplash, lastMidCheckinDate, userId]);
+
+  // Evening check-in banner: 19:00–23:00
+  useEffect(() => {
+    const h = new Date().getHours();
+    const today = todayStr();
+    if (h >= 19 && h < 23 && lastEveningCheckinDate !== today && authChecked && !showSplash && userId) {
+      setShowEveningCheckin(true);
+    }
+  }, [authChecked, showSplash, lastEveningCheckinDate, userId]);
+
   // Schedule task notifications whenever tasks/config change
   useEffect(() => {
     if (!canNotify()) return;
@@ -222,7 +244,7 @@ export default function App() {
       )}
 
       {showCheckin && !showOnboarding && !showSplash && (
-        <MorningCheckin onDone={() => setShowCheckin(false)} />
+        <MorningCheckin onDone={() => { setShowCheckin(false); dismissCheckin(); }} />
       )}
 
       {/* ── DESKTOP SIDEBAR NAV (≥900px) ── */}
@@ -352,6 +374,80 @@ export default function App() {
                     onClick={() => { setShowEveningBanner(false); setLastEveningPromptDate(todayStr()); }}>
                     <X size={14} />
                   </button>
+                </div>
+              )}
+
+              {/* Mid-day energy check-in */}
+              {showMidCheckin && (
+                <div style={{
+                  margin: '0 18px 10px', padding: '12px 14px',
+                  background: 'var(--must-l)', border: '1px solid var(--must)',
+                  borderRadius: 12, flexShrink: 0,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>
+                      {config.language === 'ru' ? '⚡ Как энергия сейчас?' : '⚡ How\'s your energy?'}
+                    </div>
+                    <button className="btn-icon" style={{ padding: 4 }}
+                      onClick={() => { setShowMidCheckin(false); dismissMidCheckin(); }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([
+                      { energy: 2, labelEn: 'Low', labelRu: 'Слабо', color: '#ff9500' },
+                      { energy: 3, labelEn: 'OK',  labelRu: 'Норм',  color: '#ffcc00' },
+                      { energy: 5, labelEn: 'Peak',labelRu: 'Пик',   color: '#34c759' },
+                    ] as const).map(({ energy, labelEn, labelRu, color }) => (
+                      <button key={energy}
+                        onClick={() => { setMidCheckin(energy); setShowMidCheckin(false); }}
+                        style={{
+                          flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${color}44`,
+                          background: `${color}18`, color: 'var(--tx)', fontSize: 12, fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                        }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, margin: '0 auto 4px' }} />
+                        {config.language === 'ru' ? labelRu : labelEn}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Evening reflection check-in */}
+              {showEveningCheckin && (
+                <div style={{
+                  margin: '0 18px 10px', padding: '12px 14px',
+                  background: 'var(--ind-l)', border: '1px solid var(--ind-m)',
+                  borderRadius: 12, flexShrink: 0,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--tx)' }}>
+                      {config.language === 'ru' ? '🌙 Как прошёл день?' : '🌙 How did the day go?'}
+                    </div>
+                    <button className="btn-icon" style={{ padding: 4 }}
+                      onClick={() => { setShowEveningCheckin(false); dismissEveningCheckin(); }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {([
+                      { mood: 'great', labelEn: 'Great',  labelRu: 'Отлично', color: '#34c759' },
+                      { mood: 'ok',    labelEn: 'OK',      labelRu: 'Норм',    color: '#5C6B9C' },
+                      { mood: 'rough', labelEn: 'Rough',   labelRu: 'Тяжело',  color: '#ff6b6b' },
+                    ] as const).map(({ mood, labelEn, labelRu, color }) => (
+                      <button key={mood}
+                        onClick={() => { setEveningCheckin(mood); setShowEveningCheckin(false); }}
+                        style={{
+                          flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${color}44`,
+                          background: `${color}18`, color: 'var(--tx)', fontSize: 12, fontWeight: 600,
+                          cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s',
+                        }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color, margin: '0 auto 4px' }} />
+                        {config.language === 'ru' ? labelRu : labelEn}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
