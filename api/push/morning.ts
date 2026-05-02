@@ -1,6 +1,11 @@
 /**
- * Vercel Cron — runs daily (configured in vercel.json).
- * Sends a morning briefing push to every subscribed user.
+ * Vercel Cron — runs daily at 02:00 UTC (configured in vercel.json).
+ * 02:00 UTC = 07:00 UTC+5 (Almaty / Tashkent).
+ * Sends a morning briefing push to ALL subscribed users.
+ *
+ * NOTE: per-timezone delivery (each user gets it at their local 7 AM) requires
+ * an hourly cron — available on Vercel Pro. On Hobby, this single daily run
+ * covers UTC+5 precisely; other timezones receive it within a few hours of morning.
  *
  * Env vars required (Node runtime — no VITE_ prefix needed server-side):
  *   SUPABASE_URL or VITE_SUPABASE_URL
@@ -40,7 +45,7 @@ export default async function handler(req: Request) {
 
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // Fetch all push subscriptions
+  // Fetch all push subscriptions (include tz_offset for timezone-aware dispatch)
   const { data: subs, error: subErr } = await supabase
     .from('push_subscriptions')
     .select('*');

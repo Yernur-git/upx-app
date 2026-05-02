@@ -24,14 +24,14 @@
   "screenshots": [
     {
       "src": "/screenshot-plan.png",
-      "sizes": "390x844",
+      "sizes": "1170x2532",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Daily plan with AI scheduling"
     },
     {
       "src": "/screenshot-stats.png",
-      "sizes": "390x844",
+      "sizes": "1170x2532",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Weekly stats and streaks"

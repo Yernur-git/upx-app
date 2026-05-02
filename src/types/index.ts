@@ -24,6 +24,9 @@ export interface Task {
   sort_order: number;
   created_at: string;
   user_id?: string;
+  // Actual time-tracking — written by stopFocus(); null until a focus session is completed
+  actual_duration_minutes?: number;  // real elapsed focus minutes
+  actual_start_time?: string;        // ISO timestamp when focus started
 }
 
 export interface CategoryGoal {
@@ -103,6 +106,16 @@ export interface DayStatTask {
   category: string;
   duration_minutes: number;
   is_done: boolean;
+  actual_duration_minutes?: number;  // set when task was focused on
+}
+
+export interface FocusSession {
+  taskId: string;
+  taskTitle: string;
+  durationMs: number;    // planned duration in ms
+  startedAt: number;     // Date.now() when timer started / last resumed
+  pausedAt: number | null; // Date.now() when paused; null = running
+  pausedMs: number;      // total accumulated paused ms
 }
 
 export interface FocusSession {

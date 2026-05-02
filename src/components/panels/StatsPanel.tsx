@@ -579,7 +579,17 @@ function TaskRow({ task, done }: { task: DayStatTask; done: boolean }) {
         fontSize: 11, color: 'var(--tx3)',
         fontFamily: "'DM Mono', monospace", flexShrink: 0,
       }}>
-        {formatDuration(task.duration_minutes)}
+        {task.actual_duration_minutes != null && task.actual_duration_minutes !== task.duration_minutes ? (
+          // Show actual/planned when they differ — e.g. "45m / 60m"
+          <span title="actual / planned">
+            <span style={{ color: task.actual_duration_minutes < task.duration_minutes ? 'var(--sage)' : 'var(--must)' }}>
+              {formatDuration(task.actual_duration_minutes)}
+            </span>
+            <span style={{ opacity: 0.5 }}> / {formatDuration(task.duration_minutes)}</span>
+          </span>
+        ) : (
+          formatDuration(task.duration_minutes)
+        )}
       </span>
     </div>
   );
