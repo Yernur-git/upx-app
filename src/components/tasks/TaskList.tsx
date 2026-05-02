@@ -89,8 +89,8 @@ function BottomSheet({ open, onClose, children, title }: {
 }
 
 // ─── Quick Action Sheet ────────────────────────────────────────────
-export function QuickActionSheet({ open, onClose, day }: {
-  open: boolean; onClose: () => void; day: 'today' | 'tomorrow';
+export function QuickActionSheet({ open, onClose, day, plannedDate }: {
+  open: boolean; onClose: () => void; day: 'today' | 'tomorrow'; plannedDate?: string;
 }) {
   const t = useT();
   const { addTask, config, updateConfig } = useStore();
@@ -123,6 +123,7 @@ export function QuickActionSheet({ open, onClose, day }: {
         recurrence: 'none',
         sort_order: 0,
         fixed_time: qt.fixed_time || undefined,
+        planned_date: plannedDate,
       });
       setDone(qt.id);
       // Reset tile back to normal after animation — don't auto-close
@@ -140,7 +141,7 @@ export function QuickActionSheet({ open, onClose, day }: {
   if (showAddForm) {
     return (
       <BottomSheet open={open} onClose={() => { setShowAddForm(false); onClose(); }} title={t('task.add.btn')}>
-        <AddTaskForm day={day} onDone={() => { setShowAddForm(false); onClose(); }} />
+        <AddTaskForm day={day} plannedDate={plannedDate} onDone={() => { setShowAddForm(false); onClose(); }} />
       </BottomSheet>
     );
   }
@@ -345,7 +346,7 @@ const MOODS = [
 export function TaskList() {
   const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks,
-          setActiveChatDay, config } = useStore();
+          setActiveChatDay, setActiveChatDate, config } = useStore();
   const lang = config.language ?? 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -356,10 +357,11 @@ export function TaskList() {
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const activeDay: 'today' | 'tomorrow' = selectedDate === todayStr ? 'today' : 'tomorrow';
 
-  // Keep store's activeChatDay in sync (used by AI context)
+  // Keep store's activeChatDay + activeChatDate in sync (used by AI context + quick-add sheet)
   useEffect(() => {
     setActiveChatDay(activeDay);
-  }, [activeDay, setActiveChatDay]);
+    setActiveChatDate(selectedDate);
+  }, [activeDay, selectedDate, setActiveChatDay, setActiveChatDate]);
 
   // 7-day strip data
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(todayStr, i));

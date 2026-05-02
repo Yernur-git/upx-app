@@ -74,7 +74,7 @@ export default function App() {
     config, userId, userEmail, tasks,
     setUserId, setUserEmail, loadFromSupabase,
     activePanel, setActivePanel,
-    activeChatDay,
+    activeChatDay, activeChatDate,
     checkAndRollover, saveDayStats,
     chatMessages, addChatMessage, applyActions,
     apiKey, customBaseURL, customModel, useDefaultKey,
@@ -83,6 +83,7 @@ export default function App() {
     lastEveningPromptDate, setLastEveningPromptDate,
     isLoading, lastCheckinDate, todayCheckin,
     lastMidCheckinDate, lastEveningCheckinDate,
+    todayMidEnergy, todayEveningMood,
     dismissCheckin, setMidCheckin, dismissMidCheckin, setEveningCheckin, dismissEveningCheckin,
   } = useStore();
 
@@ -135,7 +136,7 @@ export default function App() {
     if (authChecked && userId && !isLoading && lastCheckinDate !== todayStr()) {
       setShowCheckin(true);
     }
-  }, [authChecked, userId, isLoading]);
+  }, [authChecked, userId, isLoading, lastCheckinDate]);
 
   // saveDayStats every 5 minutes so it's not lost on tab close
   useEffect(() => {
@@ -177,14 +178,14 @@ export default function App() {
     }
   }, [userId]);
 
-  // Show onboarding for first-time users (after splash + auth confirmed)
+  // Show onboarding for first-time users (after splash + auth confirmed + data loaded)
   useEffect(() => {
-    if (!userId || !authChecked || showSplash) return;
+    if (!userId || !authChecked || showSplash || isLoading) return;
     const key = `upx_onboarded_${userId}`;
     if (!localStorage.getItem(key)) {
       setShowOnboarding(true);
     }
-  }, [userId, authChecked, showSplash]);
+  }, [userId, authChecked, showSplash, isLoading]);
 
   // Helper: fire an AI message without the user typing
   const sendAutoMessage = useCallback(async (text: string) => {
@@ -194,13 +195,15 @@ export default function App() {
         text, chatMessages, tasks, config,
         apiKey, 'today', customBaseURL, customModel, useDefaultKey, [],
         todayCheckin ?? undefined,
+        todayMidEnergy,
+        todayEveningMood,
       );
       const applied = result.actions.length > 0 ? await applyActions(result.actions) : 0;
       addChatMessage({ role: 'assistant', content: result.message, actions: applied > 0 ? result.actions.slice(0, applied) : [] });
     } catch (err) {
       addChatMessage({ role: 'assistant', content: tr('chat.error', { err: err instanceof Error ? err.message : 'Error' }), actions: [] });
     }
-  }, [tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, chatMessages, addChatMessage, applyActions, todayCheckin]);
+  }, [tasks, config, apiKey, customBaseURL, customModel, useDefaultKey, chatMessages, addChatMessage, applyActions, todayCheckin, todayMidEnergy, todayEveningMood]);
 
   // Morning briefing banner: show once per day between 06:00–11:00 if there are tasks
   useEffect(() => {
@@ -569,6 +572,13 @@ export default function App() {
         open={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
         day={activeChatDay}
+        plannedDate={(() => {
+          if (!activeChatDate) return undefined;
+          const t = todayStr();
+          const d = new Date(t + 'T12:00:00'); d.setDate(d.getDate() + 1);
+          const tmr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          return activeChatDate !== t && activeChatDate !== tmr ? activeChatDate : undefined;
+        })()}
       />
 
       <FocusBar />

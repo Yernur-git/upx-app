@@ -42,6 +42,7 @@ interface Store {
   chatOpen: boolean;
   activePanel: AppPanel;
   activeChatDay: 'today' | 'tomorrow';
+  activeChatDate: string | null;
   lastRolloverDate: string | null;
   lastMorningBriefDate: string | null;
   lastEveningPromptDate: string | null;
@@ -78,6 +79,7 @@ interface Store {
   setChatOpen: (open: boolean) => void;
   setActivePanel: (panel: AppPanel) => void;
   setActiveChatDay: (day: 'today' | 'tomorrow') => void;
+  setActiveChatDate: (date: string) => void;
   setLastMorningBriefDate: (date: string) => void;
   setLastEveningPromptDate: (date: string) => void;
   pendingChatInput: string;
@@ -221,6 +223,7 @@ export const useStore = create<Store>()(
       chatOpen: false,
       activePanel: 'plan',
       activeChatDay: 'today',
+      activeChatDate: null,
       lastRolloverDate: null,
       lastMorningBriefDate: null,
       lastEveningPromptDate: null,
@@ -268,6 +271,7 @@ export const useStore = create<Store>()(
       setChatOpen: (open) => set({ chatOpen: open }),
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveChatDay: (day) => set({ activeChatDay: day }),
+      setActiveChatDate: (date) => set({ activeChatDate: date }),
       setLastMorningBriefDate: (date) => set({ lastMorningBriefDate: date }),
       setLastEveningPromptDate: (date) => set({ lastEveningPromptDate: date }),
       setPendingChatInput: (s) => set({ pendingChatInput: s }),
@@ -835,6 +839,14 @@ export const useStore = create<Store>()(
           lastRolloverDate: null,
           lastMorningBriefDate: null,
           lastEveningPromptDate: null,
+          // Clear per-user checkin state so banners re-appear on next login
+          lastCheckinDate: null,
+          lastMidCheckinDate: null,
+          lastEveningCheckinDate: null,
+          todayCheckin: null,
+          todayMidEnergy: null,
+          todayEveningMood: null,
+          focusSession: null,
         });
       },
     }),
