@@ -1,5 +1,5 @@
 import type { Task, UserConfig, ChatMessage, ParsedAction, DayStats } from '../types';
-import { minutesToTime, buildSchedule, formatDuration } from './scheduler';
+import { minutesToTime, timeToMinutes, buildSchedule, formatDuration } from './scheduler';
 
 export type AIProvider = 'anthropic' | 'openai' | 'openrouter' | 'groq' | 'custom';
 
@@ -197,7 +197,7 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
       // by seeing "@09:00" in the task list but "14:00–15:00" in the timeline.
       const fixedNote = blk.task.fixed_time
         ? (() => {
-            const { timeToMinutes } = require('./scheduler') as { timeToMinutes: (t: string) => number };
+            // timeToMinutes imported at top of file
             const intendedMin = timeToMinutes(blk.task.fixed_time);
             return intendedMin !== blk.start_minutes
               ? ` [originally @${blk.task.fixed_time}, placed here because that time passed]`

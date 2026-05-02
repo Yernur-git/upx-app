@@ -123,4 +123,6 @@ export interface DayStats {
   total_count: number;
   /** Per-task snapshot — added in v4. Older entries may not have this. */
   tasks?: DayStatTask[];
+  /** Cumulative minutes spent in Focus Mode for this day (accumulated on stopFocus). */
+  focus_minutes?: number;
 }

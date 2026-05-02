@@ -33,6 +33,10 @@ export function StatsPanel() {
   const todayDone = doneTasks.reduce((s, tt) => s + tt.duration_minutes, 0);
   const todayPct = todayTotal > 0 ? Math.round((todayDone / todayTotal) * 100) : 0;
 
+  // Focus minutes accumulated via stopFocus() for today
+  const todayIso = isoDate(new Date());
+  const todayFocusMin = dayHistory.find(d => d.date === todayIso)?.focus_minutes ?? 0;
+
   // Build week — last 7 days. For today, snapshot live; for past, use dayHistory.
   const weekStats = useMemo(() => {
     const days: { date: string; done: number; total: number; doneCount: number; totalCount: number; tasks: DayStatTask[]; isToday: boolean }[] = [];
@@ -259,10 +263,13 @@ export function StatsPanel() {
 
       {/* Today */}
       <Section title={t('stats.today')}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: todayFocusMin > 0 ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
           <StatCard label={t('stats.done')} value={`${todayPct}%`} color="var(--ind)" />
           <StatCard label={t('stats.hoursDone')} value={formatDuration(todayDone)} color="var(--sage)" />
           <StatCard label={t('stats.remaining')} value={formatDuration(Math.max(0, todayTotal - todayDone))} color="var(--must)" />
+          {todayFocusMin > 0 && (
+            <StatCard label={config.language === 'ru' ? '🎯 Фокус' : '🎯 Focus'} value={formatDuration(todayFocusMin)} color="var(--ind)" />
+          )}
         </div>
 
         <div style={{ height: 6, background: 'var(--sf3)', borderRadius: 6, overflow: 'hidden' }}>
