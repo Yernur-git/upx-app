@@ -192,7 +192,19 @@ function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today'
       const start = minutesToTime(blk.start_minutes);
       const end   = minutesToTime(blk.end_minutes);
       const status = blk.task.is_done ? 'done' : nowMinutes >= blk.start_minutes ? 'in progress' : 'upcoming';
-      return `- ${start}–${end} "${blk.task.title}" [${blk.task.category}] [${status}]`;
+      // If task has a fixed_time but the scheduler placed it later (because its
+      // fixed_time already passed), note the discrepancy so the AI is not confused
+      // by seeing "@09:00" in the task list but "14:00–15:00" in the timeline.
+      const fixedNote = blk.task.fixed_time
+        ? (() => {
+            const { timeToMinutes } = require('./scheduler') as { timeToMinutes: (t: string) => number };
+            const intendedMin = timeToMinutes(blk.task.fixed_time);
+            return intendedMin !== blk.start_minutes
+              ? ` [originally @${blk.task.fixed_time}, placed here because that time passed]`
+              : ` [@${blk.task.fixed_time}]`;
+          })()
+        : '';
+      return `- ${start}–${end} "${blk.task.title}" [${blk.task.category}] [${status}]${fixedNote}`;
     });
   const timelineStr = timelineLines.length > 0 ? timelineLines.join('\n') : 'No scheduled blocks yet.';
 
