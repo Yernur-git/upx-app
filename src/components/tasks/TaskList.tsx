@@ -426,46 +426,57 @@ export function TaskList() {
       </BottomSheet>
 
       {/* 7-day week strip */}
-      <div style={{ padding: '0 18px 10px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'none' }}>
+      <div style={{ padding: '12px 14px 8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 3 }}>
           {weekDates.map(date => {
             const isSelected = date === selectedDate;
             const isToday    = date === todayStr;
             const count      = tasksByDate(date).filter(t => !t.is_done).length;
             const done       = tasksByDate(date).filter(t => t.is_done).length;
             const d          = new Date(date + 'T12:00:00');
-            const dayName    = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
+            const dayName    = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' }).replace('.', '');
             const dayNum     = d.getDate();
             return (
               <button key={date}
                 onClick={() => setSelectedDate(date)}
                 style={{
-                  flex: '0 0 auto', minWidth: 44,
+                  flex: 1,
+                  minWidth: 0,
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: 2, padding: '7px 6px 6px',
-                  borderRadius: 12, border: 'none', cursor: 'pointer',
+                  gap: 3, padding: '8px 4px 7px',
+                  borderRadius: 14, border: 'none', cursor: 'pointer',
                   background: isSelected ? 'var(--ind)' : isToday ? 'var(--ind-l)' : 'transparent',
                   fontFamily: 'inherit', transition: 'background .15s',
+                  WebkitTapHighlightColor: 'transparent',
                 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: isSelected ? 'rgba(255,255,255,.75)' : 'var(--tx3)', lineHeight: 1 }}>
-                  {dayName.replace('.', '')}
+                <span style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '.03em',
+                  textTransform: 'uppercase',
+                  color: isSelected ? 'rgba(255,255,255,.8)' : 'var(--tx3)',
+                  lineHeight: 1, whiteSpace: 'nowrap',
+                }}>
+                  {dayName}
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: isSelected ? '#fff' : isToday ? 'var(--ind)' : 'var(--tx)', lineHeight: 1.1 }}>
+                <span style={{
+                  fontSize: 16, fontWeight: 700,
+                  color: isSelected ? '#fff' : isToday ? 'var(--ind)' : 'var(--tx)',
+                  lineHeight: 1.1,
+                }}>
                   {dayNum}
                 </span>
-                {/* task count dot */}
+                {/* task count badge */}
                 <div style={{ height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {(count + done) > 0 ? (
                     <span style={{
                       fontSize: 9, fontWeight: 700, lineHeight: 1,
                       padding: '1px 5px', borderRadius: 8,
-                      background: isSelected ? 'rgba(255,255,255,.25)' : 'var(--ind-l)',
+                      background: isSelected ? 'rgba(255,255,255,.28)' : 'var(--ind-l)',
                       color: isSelected ? '#fff' : 'var(--ind)',
                     }}>
                       {done > 0 && count === 0 ? '✓' : count}
                     </span>
                   ) : (
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--bdr2)' }} />
+                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: isSelected ? 'rgba(255,255,255,.4)' : 'var(--bdr2)' }} />
                   )}
                 </div>
               </button>
