@@ -351,6 +351,16 @@ input[type="time"] { min-width: 0; }
   to   { transform: translateY(0);    opacity: 1; }
 }
 
+/* ── FOCUS OVERLAY ANIMATIONS ── */
+@keyframes focusOverlayIn {
+  from { opacity: 0; transform: scale(1.03); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes focusRingPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.5; }
+  50%       { transform: scale(1.18); opacity: 0.15; }
+}
+
 /* ── VOICE ANIMATIONS ── */
 @keyframes mic-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(239,96,96,.4); }

@@ -494,17 +494,37 @@ export function TaskList() {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px', minHeight: 0 }}>
-        {pendingTasks.length === 0 && doneTasks.length === 0 && (
-          <div className="empty-state" style={{ marginTop: 16 }}>
-            <div className="empty-icon">
-              {activeDay === 'today'
-                ? <ClipboardList size={32} strokeWidth={1.5} color="var(--tx3)" />
-                : <ChevronRight size={32} strokeWidth={1.5} color="var(--tx3)" />}
+        {pendingTasks.length === 0 && doneTasks.length === 0 && (() => {
+          const isTodayEmpty    = selectedDate === todayStr;
+          const isTomorrowEmpty = selectedDate === tomorrowStr;
+          const d = new Date(selectedDate + 'T12:00:00');
+          const dayName = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'long' });
+          return (
+            <div className="empty-state" style={{ marginTop: 16 }}>
+              <div className="empty-icon">
+                {isTodayEmpty
+                  ? <ClipboardList size={32} strokeWidth={1.5} color="var(--tx3)" />
+                  : <ChevronRight size={32} strokeWidth={1.5} color="var(--tx3)" />}
+              </div>
+              <h3>
+                {isTodayEmpty
+                  ? t('task.empty.today.title')
+                  : isTomorrowEmpty
+                    ? t('task.empty.tomorrow.title')
+                    : (lang === 'ru' ? `${dayName} свободен` : `${dayName} is free`)}
+              </h3>
+              <p>
+                {isTodayEmpty
+                  ? t('task.empty.today.desc')
+                  : isTomorrowEmpty
+                    ? t('task.empty.tomorrow.desc')
+                    : (lang === 'ru'
+                        ? 'Нет задач на этот день — нажмите + чтобы добавить.'
+                        : 'No tasks for this day — tap + to add one.')}
+              </p>
             </div>
-            <h3>{activeDay === 'today' ? t('task.empty.today.title') : t('task.empty.tomorrow.title')}</h3>
-            <p>{activeDay === 'today' ? t('task.empty.today.desc') : t('task.empty.tomorrow.desc')}</p>
-          </div>
-        )}
+          );
+        })()}
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={() => setIsDraggingAny(true)} onDragEnd={(event) => { setIsDraggingAny(false); handleDragEnd(event); }} onDragCancel={() => setIsDraggingAny(false)}>
           <SortableContext items={pendingTasks.map(t2 => t2.id)} strategy={verticalListSortingStrategy}>
