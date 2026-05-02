@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Task, UserConfig, ChatMessage, ParsedAction, AppPanel, DayStats, DayCheckin } from '../types';
+import type { Task, UserConfig, ChatMessage, ParsedAction, AppPanel, DayStats, DayCheckin, FocusSession } from '../types';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
 
@@ -53,6 +53,15 @@ interface Store {
   lastEveningCheckinDate: string | null;
   todayMidEnergy: number | null;
   todayEveningMood: string | null;  // 'great' | 'ok' | 'rough'
+
+  // Focus timer
+  focusSession: FocusSession | null;
+  startFocus: (task: Task) => void;
+  pauseFocus: () => void;
+  resumeFocus: () => void;
+  stopFocus: () => void;
+  addFocusTime: (ms: number) => void;
+
   dismissCheckin: () => void;
   setMidCheckin: (energy: number) => void;
   dismissMidCheckin: () => void;
@@ -215,6 +224,7 @@ export const useStore = create<Store>()(
       lastEveningCheckinDate: null,
       todayMidEnergy: null,
       todayEveningMood: null,
+      focusSession: null,
       pendingChatInput: '',
 
       setUserId: (id) => set({ userId: id }),
@@ -244,6 +254,34 @@ export const useStore = create<Store>()(
       dismissMidCheckin: () => set({ lastMidCheckinDate: todayDateStr() }),
       setEveningCheckin: (mood) => set({ todayEveningMood: mood, lastEveningCheckinDate: todayDateStr() }),
       dismissEveningCheckin: () => set({ lastEveningCheckinDate: todayDateStr() }),
+
+      // ── Focus timer ────────────────────────────────────────────────
+      startFocus: (task) => set({
+        focusSession: {
+          taskId: task.id,
+          taskTitle: task.title,
+          durationMs: task.duration_minutes * 60 * 1000,
+          startedAt: Date.now(),
+          pausedAt: null,
+          pausedMs: 0,
+        },
+      }),
+      pauseFocus: () => {
+        const { focusSession } = get();
+        if (!focusSession || focusSession.pausedAt) return;
+        set({ focusSession: { ...focusSession, pausedAt: Date.now() } });
+      },
+      resumeFocus: () => {
+        const { focusSession } = get();
+        if (!focusSession || !focusSession.pausedAt) return;
+        set({ focusSession: { ...focusSession, pausedAt: null, pausedMs: focusSession.pausedMs + (Date.now() - focusSession.pausedAt) } });
+      },
+      stopFocus: () => set({ focusSession: null }),
+      addFocusTime: (ms) => {
+        const { focusSession } = get();
+        if (!focusSession) return;
+        set({ focusSession: { ...focusSession, durationMs: focusSession.durationMs + ms } });
+      },
 
       checkAndRollover: async () => {
         const today = todayDateStr();

@@ -104,6 +104,15 @@ export interface DayStatTask {
   is_done: boolean;
 }
 
+export interface FocusSession {
+  taskId: string;
+  taskTitle: string;
+  durationMs: number;    // planned duration in ms
+  startedAt: number;     // Date.now() when timer started / last resumed
+  pausedAt: number | null; // Date.now() when paused; null = running
+  pausedMs: number;      // total accumulated paused ms
+}
+
 export interface DayStats {
   /** ISO date YYYY-MM-DD (locale-independent). */
   date: string;
