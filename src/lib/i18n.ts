@@ -387,3 +387,40 @@ export function useT(): typeof t {
   useStore(s => s.config.language);
   return t;
 }
+
+/**
+ * Russian plural form selector.
+ * Russian pluralization rules:
+ *   1, 21, 31... → `one`   (1 день, 21 день)
+ *   2-4, 22-24...→ `few`   (2 дня, 22 дня)
+ *   0, 5-20, 25+→ `many`  (5 дней, 11 дней, 25 дней)
+ *
+ * Usage: pluralRu(3, 'день', 'дня', 'дней') → 'дня'
+ */
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const abs = Math.abs(Math.floor(n));
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
+/**
+ * Format a duration with correct Russian or English grammar.
+ * Unlike the scheduler's formatDuration (which uses abbreviated ч/м),
+ * this returns full words: "2 часа", "1 час", "45 минут", "1 час 30 минут".
+ */
+export function formatDurationWords(minutes: number, lang: 'en' | 'ru' = 'en'): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (lang === 'ru') {
+    const hStr = h > 0 ? `${h} ${pluralRu(h, 'час', 'часа', 'часов')}` : '';
+    const mStr = m > 0 ? `${m} ${pluralRu(m, 'минута', 'минуты', 'минут')}` : '';
+    return [hStr, mStr].filter(Boolean).join(' ') || '0 минут';
+  }
+  const hStr = h > 0 ? `${h}h` : '';
+  const mStr = m > 0 ? `${m}m` : '';
+  return [hStr, mStr].filter(Boolean).join(' ') || '0m';
+}

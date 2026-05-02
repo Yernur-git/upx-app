@@ -569,7 +569,7 @@ export const useStore = create<Store>()(
         let applied = 0;
         for (const action of actions) {
           if (!action?.type || action?.payload == null) continue;
-          const { addTask, updateTask, deleteTask, moveTask, reorderTasks } = get();
+          const { addTask, updateTask, deleteTask, reorderTasks } = get();
           try {
             switch (action.type) {
               case 'create_task': {
@@ -584,11 +584,13 @@ export const useStore = create<Store>()(
                   category: p.category ?? 'general',
                   is_starred: p.is_starred ?? false,
                   is_done: false,
-                  day: p.day ?? 'today',
+                  // If planned_date is provided for a future weekday, keep day='tomorrow'
+                  day: p.day ?? (p.planned_date ? 'tomorrow' : 'today'),
                   recurrence: p.recurrence ?? 'none',
                   sort_order: p.sort_order ?? 0,
                   fixed_time: p.fixed_time,
                   notes: p.notes,
+                  planned_date: p.planned_date ?? undefined,
                 });
                 applied++;
                 break;
@@ -616,10 +618,19 @@ export const useStore = create<Store>()(
               }
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string' || !pl?.day) break;
+                if (!pl?.id || typeof pl.id !== 'string') break;
                 const mtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
                 if (!mtask) { console.warn('move_task: unknown id', pl.id); break; }
-                await moveTask(mtask.id, pl.day as 'today' | 'tomorrow');
+                // Support planned_date moves: AI can schedule to a specific weekday
+                if (pl.planned_date && typeof pl.planned_date === 'string') {
+                  // Moving to a specific date → keep day='tomorrow' + set planned_date
+                  await get().updateTask(mtask.id, { day: 'tomorrow', planned_date: pl.planned_date });
+                } else if (pl.day) {
+                  // Moving to today/tomorrow (clear any planned_date)
+                  await get().updateTask(mtask.id, { day: pl.day as 'today' | 'tomorrow', planned_date: undefined });
+                } else {
+                  break;
+                }
                 applied++;
                 break;
               }

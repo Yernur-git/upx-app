@@ -128,7 +128,9 @@ function buildPatternInsights(dayHistory: DayStats[]): string {
 
 function buildSystemPrompt(tasks: Task[], config: UserConfig, activeDay: 'today' | 'tomorrow', dayHistory: DayStats[] = [], checkin?: import('../types').DayCheckin, midEnergy?: number | null, eveningMood?: string | null): string {
   const todayTasks = tasks.filter(t => t.day === 'today');
-  const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow');
+  // tomorrow = day='tomorrow' AND no future planned_date (or planned_date = tomorrow)
+  const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
+  const tomorrowTasks = tasks.filter(t => t.day === 'tomorrow' && (!t.planned_date || t.planned_date <= tomorrowStr));
 
   // Keep task lines concise to avoid 504 timeouts on large lists
   // Use short IDs (first 8 chars) to reduce AI truncation errors.
@@ -237,6 +239,37 @@ ${taskList}
 
 ## Tomorrow's Tasks
 ${tmrwList}
+
+## Upcoming Week Plan (tasks scheduled for specific future days)
+${(() => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const futureTasks = tasks.filter(t =>
+    t.planned_date && t.planned_date > tomorrowStr
+  );
+  if (futureTasks.length === 0) return 'Nothing scheduled yet beyond tomorrow.';
+  // Group by planned_date
+  const byDate = new Map<string, Task[]>();
+  for (const t of futureTasks) {
+    const d = t.planned_date!;
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(t);
+  }
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const lines: string[] = [];
+  for (const [date, dayTasks] of [...byDate.entries()].sort()) {
+    const dow = DAYS[new Date(date + 'T12:00:00').getDay()];
+    lines.push(`### ${dow} ${date}`);
+    for (const t of dayTasks) {
+      lines.push(
+        `- [id:${t.id.slice(0,8)}] "${t.title}" ${t.duration_minutes}min [${t.category}]` +
+        `${t.fixed_time ? ` @ ${t.fixed_time}` : ''}` +
+        `${t.is_done ? ' ✓' : ''}`
+      );
+    }
+  }
+  void todayStr;
+  return lines.join('\n');
+})()}
 
 ## Weekly History (last 7 days, newest first)
 ${(() => {
@@ -418,11 +451,19 @@ No markdown, no text outside JSON:
         "fixed_time": null,
         "day": "today|tomorrow",
         "recurrence": "none|daily|weekdays|weekly",
-        "sort_order": 0
+        "sort_order": 0,
+        "planned_date": null
       }
     }
   ]
 }
+
+PLANNED_DATE RULES for create_task:
+- If the user says "add X on Wednesday" or "запланируй X на среду":
+  → Calculate the YYYY-MM-DD for that weekday (current or next week)
+  → Set planned_date: "YYYY-MM-DD" and day: "tomorrow" (future tasks live in 'tomorrow')
+  → Example: today is 2026-05-02 (Sat), "add meeting on Tuesday" → planned_date: "2026-05-05"
+- If no specific future day mentioned: planned_date: null, day: "today" or "tomorrow" as context implies
 
 Other action types:
 - update_task: { "id": "task-id", ...fieldsToUpdate }
@@ -431,7 +472,9 @@ Other action types:
             remove fixed time → { "id": "...", "fixed_time": null }
             rename → { "id": "...", "title": "New name" }
 - delete_task: { "id": "task-id" }
-- move_task: { "id": "task-id", "day": "today|tomorrow" }
+- move_task (to today/tomorrow): { "id": "task-id", "day": "today|tomorrow" }
+- move_task (to specific weekday): { "id": "task-id", "planned_date": "YYYY-MM-DD" }
+  Use this when user says "move X to Wednesday" / "перенеси X на среду"
 - reschedule: { "order": ["id1", "id2", ...] }
 
 Always use empty array [] for actions if no task operations needed.
