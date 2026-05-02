@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Morning Check-in Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f0f2f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 32px;
+    flex-wrap: wrap;
+    padding: 24px;
+  }
+
+  /* ── Phone frame ── */
+  .phone {
+    width: 375px;
+    height: 720px;
+    background: #f7f8fa;
+    border-radius: 40px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.18);
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e0e0e0;
+  }
+
+  .phone-label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 8px;
+    letter-spacing: .04em;
+  }
+
+  /* ── Shared vars ── */
+  :root {
+    --ind: #5C6B9C;
+    --ind-l: #eef0f8;
+    --ind-m: #c5cbdf;
+    --tx: #1a1a2e;
+    --tx2: #4a4a6a;
+    --tx3: #8888aa;
+    --sf: #ffffff;
+    --sf2: #f3f4f8;
+    --bdr: #e8e8f0;
+    --bdr2: #d8d9e8;
+    --r: 14px;
+    --sage: #5FA35F;
+    --coral: #EF6060;
+    --must: #E0A800;
+  }
+
+  /* ══════════════════════════════════════════
+     LIGHT VERSION
+  ══════════════════════════════════════════ */
+  .checkin {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    background: var(--sf);
+  }
+
+  /* Top gradient header */
+  .checkin-header {
+    background: linear-gradient(145deg, #5C6B9C 0%, #7B8EC8 100%);
+    padding: 48px 24px 32px;
+    color: white;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .checkin-header .time {
+    font-size: 13px;
+    opacity: .75;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .checkin-header .greeting {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -.4px;
+    margin-bottom: 4px;
+  }
+
+  .checkin-header .sub {
+    font-size: 13px;
+    opacity: .7;
+    line-height: 1.5;
+  }
+
+  /* Body */
+  .checkin-body {
+    flex: 1;
+    padding: 20px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  /* Section card */
+  .section {
+    background: var(--sf2);
+    border-radius: 18px;
+    padding: 16px 16px 14px;
+    border: 1px solid var(--bdr);
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--tx3);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Sleep pills */
+  .sleep-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .pill {
+    flex: 1;
+    min-width: 44px;
+    padding: 9px 4px;
+    border-radius: 12px;
+    border: 1.5px solid var(--bdr2);
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--tx3);
+    cursor: pointer;
+    text-align: center;
+    font-family: inherit;
+    transition: all .15s;
+  }
+
+  .pill.active {
+    border-color: var(--ind);
+    background: var(--ind-l);
+    color: var(--ind);
+  }
+
+  /* Energy row */
+  .energy-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .energy-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 4px;
+    border-radius: 14px;
+    border: 1.5px solid var(--bdr2);
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .15s;
+  }
+
+  .energy-btn .em { font-size: 22px; }
+  .energy-btn .lbl { font-size: 10px; font-weight: 600; color: var(--tx3); }
+
+  .energy-btn.active-1 { border-color: #EF6060; background: #fff0f0; }
+  .energy-btn.active-1 .lbl { color: #EF6060; }
+  .energy-btn.active-2 { border-color: #E0A800; background: #fff9e0; }
+  .energy-btn.active-2 .lbl { color: #b78a00; }
+  .energy-btn.active-3 { border-color: #5FA35F; background: #f0f8f0; }
+  .energy-btn.active-3 .lbl { color: #5FA35F; }
+  .energy-btn.active-4 { border-color: var(--ind); background: var(--ind-l); }
+  .energy-btn.active-4 .lbl { color: var(--ind); }
+  .energy-btn.active-5 { border-color: #7B8EC8; background: #eef0f8; }
+  .energy-btn.active-5 .lbl { color: #5C6B9C; }
+
+  /* Mood row */
+  .mood-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .mood-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 10px 8px;
+    border-radius: 14px;
+    border: 1.5px solid var(--bdr2);
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    min-width: 64px;
+    transition: all .15s;
+  }
+
+  .mood-btn .em { font-size: 24px; }
+  .mood-btn .lbl { font-size: 10px; font-weight: 600; color: var(--tx3); }
+  .mood-btn.active { border-color: var(--ind); background: var(--ind-l); }
+  .mood-btn.active .lbl { color: var(--ind); }
+
+  /* Note input */
+  .note-input {
+    width: 100%;
+    border: 1.5px solid var(--bdr2);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--tx);
+    background: var(--sf);
+    resize: none;
+    outline: none;
+    line-height: 1.5;
+  }
+
+  .note-input::placeholder { color: var(--tx3); }
+  .note-input:focus { border-color: var(--ind); }
+
+  /* CTA */
+  .cta {
+    width: 100%;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(135deg, #5C6B9C, #7B8EC8);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: -.2px;
+  }
+
+  /* ══════════════════════════════════════════
+     DARK VERSION
+  ══════════════════════════════════════════ */
+  .dark {
+    background: #12121e;
+    --sf: #1a1a2e;
+    --sf2: #21213a;
+    --bdr: #2a2a44;
+    --bdr2: #32325a;
+    --tx: #e8e8f8;
+    --tx2: #aaaac8;
+    --tx3: #6666aa;
+    --ind-l: #1e2040;
+  }
+
+  .dark .checkin { background: #12121e; }
+
+  .dark .note-input {
+    background: #21213a;
+    color: #e8e8f8;
+    border-color: #32325a;
+  }
+
+  .dark .pill { color: #6666aa; border-color: #32325a; }
+  .dark .pill.active { color: var(--ind); border-color: var(--ind); background: #1e2040; }
+
+  .dark .energy-btn .lbl { color: #6666aa; }
+  .dark .mood-btn .lbl { color: #6666aa; }
+</style>
+</head>
+<body>
+
+<!-- LIGHT -->
+<div>
+  <div class="phone-label">☀️ Light mode</div>
+  <div class="phone">
+    <div class="checkin">
+
+      <div class="checkin-header">
+        <div class="time">Четверг, 1 мая · 08:14</div>
+        <div class="greeting">Доброе утро, Yernur 👋</div>
+        <div class="sub">Как ты себя чувствуешь?<br>Это поможет AI спланировать твой день</div>
+      </div>
+
+      <div class="checkin-body">
+
+        <!-- Sleep -->
+        <div class="section">
+          <div class="section-label">😴 Сколько поспал</div>
+          <div class="sleep-pills">
+            <button class="pill">4ч</button>
+            <button class="pill">5ч</button>
+            <button class="pill">6ч</button>
+            <button class="pill active">7ч</button>
+            <button class="pill">8ч</button>
+            <button class="pill">9ч+</button>
+          </div>
+        </div>
+
+        <!-- Energy -->
+        <div class="section">
+          <div class="section-label">⚡ Уровень энергии</div>
+          <div class="energy-row">
+            <button class="energy-btn">
+              <span class="em">😴</span>
+              <span class="lbl">Никак</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">😑</span>
+              <span class="lbl">Слабо</span>
+            </button>
+            <button class="energy-btn active-3">
+              <span class="em">😊</span>
+              <span class="lbl">Норм</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">😤</span>
+              <span class="lbl">Хорошо</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">💪</span>
+              <span class="lbl">Огонь!</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mood -->
+        <div class="section">
+          <div class="section-label">🧠 Настроение</div>
+          <div class="mood-row">
+            <button class="mood-btn active">
+              <span class="em">😌</span>
+              <span class="lbl">Спокойно</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">🎯</span>
+              <span class="lbl">Фокус</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">😰</span>
+              <span class="lbl">Стресс</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">🤒</span>
+              <span class="lbl">Болею</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Note (optional) -->
+        <textarea class="note-input" rows="2" placeholder="Что-то важное сегодня? (необязательно)"></textarea>
+
+        <button class="cta">Начать день →</button>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DARK -->
+<div>
+  <div class="phone-label">🌙 Dark mode</div>
+  <div class="phone dark">
+    <div class="checkin">
+
+      <div class="checkin-header" style="background: linear-gradient(145deg, #2d3560 0%, #3d4880 100%);">
+        <div class="time">Четверг, 1 мая · 08:14</div>
+        <div class="greeting">Доброе утро, Yernur 👋</div>
+        <div class="sub">Как ты себя чувствуешь?<br>Это поможет AI спланировать твой день</div>
+      </div>
+
+      <div class="checkin-body">
+
+        <div class="section">
+          <div class="section-label">😴 Сколько поспал</div>
+          <div class="sleep-pills">
+            <button class="pill">4ч</button>
+            <button class="pill">5ч</button>
+            <button class="pill">6ч</button>
+            <button class="pill active">7ч</button>
+            <button class="pill">8ч</button>
+            <button class="pill">9ч+</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">⚡ Уровень энергии</div>
+          <div class="energy-row">
+            <button class="energy-btn">
+              <span class="em">😴</span>
+              <span class="lbl">Никак</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">😑</span>
+              <span class="lbl">Слабо</span>
+            </button>
+            <button class="energy-btn active-3">
+              <span class="em">😊</span>
+              <span class="lbl">Норм</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">😤</span>
+              <span class="lbl">Хорошо</span>
+            </button>
+            <button class="energy-btn">
+              <span class="em">💪</span>
+              <span class="lbl">Огонь!</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">🧠 Настроение</div>
+          <div class="mood-row">
+            <button class="mood-btn active">
+              <span class="em">😌</span>
+              <span class="lbl">Спокойно</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">🎯</span>
+              <span class="lbl">Фокус</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">😰</span>
+              <span class="lbl">Стресс</span>
+            </button>
+            <button class="mood-btn">
+              <span class="em">🤒</span>
+              <span class="lbl">Болею</span>
+            </button>
+          </div>
+        </div>
+
+        <textarea class="note-input" rows="2" placeholder="Что-то важное сегодня? (необязательно)"></textarea>
+
+        <button class="cta" style="background: linear-gradient(135deg, #3d4880, #5C6B9C);">Начать день →</button>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

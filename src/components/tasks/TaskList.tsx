@@ -16,6 +16,20 @@ import type { Task, Priority, Recurrence, QuickTask } from '../../types';
 import { TaskIcon } from '../ui/TaskIcon';
 import { formatDuration } from '../../lib/scheduler';
 
+// ─── Date helpers ─────────────────────────────────────────────────
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDays(base: string, n: number): string {
+  const d = new Date(base + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+function getTaskDate(t: Task, today: string, tomorrow: string): string {
+  if (t.planned_date) return t.planned_date;
+  return t.day === 'today' ? today : tomorrow;
+}
+
 // ─── Bottom Sheet wrapper ──────────────────────────────────────────
 function BottomSheet({ open, onClose, children, title }: {
   open: boolean; onClose: () => void; children: React.ReactNode; title?: string;
@@ -331,14 +345,29 @@ const MOODS = [
 export function TaskList() {
   const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks,
-          activeChatDay, setActiveChatDay, setChatOpen, config, setPendingChatInput } = useStore();
+          setActiveChatDay, setChatOpen, config, setPendingChatInput } = useStore();
   const lang = config.language ?? 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [isDraggingAny, setIsDraggingAny] = useState(false);
   const [moodTask, setMoodTask] = useState<{ id: string; title: string } | null>(null);
-  const activeDay = activeChatDay;
-  const setActiveDay = setActiveChatDay;
+  const todayStr = isoDate(new Date());
+  const tomorrowStr = addDays(todayStr, 1);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const activeDay: 'today' | 'tomorrow' = selectedDate === todayStr ? 'today' : 'tomorrow';
+
+  // Keep store's activeChatDay in sync (used by AI context)
+  useEffect(() => {
+    setActiveChatDay(activeDay);
+  }, [activeDay, setActiveChatDay]);
+
+  // 7-day strip data
+  const weekDates = Array.from({ length: 7 }, (_, i) => addDays(todayStr, i));
+  const tasksByDate = (date: string) =>
+    tasks.filter(t => getTaskDate(t, todayStr, tomorrowStr) === date);
+
+  const pendingTasks = tasksByDate(selectedDate).filter(t => !t.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  const doneTasks    = tasksByDate(selectedDate).filter(t => t.is_done);
 
   // Auto-dismiss mood picker after 7 seconds
   useEffect(() => {
@@ -364,19 +393,13 @@ export function TaskList() {
   };
 
   const openWeeklyReview = () => {
+    setSelectedDate(todayStr);
     const msg = lang === 'ru'
       ? 'Сделай обзор моей недели: что я выполнил, как распределял время, что стоит улучшить?'
       : 'Review my week: what did I complete, how did I spend my time, what should I improve?';
     setPendingChatInput(msg);
     setChatOpen(true);
   };
-
-  const todayTasks = tasks.filter(t2 => t2.day === 'today');
-  const tomorrowTasks = tasks.filter(t2 => t2.day === 'tomorrow');
-  const displayTasks = activeDay === 'today' ? todayTasks : tomorrowTasks;
-
-  const doneTasks = displayTasks.filter(t2 => t2.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-  const pendingTasks = displayTasks.filter(t2 => !t2.is_done).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -408,28 +431,66 @@ export function TaskList() {
 
       {/* Add task bottom sheet */}
       <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} title={t('task.add.btn')}>
-        <AddTaskForm day={activeDay} onDone={() => setShowAdd(false)} />
+        <AddTaskForm day={activeDay} plannedDate={selectedDate !== todayStr && selectedDate !== tomorrowStr ? selectedDate : undefined} onDone={() => setShowAdd(false)} />
       </BottomSheet>
 
-      <div style={{ display: 'flex', gap: 4, padding: '0 18px 10px', flexShrink: 0 }}>
-        {(['today', 'tomorrow'] as const).map(day => (
-          <button key={day} className="btn btn-ghost"
-            style={{ flex: 1, justifyContent: 'center', fontSize: 12, background: activeDay === day ? 'var(--ind-l)' : 'transparent', color: activeDay === day ? 'var(--ind)' : 'var(--tx3)', borderColor: activeDay === day ? 'var(--ind-m)' : 'var(--bdr2)' }}
-            onClick={() => setActiveDay(day)}>
-            {day === 'today' ? t('day.today') : t('day.tomorrow')}
-            <span style={{ fontSize: 10, fontWeight: 700, background: activeDay === day ? 'var(--ind)' : 'var(--sf3)', color: activeDay === day ? '#fff' : 'var(--tx3)', padding: '1px 6px', borderRadius: 10, marginLeft: 4 }}>
-              {(day === 'today' ? todayTasks : tomorrowTasks).filter(t2 => !t2.is_done).length}
-            </span>
+      {/* 7-day week strip */}
+      <div style={{ padding: '0 18px 10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'none' }}>
+          {weekDates.map(date => {
+            const isSelected = date === selectedDate;
+            const isToday    = date === todayStr;
+            const count      = tasksByDate(date).filter(t => !t.is_done).length;
+            const done       = tasksByDate(date).filter(t => t.is_done).length;
+            const d          = new Date(date + 'T12:00:00');
+            const dayName    = d.toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US', { weekday: 'short' });
+            const dayNum     = d.getDate();
+            return (
+              <button key={date}
+                onClick={() => setSelectedDate(date)}
+                style={{
+                  flex: '0 0 auto', minWidth: 44,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: 2, padding: '7px 6px 6px',
+                  borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: isSelected ? 'var(--ind)' : isToday ? 'var(--ind-l)' : 'transparent',
+                  fontFamily: 'inherit', transition: 'background .15s',
+                }}>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: isSelected ? 'rgba(255,255,255,.75)' : 'var(--tx3)', lineHeight: 1 }}>
+                  {dayName.replace('.', '')}
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: isSelected ? '#fff' : isToday ? 'var(--ind)' : 'var(--tx)', lineHeight: 1.1 }}>
+                  {dayNum}
+                </span>
+                {/* task count dot */}
+                <div style={{ height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {(count + done) > 0 ? (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, lineHeight: 1,
+                      padding: '1px 5px', borderRadius: 8,
+                      background: isSelected ? 'rgba(255,255,255,.25)' : 'var(--ind-l)',
+                      color: isSelected ? '#fff' : 'var(--ind)',
+                    }}>
+                      {done > 0 && count === 0 ? '✓' : count}
+                    </span>
+                  ) : (
+                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--bdr2)' }} />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+          {/* divider */}
+          <div style={{ width: 1, background: 'var(--bdr2)', margin: '4px 2px', flexShrink: 0 }} />
+          {/* Weekly AI review */}
+          <button
+            onClick={openWeeklyReview}
+            className="btn-icon"
+            title={lang === 'ru' ? 'Обзор недели' : 'Week review'}
+            style={{ flexShrink: 0, padding: '6px 8px', color: 'var(--ind)', alignSelf: 'center' }}>
+            <BarChart2 size={16} strokeWidth={1.8} />
           </button>
-        ))}
-        {/* Weekly AI review — always visible, 1 tap */}
-        <button
-          onClick={openWeeklyReview}
-          className="btn btn-ghost"
-          title={lang === 'ru' ? 'Обзор недели' : 'Week review'}
-          style={{ flexShrink: 0, padding: '6px 10px', fontSize: 13, color: 'var(--ind)', borderColor: 'var(--ind-m)', background: 'var(--ind-l)' }}>
-          <BarChart2 size={15} strokeWidth={1.8} />
-        </button>
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px', minHeight: 0 }}>
@@ -1001,7 +1062,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
   );
 }
 
-function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () => void }) {
+function AddTaskForm({ day, onDone, plannedDate }: { day: 'today' | 'tomorrow'; onDone: () => void; plannedDate?: string }) {
   const t = useT();
   const { addTask, config } = useStore();
   const [title, setTitle] = useState('');
@@ -1047,6 +1108,7 @@ function AddTaskForm({ day, onDone }: { day: 'today' | 'tomorrow'; onDone: () =>
         fixed_time: fixedTime || undefined,
         notes: notes.trim() || undefined,
         sort_order: 0,
+        planned_date: plannedDate,
       });
       onDone();
     } catch (e: unknown) {
