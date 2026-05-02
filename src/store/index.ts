@@ -300,12 +300,14 @@ export const useStore = create<Store>()(
         set({ focusSession: { ...focusSession, pausedAt: null, pausedMs: focusSession.pausedMs + (Date.now() - focusSession.pausedAt) } });
       },
       stopFocus: () => {
-        const { focusSession, dayHistory } = get();
+        const { focusSession, dayHistory, updateTask } = get();
         if (focusSession) {
           // Compute actual elapsed time (exclude paused time)
           const snapNow = focusSession.pausedAt ?? Date.now();
           const elapsedMs = snapNow - focusSession.startedAt - focusSession.pausedMs;
           const elapsedMin = Math.max(0, Math.round(elapsedMs / 60000));
+
+          // 1. Accumulate focus_minutes in DayStats
           if (elapsedMin > 0) {
             const today = todayDateStr();
             const existing = dayHistory.find(d => d.date === today);
@@ -323,6 +325,16 @@ export const useStore = create<Store>()(
                 total_minutes: 0, done_minutes: 0, focus_minutes: elapsedMin,
               }] });
             }
+          }
+
+          // 2. Write actual tracking data back to the task (best-effort — may fail
+          //    if actual_duration_minutes column not yet added to Supabase)
+          if (elapsedMin > 0) {
+            const startIso = new Date(focusSession.startedAt).toISOString();
+            updateTask(focusSession.taskId, {
+              actual_duration_minutes: elapsedMin,
+              actual_start_time: startIso,
+            }).catch(() => { /* column may not exist yet — migration pending */ });
           }
         }
         set({ focusSession: null });
@@ -353,6 +365,7 @@ export const useStore = create<Store>()(
             tasks: oldDayTasks.map(t => ({
               id: t.id, title: t.title, category: t.category,
               duration_minutes: t.duration_minutes, is_done: t.is_done,
+              ...(t.actual_duration_minutes != null ? { actual_duration_minutes: t.actual_duration_minutes } : {}),
             })),
           };
           const filtered = dayHistory.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.date !== lastRolloverDate);
@@ -701,6 +714,7 @@ export const useStore = create<Store>()(
           tasks: todayTasks.map(t => ({
             id: t.id, title: t.title, category: t.category,
             duration_minutes: t.duration_minutes, is_done: t.is_done,
+            ...(t.actual_duration_minutes != null ? { actual_duration_minutes: t.actual_duration_minutes } : {}),
           })),
           ...(existingToday?.focus_minutes ? { focus_minutes: existingToday.focus_minutes } : {}),
         };

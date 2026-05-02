@@ -4,3 +4,6 @@ dist
 .env.local
 .DS_Store
 *.log
+# Claude Code local settings (may contain tokens)
+.claude/settings.local.json
+today
