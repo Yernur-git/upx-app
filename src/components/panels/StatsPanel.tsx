@@ -153,6 +153,110 @@ export function StatsPanel() {
   return (
     <div className="panel-scroll">
 
+      {/* ── AI Weekly Review — hero card ─────────────────────── */}
+      <div style={{
+        marginTop: 16,
+        background: aiText
+          ? 'var(--sf2)'
+          : 'linear-gradient(135deg, var(--ind) 0%, var(--ind-h) 100%)',
+        border: aiText ? '1px solid var(--bdr)' : 'none',
+        borderRadius: 18,
+        padding: aiText ? '16px' : '20px',
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'background .3s',
+      }}>
+        {/* Decorative circles (only when not showing text) */}
+        {!aiText && (
+          <>
+            <div style={{ position: 'absolute', top: -24, right: -24, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,.08)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: -16, right: 32, width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,.06)', pointerEvents: 'none' }} />
+          </>
+        )}
+
+        {!aiText && !aiLoading && !aiError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Sparkles size={22} color="#fff" />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+                {config.language === 'ru' ? 'Обзор недели' : 'Weekly Review'}
+              </div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.72)', marginTop: 3, lineHeight: 1.4 }}>
+                {config.language === 'ru'
+                  ? 'ИИ разберёт вашу неделю и даст советы'
+                  : 'AI breaks down your week & gives advice'}
+              </div>
+            </div>
+            <button
+              onClick={askAI}
+              disabled={!hasAnyData}
+              style={{
+                flexShrink: 0,
+                background: hasAnyData ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.1)',
+                border: '1.5px solid rgba(255,255,255,.3)',
+                borderRadius: 12, padding: '9px 16px',
+                color: '#fff', fontSize: 13, fontWeight: 700,
+                cursor: hasAnyData ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', opacity: hasAnyData ? 1 : 0.5,
+              }}>
+              {config.language === 'ru' ? 'Спросить' : 'Ask AI'}
+            </button>
+          </div>
+        )}
+
+        {aiLoading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Sparkles size={22} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 6 }}>
+                {config.language === 'ru' ? 'Анализирую вашу неделю…' : 'Analysing your week…'}
+              </div>
+              <span className="typing-dots"><span /><span /><span /></span>
+            </div>
+          </div>
+        )}
+
+        {aiText && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Sparkles size={15} color="var(--ind)" />
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ind)', letterSpacing: '.05em', textTransform: 'uppercase' }}>
+                {config.language === 'ru' ? 'Обзор недели' : 'Weekly Review'}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--tx)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>
+              {aiText}
+            </div>
+            <button
+              className="btn btn-ghost"
+              style={{ marginTop: 12, fontSize: 12, padding: '7px 14px' }}
+              onClick={() => setAiText(null)}>
+              {config.language === 'ru' ? '↻ Обновить' : '↻ Refresh'}
+            </button>
+          </>
+        )}
+
+        {aiError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Sparkles size={22} color="#fff" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: 'rgba(255,200,200,.9)', lineHeight: 1.4 }}>⚠️ {aiError}</div>
+              <button
+                style={{ marginTop: 6, fontSize: 12, color: '#fff', background: 'rgba(255,255,255,.18)', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
+                onClick={askAI}>
+                {config.language === 'ru' ? 'Попробовать снова' : 'Retry'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Today */}
       <Section title={t('stats.today')}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
@@ -304,61 +408,6 @@ export function StatsPanel() {
           </div>
         </Section>
       )}
-
-      {/* AI Weekly Feedback */}
-      <Section title={t('stats.aiFeedback')}>
-        <div style={{
-          background: 'var(--sf2)', border: '1px solid var(--bdr)', borderRadius: 'var(--rs)',
-          padding: '14px 16px',
-        }}>
-          {!aiText && !aiLoading && !aiError && (
-            <>
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '11px', gap: 8 }}
-                onClick={askAI}
-                disabled={!hasAnyData}>
-                <Sparkles size={14} /> {t('stats.askAI')}
-              </button>
-              {!hasAnyData && (
-                <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 8, textAlign: 'center' }}>
-                  {t('stats.notEnoughData')}
-                </div>
-              )}
-            </>
-          )}
-          {aiLoading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', padding: '8px 0' }}>
-              <span className="typing-dots"><span /><span /><span /></span>
-              <span style={{ fontSize: 12, color: 'var(--tx3)' }}>{t('stats.askingAI')}</span>
-            </div>
-          )}
-          {aiText && (
-            <>
-              <div style={{ fontSize: 13, color: 'var(--tx)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {aiText}
-              </div>
-              <button
-                className="btn btn-ghost"
-                style={{ marginTop: 12, fontSize: 12, padding: '7px 12px' }}
-                onClick={() => { setAiText(null); }}>
-                {t('stats.askAI')}
-              </button>
-            </>
-          )}
-          {aiError && (
-            <div style={{ fontSize: 12, color: 'var(--coral)', padding: '6px 0' }}>
-              ⚠️ {aiError}
-              <button
-                className="btn btn-ghost"
-                style={{ marginLeft: 8, fontSize: 11, padding: '4px 10px' }}
-                onClick={askAI}>
-                ↻
-              </button>
-            </div>
-          )}
-        </div>
-      </Section>
 
       {/* Day detail modal */}
       {selectedDay && (

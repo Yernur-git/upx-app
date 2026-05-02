@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2, Flame, ThumbsUp, CloudRain, Moon as MoonIcon, BarChart2, ClipboardList, ChevronRight, RefreshCw, Play, StopCircle } from 'lucide-react';
+import { Plus, Star, Trash2, CheckCircle, Circle, ArrowRight, GripVertical, Pencil, FileText, X, Settings2, Flame, ThumbsUp, CloudRain, Moon as MoonIcon, ClipboardList, ChevronRight, RefreshCw, Play, StopCircle } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -345,7 +345,7 @@ const MOODS = [
 export function TaskList() {
   const t = useT();
   const { tasks, updateTask, deleteTask, toggleDone, moveTask, reorderTasks,
-          setActiveChatDay, setChatOpen, config, setPendingChatInput } = useStore();
+          setActiveChatDay, config } = useStore();
   const lang = config.language ?? 'en';
   const [showAdd, setShowAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -390,15 +390,6 @@ export function TaskList() {
     const existing = task.notes?.trim() || '';
     updateTask(moodTask.id, { notes: existing ? `${existing}\n${moodLine}` : moodLine });
     setMoodTask(null);
-  };
-
-  const openWeeklyReview = () => {
-    setSelectedDate(todayStr);
-    const msg = lang === 'ru'
-      ? 'Сделай обзор моей недели: что я выполнил, как распределял время, что стоит улучшить?'
-      : 'Review my week: what did I complete, how did I spend my time, what should I improve?';
-    setPendingChatInput(msg);
-    setChatOpen(true);
   };
 
   const sensors = useSensors(
@@ -480,16 +471,6 @@ export function TaskList() {
               </button>
             );
           })}
-          {/* divider */}
-          <div style={{ width: 1, background: 'var(--bdr2)', margin: '4px 2px', flexShrink: 0 }} />
-          {/* Weekly AI review */}
-          <button
-            onClick={openWeeklyReview}
-            className="btn-icon"
-            title={lang === 'ru' ? 'Обзор недели' : 'Week review'}
-            style={{ flexShrink: 0, padding: '6px 8px', color: 'var(--ind)', alignSelf: 'center' }}>
-            <BarChart2 size={16} strokeWidth={1.8} />
-          </button>
         </div>
       </div>
 

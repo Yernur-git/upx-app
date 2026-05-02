@@ -229,8 +229,8 @@ export function ChatPanel() {
   };
 
   const HINTS = lang === 'ru'
-    ? ['монтаж 60мин', 'тренировка 60мин', 'построй мой день', 'я перегружен, помоги']
-    : ['edit video 60min', 'workout 60min', 'build my day', "I'm overloaded, help"];
+    ? ['обзор недели', 'построй мой день', 'я перегружен, помоги', 'тренировка 60мин']
+    : ['week review', 'build my day', "I'm overloaded, help", 'workout 60min'];
 
   return (
     <>
