@@ -9,6 +9,30 @@ const URLS: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1/chat/completions',
 };
 
+// ── Server-side caps & abuse prevention ──────────────────────────────────
+const MAX_TOKENS_HARD_CAP = 4000;        // refuse anything bigger from client
+const MAX_SYSTEM_PROMPT_LEN = 32000;     // ~8k tokens — generous but bounded
+const MAX_USER_MESSAGE_LEN  = 8000;
+const MAX_HISTORY_MESSAGES  = 30;
+
+// Naive in-memory rate limit. Edge functions have warm instances so this works
+// for short bursts; for global throttling use Upstash KV.
+//   key = userId-or-ip → { count, windowStart }
+const rateBucket = new Map<string, { count: number; windowStart: number }>();
+const RATE_WINDOW_MS = 60_000;
+const RATE_MAX_PER_WINDOW = 30;
+
+function checkRate(key: string): boolean {
+  const now = Date.now();
+  const cur = rateBucket.get(key);
+  if (!cur || now - cur.windowStart > RATE_WINDOW_MS) {
+    rateBucket.set(key, { count: 1, windowStart: now });
+    return true;
+  }
+  cur.count++;
+  return cur.count <= RATE_MAX_PER_WINDOW;
+}
+
 /**
  * Vercel env vars:
  *   At least one of: ANTHROPIC_API_KEY / OPENAI_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY
@@ -25,8 +49,9 @@ export default async function handler(req: Request) {
     return json({ error: 'Method not allowed' }, 405);
   }
 
-  // ---------- AUTH GATE (optional) ----------
+  // ---------- AUTH GATE ----------
   const requireAuth = (process.env.REQUIRE_AUTH ?? 'true').toLowerCase() !== 'false';
+  let userKey = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon';
   if (requireAuth) {
     const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
     const token = authHeader?.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : null;
@@ -36,17 +61,33 @@ export default async function handler(req: Request) {
 
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (supabaseUrl && serviceKey) {
-      const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-      const { data: userData, error: authErr } = await admin.auth.getUser(token);
-      if (authErr || !userData?.user) {
-        return json({ error: 'AUTH_INVALID', message: 'Session expired. Sign in again.' }, 401);
-      }
+    if (!supabaseUrl || !serviceKey) {
+      // Fail CLOSED — never silently bypass token validation. Otherwise the proxy
+      // is wide open: any random Bearer string passes the header check above.
+      console.error('[chat] REQUIRE_AUTH=true but Supabase service key not configured. Refusing request.');
+      return json({
+        error: 'SERVER_MISCONFIGURED',
+        message: 'AI proxy requires Supabase service-role key to validate sessions. Contact the admin.',
+      }, 503);
     }
-    // If SUPABASE_SERVICE_ROLE_KEY is not configured, skip server-side token validation and proceed.
+
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const { data: userData, error: authErr } = await admin.auth.getUser(token);
+    if (authErr || !userData?.user) {
+      return json({ error: 'AUTH_INVALID', message: 'Session expired. Sign in again.' }, 401);
+    }
+    userKey = userData.user.id;
   }
 
-  // ---------- REQUEST FORWARDING ----------
+  // ---------- RATE LIMIT ----------
+  if (!checkRate(userKey)) {
+    return json({
+      error: 'RATE_LIMITED',
+      message: `Too many AI requests — please wait a minute. (Cap: ${RATE_MAX_PER_WINDOW}/min)`,
+    }, 429);
+  }
+
+  // ---------- PARSE & VALIDATE ----------
   let body: any;
   try {
     body = await req.json();
@@ -54,9 +95,29 @@ export default async function handler(req: Request) {
     return json({ error: 'BAD_REQUEST', message: 'Invalid JSON body' }, 400);
   }
 
-  const { provider, model, system, messages, max_tokens = 2000 } = body || {};
+  const { provider, model, system, messages } = body || {};
+  let { max_tokens } = body || {};
+  max_tokens = Math.min(Math.max(parseInt(String(max_tokens ?? 2000), 10) || 2000, 100), MAX_TOKENS_HARD_CAP);
+
   if (!provider || !messages) {
     return json({ error: 'BAD_REQUEST', message: 'Missing provider or messages' }, 400);
+  }
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return json({ error: 'BAD_REQUEST', message: 'messages must be a non-empty array' }, 400);
+  }
+  if (messages.length > MAX_HISTORY_MESSAGES) {
+    return json({ error: 'PAYLOAD_TOO_LARGE', message: `Too many history messages (max ${MAX_HISTORY_MESSAGES}).` }, 413);
+  }
+  if (typeof system === 'string' && system.length > MAX_SYSTEM_PROMPT_LEN) {
+    return json({ error: 'PAYLOAD_TOO_LARGE', message: 'System prompt too large.' }, 413);
+  }
+  for (const m of messages) {
+    if (typeof m?.content !== 'string') {
+      return json({ error: 'BAD_REQUEST', message: 'message.content must be a string' }, 400);
+    }
+    if (m.content.length > MAX_USER_MESSAGE_LEN) {
+      return json({ error: 'PAYLOAD_TOO_LARGE', message: 'A message is too long.' }, 413);
+    }
   }
 
   const keys: Record<string, string | undefined> = {
@@ -121,12 +182,19 @@ export default async function handler(req: Request) {
   try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
   if (!upstream.ok) {
-    // Surface upstream error context to the client for debugging
+    // Log raw upstream error server-side, return a generic message to the client
+    // so we don't leak provider-internal details (token counts, key prefixes, etc).
+    console.error('[chat] upstream error', provider, upstream.status, JSON.stringify(data).slice(0, 500));
+    const safeMessage = upstream.status === 429
+      ? 'AI provider rate limit hit — try again in a minute.'
+      : upstream.status === 401 || upstream.status === 403
+        ? 'AI provider rejected the request (auth issue on the server). Admin should check API key.'
+        : 'AI provider returned an error. Please try again.';
     return json({
       error: 'UPSTREAM_ERROR',
       status: upstream.status,
       provider,
-      message: data?.error?.message || data?.message || data?.raw || 'Upstream returned an error',
+      message: safeMessage,
     }, upstream.status);
   }
 

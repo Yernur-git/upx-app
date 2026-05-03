@@ -99,8 +99,12 @@ export function ChatPanel() {
 
   const [retryText, setRetryText] = useState<string | null>(null);
 
-  const claimsAction = (msg: string) =>
-    /\b(переношу|добавляю|удаляю|изменяю|перемещаю|поставлю|обновлю|создаю|перенёс|добавил|удалил|изменил|обновил)\b|I'(ll|ve) (moved|added|deleted|updated|created)|I will (move|add|delete|update|create)/i.test(msg);
+  const claimsAction = (msg: string) => {
+    // Normalise curly apostrophes (’ → ') so contractions like "I'll" / "I've"
+    // also match when the model emits them with smart quotes.
+    const m = msg.replace(/[‘’]/g, "'");
+    return /\b(переношу|перенесу|перенёс|перенес|перенесла|переместил|перемещаю|перемещу|добавлю|добавляю|добавил|добавила|удалю|удаляю|удалил|удалила|изменю|изменяю|изменил|обновлю|обновляю|обновил|создам|создаю|создал|поставлю|поставил|готово|сделано|done)\b|I'(ll|ve|m)\s+(moved|moving|added|adding|deleted|deleting|updated|updating|created|creating|done)|I\s+(will|have|am)\s+(move|moved|moving|add|added|adding|delete|deleted|deleting|update|updated|creating|created)/i.test(m);
+  };
 
   const sendText = useCallback(async (text: string) => {
     if (!text || isTyping) return;

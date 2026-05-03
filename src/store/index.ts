@@ -608,6 +608,45 @@ export const useStore = create<Store>()(
       applyActions: async (actions) => {
         set({ aiUndoSnapshot: get().tasks });
         let applied = 0;
+
+        // Resolve an AI-supplied id to an actual task. Accept either a full UUID
+        // (exact match) or a short prefix of length >= 8 (matches first 8 chars).
+        // Anything shorter is rejected — a 4-char prefix could match many tasks
+        // and would let the AI delete/edit the wrong one.
+        const resolveTask = (rawId: unknown): Task | null => {
+          if (typeof rawId !== 'string') return null;
+          const id = rawId.trim();
+          if (id.length < 8) return null;
+          const tasks = get().tasks;
+          // Exact match wins
+          const exact = tasks.find(t => t.id === id);
+          if (exact) return exact;
+          // Otherwise prefix match — but require uniqueness to avoid collisions.
+          const matches = tasks.filter(t => t.id.startsWith(id));
+          if (matches.length === 1) return matches[0];
+          if (matches.length > 1) {
+            console.warn('AI id is ambiguous (collision):', id, '→', matches.map(t => t.id));
+            return null;
+          }
+          return null;
+        };
+
+        // Allowlist of fields the AI is allowed to update. Without this, the AI
+        // could overwrite user_id, created_at, is_done, actual_duration_minutes etc.
+        const UPDATABLE_FIELDS = new Set<keyof Task>([
+          'title', 'duration_minutes', 'break_after', 'travel_minutes',
+          'priority', 'category', 'is_starred',
+          'day', 'fixed_time', 'notes', 'recurrence', 'recurrence_days',
+          'planned_date', 'sort_order',
+        ]);
+        const sanitizeUpdates = (raw: Record<string, unknown>): Partial<Task> => {
+          const out: Record<string, unknown> = {};
+          for (const k of Object.keys(raw)) {
+            if (UPDATABLE_FIELDS.has(k as keyof Task)) out[k] = raw[k];
+          }
+          return out as Partial<Task>;
+        };
+
         for (const action of actions) {
           if (!action?.type || action?.payload == null) continue;
           const { addTask, updateTask, deleteTask, reorderTasks } = get();
@@ -615,9 +654,12 @@ export const useStore = create<Store>()(
             switch (action.type) {
               case 'create_task': {
                 const p = action.payload as Partial<Omit<Task, 'id' | 'created_at'>>;
-                if (!p?.title) break;
+                if (!p?.title || typeof p.title !== 'string' || !p.title.trim()) {
+                  console.warn('create_task: missing title', p);
+                  break;
+                }
                 await addTask({
-                  title: p.title ?? 'Untitled',
+                  title: p.title.trim(),
                   duration_minutes: p.duration_minutes ?? 30,
                   break_after: p.break_after ?? get().config.buffer,
                   travel_minutes: p.travel_minutes ?? 0,
@@ -629,8 +671,8 @@ export const useStore = create<Store>()(
                   day: p.day ?? (p.planned_date ? 'tomorrow' : 'today'),
                   recurrence: p.recurrence ?? 'none',
                   sort_order: p.sort_order ?? 0,
-                  fixed_time: p.fixed_time,
-                  notes: p.notes,
+                  fixed_time: p.fixed_time ?? undefined,
+                  notes: p.notes ?? undefined,
                   planned_date: p.planned_date ?? undefined,
                 });
                 applied++;
@@ -638,52 +680,64 @@ export const useStore = create<Store>()(
               }
               case 'update_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                // Support both full UUID and 8-char short ID (prefix match)
-                const utask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!utask) { console.warn('update_task: unknown id', pl.id); break; }
-                const { id: _id, ...updates } = pl;
-                await updateTask(utask.id, updates as Partial<Task>);
+                const utask = resolveTask(pl?.id);
+                if (!utask) { console.warn('update_task: unknown / ambiguous id', pl?.id); break; }
+                const { id: _id, ...rest } = pl;
+                const updates = sanitizeUpdates(rest);
+                if (Object.keys(updates).length === 0) {
+                  console.warn('update_task: no updatable fields', pl);
+                  break;
+                }
+                await updateTask(utask.id, updates);
                 applied++;
                 break;
               }
               case 'delete_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                // Support both full UUID and 8-char short ID (prefix match)
-                const dtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!dtask) { console.warn('delete_task: unknown id', pl.id); break; }
+                const dtask = resolveTask(pl?.id);
+                if (!dtask) { console.warn('delete_task: unknown / ambiguous id', pl?.id); break; }
                 await deleteTask(dtask.id);
                 applied++;
                 break;
               }
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                const mtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!mtask) { console.warn('move_task: unknown id', pl.id); break; }
-                // Support planned_date moves: AI can schedule to a specific weekday
-                if (pl.planned_date && typeof pl.planned_date === 'string') {
-                  // Moving to a specific date → keep day='tomorrow' + set planned_date
+                const mtask = resolveTask(pl?.id);
+                if (!mtask) { console.warn('move_task: unknown / ambiguous id', pl?.id); break; }
+                // Specific weekday → set planned_date, day stays 'tomorrow'
+                if (typeof pl.planned_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pl.planned_date)) {
                   await get().updateTask(mtask.id, { day: 'tomorrow', planned_date: pl.planned_date });
-                } else if (pl.day) {
-                  // Moving to today/tomorrow (clear any planned_date)
-                  await get().updateTask(mtask.id, { day: pl.day as 'today' | 'tomorrow', planned_date: undefined });
-                } else {
+                  applied++;
                   break;
                 }
-                applied++;
+                // Explicit clear of planned_date (move "back" to today/tomorrow)
+                if (pl.planned_date === null || pl.day) {
+                  const day = (pl.day as 'today' | 'tomorrow') ?? 'today';
+                  await get().updateTask(mtask.id, { day, planned_date: undefined });
+                  applied++;
+                  break;
+                }
+                console.warn('move_task: nothing to do', pl);
                 break;
               }
               case 'reschedule': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
-                // Resolve short IDs to full IDs for reschedule
                 const tasks = get().tasks;
-                const resolvedOrder = (pl.order as string[]).map(shortId => {
-                  const t = tasks.find(t => t.id === shortId || t.id.startsWith(shortId));
-                  return t ? t.id : shortId;
-                });
+                // Resolve short IDs; drop unresolved ones rather than passing
+                // raw shortIds through to reorderTasks (which would corrupt order).
+                const resolvedOrder: string[] = [];
+                for (const item of pl.order as unknown[]) {
+                  if (typeof item !== 'string') continue;
+                  const id = item.trim();
+                  if (id.length < 8) continue;
+                  const t = tasks.find(t => t.id === id || t.id.startsWith(id));
+                  if (t) resolvedOrder.push(t.id);
+                }
+                if (resolvedOrder.length === 0) {
+                  console.warn('reschedule: no resolvable ids');
+                  break;
+                }
                 await reorderTasks(resolvedOrder);
                 applied++;
                 break;
