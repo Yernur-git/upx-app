@@ -434,28 +434,40 @@ Use the Energy & Fatigue Context above to give smarter advice:
 3. Move/delete/update tasks
 4. Give productivity advice based on energy level
 
-## RESPONSE FORMAT — STRICT JSON ONLY
-No markdown, no text outside JSON:
+## RESPONSE FORMAT — STRICT JSON ONLY (CRITICAL — READ TWICE)
+Your ENTIRE response must be a single valid JSON object. Nothing else.
+- NO leading/trailing prose like "Сейчас перенесу X" or "Вот результат".
+- NO markdown code fences (\`\`\`json or \`\`\`).
+- NO multiple JSON objects.
+- The user-facing text goes ONLY inside the "message" field.
+
+❌ FORBIDDEN — this is exactly what NOT to do:
+  Сейчас перенесу задачу "SAT" на вечер.
+  \`\`\`json
+  { "actions": [{ "type": "update_task", ... }] }
+  \`\`\`
+
+✅ CORRECT — always exactly this shape:
 {
-  "message": "friendly response in same language as user",
+  "message": "Перенёс SAT на 20:00.",
   "actions": [
-    {
-      "type": "create_task",
-      "payload": {
-        "title": "Clean title without duration",
-        "duration_minutes": 120,
-        "travel_minutes": 0,
-        "break_after": 10,
-        "priority": "low|medium|high",
-        "category": "workout|deep work|meetings|meals|creative|admin|general",
-        "fixed_time": null,
-        "day": "today|tomorrow",
-        "recurrence": "none|daily|weekdays|weekly",
-        "sort_order": 0,
-        "planned_date": null
-      }
-    }
+    { "type": "update_task", "payload": { "id": "0cfefd50", "fixed_time": "20:00" } }
   ]
+}
+
+For create_task, the payload schema is:
+{
+  "title": "Clean title without duration",
+  "duration_minutes": 120,
+  "travel_minutes": 0,
+  "break_after": 10,
+  "priority": "low|medium|high",
+  "category": "workout|deep work|meetings|meals|creative|admin|general",
+  "fixed_time": null,
+  "day": "today|tomorrow",
+  "recurrence": "none|daily|weekdays|weekly",
+  "sort_order": 0,
+  "planned_date": null
 }
 
 PLANNED_DATE RULES for create_task:
@@ -680,29 +692,63 @@ export async function sendChatMessage(
     ? await callAnthropic(userMessage, history, systemPrompt, cfg)
     : await callOpenAICompat(userMessage, history, systemPrompt, cfg);
 
+  // 1) Strict path: strip ```json fences, parse the whole thing.
   try {
     const clean = rawText.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
     return { message: parsed.message || 'Done!', actions: parsed.actions || [] };
-  } catch {
-    // JSON was truncated or malformed — try regex extraction
+  } catch { /* fall through */ }
+
+  // 2) Recover path: model leaked text + JSON. Pull out the JSON block,
+  //    use any prose before/after it as the message.
+  //    Common bad shape: "Сейчас перенесу X.\n```json\n{\"actions\":[...]}\n```"
+  const fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) {
     try {
-      const msgMatch = rawText.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      const actMatch = rawText.match(/"actions"\s*:\s*(\[[\s\S]*)/);
-      let actions: ParsedAction[] = [];
-      if (actMatch) {
-        // Try to close the truncated array
-        let arr = actMatch[1];
-        // Find last complete object and close the array
-        const lastClose = arr.lastIndexOf('}');
-        if (lastClose !== -1) arr = arr.slice(0, lastClose + 1) + ']';
-        try { actions = JSON.parse(arr); } catch { actions = []; }
-      }
-      const message = msgMatch ? msgMatch[1] : rawText;
-      return { message, actions };
-    } catch {
-      return { message: rawText, actions: [] };
+      const parsed = JSON.parse(fenceMatch[1].trim());
+      const before = rawText.slice(0, fenceMatch.index!).trim();
+      const after  = rawText.slice(fenceMatch.index! + fenceMatch[0].length).trim();
+      const prose = (before || after).trim();
+      return {
+        message: parsed.message || prose || 'Done!',
+        actions: parsed.actions || [],
+      };
+    } catch { /* fall through */ }
+  }
+
+  // 3) Find the first balanced { ... } object that contains "actions" or "message".
+  const objMatch = rawText.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try {
+      const parsed = JSON.parse(objMatch[0]);
+      const before = rawText.slice(0, objMatch.index!).trim();
+      const prose = before;
+      return {
+        message: parsed.message || prose || 'Done!',
+        actions: parsed.actions || [],
+      };
+    } catch { /* fall through */ }
+  }
+
+  // 4) Truncated JSON — best-effort regex extract for "message" + actions array.
+  try {
+    const msgMatch = rawText.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    const actMatch = rawText.match(/"actions"\s*:\s*(\[[\s\S]*)/);
+    let actions: ParsedAction[] = [];
+    if (actMatch) {
+      let arr = actMatch[1];
+      const lastClose = arr.lastIndexOf('}');
+      if (lastClose !== -1) arr = arr.slice(0, lastClose + 1) + ']';
+      try { actions = JSON.parse(arr); } catch { actions = []; }
     }
+    // Strip any embedded JSON-looking content from rawText so the user doesn't
+    // see a wall of `{ "actions": [...] }` in the chat bubble.
+    const cleanedMsg = msgMatch
+      ? msgMatch[1]
+      : rawText.replace(/```(?:json)?[\s\S]*?```/g, '').replace(/\{[\s\S]*\}/g, '').trim();
+    return { message: cleanedMsg || 'Done!', actions };
+  } catch {
+    return { message: 'Done!', actions: [] };
   }
 }
 

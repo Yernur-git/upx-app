@@ -126,8 +126,9 @@ function todayDateStr(): string {
 function rolloverRecurring(tasks: Task[]): {
   kept: Task[];
   drops: string[];                                                // delete from DB
-  dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }>;   // update day in DB
+  dayChanges: Array<{ id: string; day: 'today' | 'tomorrow'; clearPlannedDate?: boolean }>;
   resetIds: string[];                                             // is_done → false in DB
+  clearPlannedDateIds: string[];                                  // planned_date → null in DB (stale dates)
 } {
   const today = todayDateStr();
   const dayOfWeek = new Date().getDay();
@@ -135,8 +136,9 @@ function rolloverRecurring(tasks: Task[]): {
 
   const kept: Task[] = [];
   const drops: string[] = [];
-  const dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }> = [];
+  const dayChanges: Array<{ id: string; day: 'today' | 'tomorrow'; clearPlannedDate?: boolean }> = [];
   const resetIds: string[] = [];
+  const clearPlannedDateIds: string[] = [];
 
   const appliesToday = (t: Task): boolean =>
     t.recurrence === 'daily' ||
@@ -151,9 +153,15 @@ function rolloverRecurring(tasks: Task[]): {
       continue;
     }
 
-    // Pending one-shot today → keep
+    // Pending one-shot today → keep, but clear stale planned_date so the task
+    // doesn't disappear from the week strip (getTaskDate uses planned_date when set)
     if (t.day === 'today' && !t.is_done && t.recurrence === 'none') {
-      kept.push(t);
+      if (t.planned_date && t.planned_date <= today) {
+        kept.push({ ...t, planned_date: undefined });
+        clearPlannedDateIds.push(t.id);
+      } else {
+        kept.push(t);
+      }
       continue;
     }
 
@@ -179,8 +187,11 @@ function rolloverRecurring(tasks: Task[]): {
         kept.push(t);
         continue;
       }
-      kept.push({ ...t, day: 'today', is_done: false });
-      dayChanges.push({ id: t.id, day: 'today' });
+      // Clear planned_date — it's been consumed; otherwise the task vanishes
+      // from the week strip the next day (getTaskDate prefers planned_date over day).
+      const hadPlanned = !!t.planned_date;
+      kept.push({ ...t, day: 'today', is_done: false, planned_date: undefined });
+      dayChanges.push({ id: t.id, day: 'today', clearPlannedDate: hadPlanned });
       if (t.is_done) resetIds.push(t.id);
       continue;
     }
@@ -202,7 +213,7 @@ function rolloverRecurring(tasks: Task[]): {
     kept.push(t);
   }
 
-  return { kept, drops, dayChanges, resetIds };
+  return { kept, drops, dayChanges, resetIds, clearPlannedDateIds };
 }
 
 export const useStore = create<Store>()(
@@ -351,9 +362,15 @@ export const useStore = create<Store>()(
 
       checkAndRollover: async () => {
         const today = todayDateStr();
-        const { lastRolloverDate, tasks, userId, dayHistory } = get();
+        const { lastRolloverDate, tasks, userId, dayHistory, isLoading, lastLoadedUserId } = get();
         const isISO = lastRolloverDate && /^\d{4}-\d{2}-\d{2}$/.test(lastRolloverDate);
         if (isISO && lastRolloverDate === today) return;
+        // Don't run rollover while a Supabase fetch is in flight, OR before the user's
+        // data has been loaded for the first time. Otherwise we'd set lastRolloverDate
+        // to today while tasks=[], then loadFromSupabase would think rollover is done
+        // and skip rolling stale 'tomorrow' tasks pulled from the server.
+        if (isLoading) return;
+        if (userId && userId !== 'local-user' && lastLoadedUserId !== userId) return;
 
         // Snapshot the OLD day's stats under the OLD date (not today!).
         // Previous bug: saveDayStats used today's date, so the new day's slot
@@ -386,7 +403,7 @@ export const useStore = create<Store>()(
           }
         }
 
-        const { kept, drops, dayChanges, resetIds } = rolloverRecurring(tasks);
+        const { kept, drops, dayChanges, resetIds, clearPlannedDateIds } = rolloverRecurring(tasks);
         set({ tasks: kept, lastRolloverDate: today });
 
         // Sync the rollover diff to Supabase. Without this, the DB keeps
@@ -398,13 +415,20 @@ export const useStore = create<Store>()(
             }
             // Use a single-row update per change — Supabase doesn't bulk-update with different values
             for (const ch of dayChanges) {
-              await supabase.from('tasks').update({ day: ch.day, is_done: false }).eq('id', ch.id).eq('user_id', userId);
+              const updates: Record<string, unknown> = { day: ch.day, is_done: false };
+              if (ch.clearPlannedDate) updates.planned_date = null;
+              await supabase.from('tasks').update(updates).eq('id', ch.id).eq('user_id', userId);
             }
             // Recurring resets that didn't already get covered by dayChanges
             const dayChangedIds = new Set(dayChanges.map(c => c.id));
             const onlyResets = resetIds.filter(id => !dayChangedIds.has(id));
             if (onlyResets.length > 0) {
               await supabase.from('tasks').update({ is_done: false }).in('id', onlyResets).eq('user_id', userId);
+            }
+            // Clear stale planned_date on tasks already at day='today' but with old planned_date
+            const onlyClears = clearPlannedDateIds.filter(id => !dayChangedIds.has(id));
+            if (onlyClears.length > 0) {
+              await supabase.from('tasks').update({ planned_date: null }).in('id', onlyClears).eq('user_id', userId);
             }
           } catch (e) {
             console.error('[rollover] sync failed', e);
@@ -737,8 +761,15 @@ export const useStore = create<Store>()(
       },
 
       loadFromSupabase: async () => {
-        const { userId, lastLoadedUserId } = get();
+        const { userId, lastLoadedUserId, lastRolloverDate: initialLastRolloverDate } = get();
         if (!userId) return;
+
+        // Capture rollover-needed state BEFORE any await — periodic checkAndRollover
+        // or focus/visibility events can mutate lastRolloverDate during the fetch.
+        // Without this snapshot, the race causes stale 'tomorrow' tasks to silently
+        // remain in their old state on the next-day open.
+        const today = todayDateStr();
+        const needsRollover = !initialLastRolloverDate || initialLastRolloverDate !== today;
 
         // Different user → wipe ALL local state before loading so account A's
         // data never bleeds into account B's session.
@@ -765,24 +796,24 @@ export const useStore = create<Store>()(
           // Only convert 'tomorrow' → 'today' if the calendar day has actually changed
           // (i.e. lastRolloverDate is not today). This prevents overwriting intentional
           // "move to tomorrow" when the user is still on the same day.
-          const today = todayDateStr();
-          const { lastRolloverDate } = get();
-          const needsRollover = !lastRolloverDate || lastRolloverDate !== today;
 
-          const tomorrowIds: string[] = [];
+          const tomorrowIds: Array<{ id: string; hadPlanned: boolean }> = [];
           const normalised = tasksRes.data.map(t => {
             if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date > today)) {
-              tomorrowIds.push(t.id);
-              return { ...t, day: 'today' as const, is_done: false };
+              tomorrowIds.push({ id: t.id, hadPlanned: !!t.planned_date });
+              // Clear planned_date too — it's been consumed by today's rollover
+              return { ...t, day: 'today' as const, is_done: false, planned_date: undefined };
             }
             return t;
           });
           set({ tasks: normalised });
           // Sync the rollover back to Supabase
           if (tomorrowIds.length > 0 && userId) {
-            for (const id of tomorrowIds) {
+            for (const { id, hadPlanned } of tomorrowIds) {
+              const updates: Record<string, unknown> = { day: 'today', is_done: false };
+              if (hadPlanned) updates.planned_date = null;
               supabase.from('tasks')
-                .update({ day: 'today', is_done: false })
+                .update(updates)
                 .eq('id', id).eq('user_id', userId)
                 .then(({ error }) => { if (error) console.error('[load] tomorrow→today sync failed', error); });
             }
