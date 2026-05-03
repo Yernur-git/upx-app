@@ -126,8 +126,9 @@ function todayDateStr(): string {
 function rolloverRecurring(tasks: Task[]): {
   kept: Task[];
   drops: string[];                                                // delete from DB
-  dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }>;   // update day in DB
+  dayChanges: Array<{ id: string; day: 'today' | 'tomorrow'; clearPlannedDate?: boolean }>;
   resetIds: string[];                                             // is_done → false in DB
+  clearPlannedDateIds: string[];                                  // planned_date → null in DB (stale dates)
 } {
   const today = todayDateStr();
   const dayOfWeek = new Date().getDay();
@@ -135,8 +136,9 @@ function rolloverRecurring(tasks: Task[]): {
 
   const kept: Task[] = [];
   const drops: string[] = [];
-  const dayChanges: Array<{ id: string; day: 'today' | 'tomorrow' }> = [];
+  const dayChanges: Array<{ id: string; day: 'today' | 'tomorrow'; clearPlannedDate?: boolean }> = [];
   const resetIds: string[] = [];
+  const clearPlannedDateIds: string[] = [];
 
   const appliesToday = (t: Task): boolean =>
     t.recurrence === 'daily' ||
@@ -151,9 +153,15 @@ function rolloverRecurring(tasks: Task[]): {
       continue;
     }
 
-    // Pending one-shot today → keep
+    // Pending one-shot today → keep, but clear stale planned_date so the task
+    // doesn't disappear from the week strip (getTaskDate uses planned_date when set)
     if (t.day === 'today' && !t.is_done && t.recurrence === 'none') {
-      kept.push(t);
+      if (t.planned_date && t.planned_date <= today) {
+        kept.push({ ...t, planned_date: undefined });
+        clearPlannedDateIds.push(t.id);
+      } else {
+        kept.push(t);
+      }
       continue;
     }
 
@@ -179,8 +187,11 @@ function rolloverRecurring(tasks: Task[]): {
         kept.push(t);
         continue;
       }
-      kept.push({ ...t, day: 'today', is_done: false });
-      dayChanges.push({ id: t.id, day: 'today' });
+      // Clear planned_date — it's been consumed; otherwise the task vanishes
+      // from the week strip the next day (getTaskDate prefers planned_date over day).
+      const hadPlanned = !!t.planned_date;
+      kept.push({ ...t, day: 'today', is_done: false, planned_date: undefined });
+      dayChanges.push({ id: t.id, day: 'today', clearPlannedDate: hadPlanned });
       if (t.is_done) resetIds.push(t.id);
       continue;
     }
@@ -202,7 +213,7 @@ function rolloverRecurring(tasks: Task[]): {
     kept.push(t);
   }
 
-  return { kept, drops, dayChanges, resetIds };
+  return { kept, drops, dayChanges, resetIds, clearPlannedDateIds };
 }
 
 export const useStore = create<Store>()(
@@ -351,9 +362,15 @@ export const useStore = create<Store>()(
 
       checkAndRollover: async () => {
         const today = todayDateStr();
-        const { lastRolloverDate, tasks, userId, dayHistory } = get();
+        const { lastRolloverDate, tasks, userId, dayHistory, isLoading, lastLoadedUserId } = get();
         const isISO = lastRolloverDate && /^\d{4}-\d{2}-\d{2}$/.test(lastRolloverDate);
         if (isISO && lastRolloverDate === today) return;
+        // Don't run rollover while a Supabase fetch is in flight, OR before the user's
+        // data has been loaded for the first time. Otherwise we'd set lastRolloverDate
+        // to today while tasks=[], then loadFromSupabase would think rollover is done
+        // and skip rolling stale 'tomorrow' tasks pulled from the server.
+        if (isLoading) return;
+        if (userId && userId !== 'local-user' && lastLoadedUserId !== userId) return;
 
         // Snapshot the OLD day's stats under the OLD date (not today!).
         // Previous bug: saveDayStats used today's date, so the new day's slot
@@ -386,7 +403,7 @@ export const useStore = create<Store>()(
           }
         }
 
-        const { kept, drops, dayChanges, resetIds } = rolloverRecurring(tasks);
+        const { kept, drops, dayChanges, resetIds, clearPlannedDateIds } = rolloverRecurring(tasks);
         set({ tasks: kept, lastRolloverDate: today });
 
         // Sync the rollover diff to Supabase. Without this, the DB keeps
@@ -398,13 +415,20 @@ export const useStore = create<Store>()(
             }
             // Use a single-row update per change — Supabase doesn't bulk-update with different values
             for (const ch of dayChanges) {
-              await supabase.from('tasks').update({ day: ch.day, is_done: false }).eq('id', ch.id).eq('user_id', userId);
+              const updates: Record<string, unknown> = { day: ch.day, is_done: false };
+              if (ch.clearPlannedDate) updates.planned_date = null;
+              await supabase.from('tasks').update(updates).eq('id', ch.id).eq('user_id', userId);
             }
             // Recurring resets that didn't already get covered by dayChanges
             const dayChangedIds = new Set(dayChanges.map(c => c.id));
             const onlyResets = resetIds.filter(id => !dayChangedIds.has(id));
             if (onlyResets.length > 0) {
               await supabase.from('tasks').update({ is_done: false }).in('id', onlyResets).eq('user_id', userId);
+            }
+            // Clear stale planned_date on tasks already at day='today' but with old planned_date
+            const onlyClears = clearPlannedDateIds.filter(id => !dayChangedIds.has(id));
+            if (onlyClears.length > 0) {
+              await supabase.from('tasks').update({ planned_date: null }).in('id', onlyClears).eq('user_id', userId);
             }
           } catch (e) {
             console.error('[rollover] sync failed', e);
@@ -584,6 +608,45 @@ export const useStore = create<Store>()(
       applyActions: async (actions) => {
         set({ aiUndoSnapshot: get().tasks });
         let applied = 0;
+
+        // Resolve an AI-supplied id to an actual task. Accept either a full UUID
+        // (exact match) or a short prefix of length >= 8 (matches first 8 chars).
+        // Anything shorter is rejected — a 4-char prefix could match many tasks
+        // and would let the AI delete/edit the wrong one.
+        const resolveTask = (rawId: unknown): Task | null => {
+          if (typeof rawId !== 'string') return null;
+          const id = rawId.trim();
+          if (id.length < 8) return null;
+          const tasks = get().tasks;
+          // Exact match wins
+          const exact = tasks.find(t => t.id === id);
+          if (exact) return exact;
+          // Otherwise prefix match — but require uniqueness to avoid collisions.
+          const matches = tasks.filter(t => t.id.startsWith(id));
+          if (matches.length === 1) return matches[0];
+          if (matches.length > 1) {
+            console.warn('AI id is ambiguous (collision):', id, '→', matches.map(t => t.id));
+            return null;
+          }
+          return null;
+        };
+
+        // Allowlist of fields the AI is allowed to update. Without this, the AI
+        // could overwrite user_id, created_at, is_done, actual_duration_minutes etc.
+        const UPDATABLE_FIELDS = new Set<keyof Task>([
+          'title', 'duration_minutes', 'break_after', 'travel_minutes',
+          'priority', 'category', 'is_starred',
+          'day', 'fixed_time', 'notes', 'recurrence', 'recurrence_days',
+          'planned_date', 'sort_order',
+        ]);
+        const sanitizeUpdates = (raw: Record<string, unknown>): Partial<Task> => {
+          const out: Record<string, unknown> = {};
+          for (const k of Object.keys(raw)) {
+            if (UPDATABLE_FIELDS.has(k as keyof Task)) out[k] = raw[k];
+          }
+          return out as Partial<Task>;
+        };
+
         for (const action of actions) {
           if (!action?.type || action?.payload == null) continue;
           const { addTask, updateTask, deleteTask, reorderTasks } = get();
@@ -591,9 +654,12 @@ export const useStore = create<Store>()(
             switch (action.type) {
               case 'create_task': {
                 const p = action.payload as Partial<Omit<Task, 'id' | 'created_at'>>;
-                if (!p?.title) break;
+                if (!p?.title || typeof p.title !== 'string' || !p.title.trim()) {
+                  console.warn('create_task: missing title', p);
+                  break;
+                }
                 await addTask({
-                  title: p.title ?? 'Untitled',
+                  title: p.title.trim(),
                   duration_minutes: p.duration_minutes ?? 30,
                   break_after: p.break_after ?? get().config.buffer,
                   travel_minutes: p.travel_minutes ?? 0,
@@ -605,8 +671,8 @@ export const useStore = create<Store>()(
                   day: p.day ?? (p.planned_date ? 'tomorrow' : 'today'),
                   recurrence: p.recurrence ?? 'none',
                   sort_order: p.sort_order ?? 0,
-                  fixed_time: p.fixed_time,
-                  notes: p.notes,
+                  fixed_time: p.fixed_time ?? undefined,
+                  notes: p.notes ?? undefined,
                   planned_date: p.planned_date ?? undefined,
                 });
                 applied++;
@@ -614,52 +680,64 @@ export const useStore = create<Store>()(
               }
               case 'update_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                // Support both full UUID and 8-char short ID (prefix match)
-                const utask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!utask) { console.warn('update_task: unknown id', pl.id); break; }
-                const { id: _id, ...updates } = pl;
-                await updateTask(utask.id, updates as Partial<Task>);
+                const utask = resolveTask(pl?.id);
+                if (!utask) { console.warn('update_task: unknown / ambiguous id', pl?.id); break; }
+                const { id: _id, ...rest } = pl;
+                const updates = sanitizeUpdates(rest);
+                if (Object.keys(updates).length === 0) {
+                  console.warn('update_task: no updatable fields', pl);
+                  break;
+                }
+                await updateTask(utask.id, updates);
                 applied++;
                 break;
               }
               case 'delete_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                // Support both full UUID and 8-char short ID (prefix match)
-                const dtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!dtask) { console.warn('delete_task: unknown id', pl.id); break; }
+                const dtask = resolveTask(pl?.id);
+                if (!dtask) { console.warn('delete_task: unknown / ambiguous id', pl?.id); break; }
                 await deleteTask(dtask.id);
                 applied++;
                 break;
               }
               case 'move_task': {
                 const pl = action.payload as Record<string, unknown>;
-                if (!pl?.id || typeof pl.id !== 'string') break;
-                const mtask = get().tasks.find(t => t.id === pl.id || t.id.startsWith(pl.id as string));
-                if (!mtask) { console.warn('move_task: unknown id', pl.id); break; }
-                // Support planned_date moves: AI can schedule to a specific weekday
-                if (pl.planned_date && typeof pl.planned_date === 'string') {
-                  // Moving to a specific date → keep day='tomorrow' + set planned_date
+                const mtask = resolveTask(pl?.id);
+                if (!mtask) { console.warn('move_task: unknown / ambiguous id', pl?.id); break; }
+                // Specific weekday → set planned_date, day stays 'tomorrow'
+                if (typeof pl.planned_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pl.planned_date)) {
                   await get().updateTask(mtask.id, { day: 'tomorrow', planned_date: pl.planned_date });
-                } else if (pl.day) {
-                  // Moving to today/tomorrow (clear any planned_date)
-                  await get().updateTask(mtask.id, { day: pl.day as 'today' | 'tomorrow', planned_date: undefined });
-                } else {
+                  applied++;
                   break;
                 }
-                applied++;
+                // Explicit clear of planned_date (move "back" to today/tomorrow)
+                if (pl.planned_date === null || pl.day) {
+                  const day = (pl.day as 'today' | 'tomorrow') ?? 'today';
+                  await get().updateTask(mtask.id, { day, planned_date: undefined });
+                  applied++;
+                  break;
+                }
+                console.warn('move_task: nothing to do', pl);
                 break;
               }
               case 'reschedule': {
                 const pl = action.payload as Record<string, unknown>;
                 if (!Array.isArray(pl?.order) || pl.order.length === 0) break;
-                // Resolve short IDs to full IDs for reschedule
                 const tasks = get().tasks;
-                const resolvedOrder = (pl.order as string[]).map(shortId => {
-                  const t = tasks.find(t => t.id === shortId || t.id.startsWith(shortId));
-                  return t ? t.id : shortId;
-                });
+                // Resolve short IDs; drop unresolved ones rather than passing
+                // raw shortIds through to reorderTasks (which would corrupt order).
+                const resolvedOrder: string[] = [];
+                for (const item of pl.order as unknown[]) {
+                  if (typeof item !== 'string') continue;
+                  const id = item.trim();
+                  if (id.length < 8) continue;
+                  const t = tasks.find(t => t.id === id || t.id.startsWith(id));
+                  if (t) resolvedOrder.push(t.id);
+                }
+                if (resolvedOrder.length === 0) {
+                  console.warn('reschedule: no resolvable ids');
+                  break;
+                }
                 await reorderTasks(resolvedOrder);
                 applied++;
                 break;
@@ -737,8 +815,15 @@ export const useStore = create<Store>()(
       },
 
       loadFromSupabase: async () => {
-        const { userId, lastLoadedUserId } = get();
+        const { userId, lastLoadedUserId, lastRolloverDate: initialLastRolloverDate } = get();
         if (!userId) return;
+
+        // Capture rollover-needed state BEFORE any await — periodic checkAndRollover
+        // or focus/visibility events can mutate lastRolloverDate during the fetch.
+        // Without this snapshot, the race causes stale 'tomorrow' tasks to silently
+        // remain in their old state on the next-day open.
+        const today = todayDateStr();
+        const needsRollover = !initialLastRolloverDate || initialLastRolloverDate !== today;
 
         // Different user → wipe ALL local state before loading so account A's
         // data never bleeds into account B's session.
@@ -765,24 +850,24 @@ export const useStore = create<Store>()(
           // Only convert 'tomorrow' → 'today' if the calendar day has actually changed
           // (i.e. lastRolloverDate is not today). This prevents overwriting intentional
           // "move to tomorrow" when the user is still on the same day.
-          const today = todayDateStr();
-          const { lastRolloverDate } = get();
-          const needsRollover = !lastRolloverDate || lastRolloverDate !== today;
 
-          const tomorrowIds: string[] = [];
+          const tomorrowIds: Array<{ id: string; hadPlanned: boolean }> = [];
           const normalised = tasksRes.data.map(t => {
             if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date > today)) {
-              tomorrowIds.push(t.id);
-              return { ...t, day: 'today' as const, is_done: false };
+              tomorrowIds.push({ id: t.id, hadPlanned: !!t.planned_date });
+              // Clear planned_date too — it's been consumed by today's rollover
+              return { ...t, day: 'today' as const, is_done: false, planned_date: undefined };
             }
             return t;
           });
           set({ tasks: normalised });
           // Sync the rollover back to Supabase
           if (tomorrowIds.length > 0 && userId) {
-            for (const id of tomorrowIds) {
+            for (const { id, hadPlanned } of tomorrowIds) {
+              const updates: Record<string, unknown> = { day: 'today', is_done: false };
+              if (hadPlanned) updates.planned_date = null;
               supabase.from('tasks')
-                .update({ day: 'today', is_done: false })
+                .update(updates)
                 .eq('id', id).eq('user_id', userId)
                 .then(({ error }) => { if (error) console.error('[load] tomorrow→today sync failed', error); });
             }
