@@ -746,7 +746,13 @@ export async function sendChatMessage(
     } catch { /* fall through */ }
   }
 
-  // 4) Final safety net — NEVER dump raw model output to the user. If we got
+  // 4) No JSON found at all — the model responded with plain text (e.g.
+  //    conversational advice, scheduling tips). Use the raw text as the message.
+  if (!rawText.includes('{')) {
+    return { message: rawText.trim() || 'Готово.', actions: [] };
+  }
+
+  // 5) Final safety net — NEVER dump raw model output to the user. If we got
   //    here the model produced something we can't parse. Try one regex extract
   //    for `actions`, but show a safe message.
   try {
@@ -760,7 +766,7 @@ export async function sendChatMessage(
     }
     const msgMatch = rawText.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
     const safeMsg = msgMatch ? msgMatch[1] : (
-      actions.length > 0 ? 'Готово.' : 'Не получилось разобрать ответ — попробуйте переформулировать.'
+      actions.length > 0 ? 'Готово.' : rawText.replace(/[{}[\]"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500) || 'Не получилось разобрать ответ — попробуйте переформулировать.'
     );
     return { message: safeMsg, actions };
   } catch {

@@ -49,7 +49,19 @@ export function buildSchedule(tasks: Task[], config: UserConfig, ignoreNow = fal
   if (sleep <= wake) sleep += 24 * 60;
   const availableMinutes = sleep - wake - (config.morning_buffer ?? 0);
 
-  const pendingTasks = tasks.filter(t => !t.is_done && t.day === 'today');
+  // Match TaskList's getTaskDate logic: a task is "today" if day==='today'
+  // OR if its planned_date equals today's date (even if day is 'tomorrow').
+  // This prevents tasks from showing in the list but not on the schedule.
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+  const pendingTasks = tasks.filter(t => {
+    if (t.is_done) return false;
+    if (t.day === 'today') return true;
+    if (t.planned_date && t.planned_date === todayStr) return true;
+    return false;
+  });
   const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
   // ── Separate fixed vs floating tasks ──────────────────────────────
