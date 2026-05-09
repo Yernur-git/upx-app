@@ -841,70 +841,77 @@ export const useStore = create<Store>()(
         }
 
         set({ isLoading: true });
-        const [tasksRes, configRes, statsRes] = await Promise.all([
-          supabase.from('tasks').select('*').eq('user_id', userId).order('sort_order'),
-          supabase.from('user_config').select('*').eq('user_id', userId).single(),
-          supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
-        ]);
-        if (tasksRes.data) {
-          // Only convert 'tomorrow' → 'today' if the calendar day has actually changed
-          // (i.e. lastRolloverDate is not today). This prevents overwriting intentional
-          // "move to tomorrow" when the user is still on the same day.
+        try {
+          const [tasksRes, configRes, statsRes] = await Promise.all([
+            supabase.from('tasks').select('*').eq('user_id', userId).order('sort_order'),
+            supabase.from('user_config').select('*').eq('user_id', userId).single(),
+            supabase.from('day_stats').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(30),
+          ]);
+          if (tasksRes.data) {
+            // Only convert 'tomorrow' → 'today' if the calendar day has actually changed
+            // (i.e. lastRolloverDate is not today). This prevents overwriting intentional
+            // "move to tomorrow" when the user is still on the same day.
 
-          const tomorrowIds: Array<{ id: string; hadPlanned: boolean }> = [];
-          const normalised = tasksRes.data.map(t => {
-            if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date > today)) {
-              tomorrowIds.push({ id: t.id, hadPlanned: !!t.planned_date });
-              // Clear planned_date too — it's been consumed by today's rollover
-              return { ...t, day: 'today' as const, is_done: false, planned_date: undefined };
-            }
-            return t;
-          });
-          set({ tasks: normalised });
-          // Sync the rollover back to Supabase
-          if (tomorrowIds.length > 0 && userId) {
-            for (const { id, hadPlanned } of tomorrowIds) {
-              const updates: Record<string, unknown> = { day: 'today', is_done: false };
-              if (hadPlanned) updates.planned_date = null;
-              supabase.from('tasks')
-                .update(updates)
-                .eq('id', id).eq('user_id', userId)
-                .then(({ error }) => { if (error) console.error('[load] tomorrow→today sync failed', error); });
+            const tomorrowIds: Array<{ id: string; hadPlanned: boolean }> = [];
+            const normalised = tasksRes.data.map(t => {
+              if (t.day === 'tomorrow' && needsRollover && !(t.planned_date && t.planned_date > today)) {
+                tomorrowIds.push({ id: t.id, hadPlanned: !!t.planned_date });
+                // Clear planned_date too — it's been consumed by today's rollover
+                return { ...t, day: 'today' as const, is_done: false, planned_date: undefined };
+              }
+              return t;
+            });
+            set({ tasks: normalised });
+            // Sync the rollover back to Supabase
+            if (tomorrowIds.length > 0 && userId) {
+              for (const { id, hadPlanned } of tomorrowIds) {
+                const updates: Record<string, unknown> = { day: 'today', is_done: false };
+                if (hadPlanned) updates.planned_date = null;
+                supabase.from('tasks')
+                  .update(updates)
+                  .eq('id', id).eq('user_id', userId)
+                  .then(({ error }) => { if (error) console.error('[load] tomorrow→today sync failed', error); });
+              }
             }
           }
-        }
-        if (configRes.data) {
-          const { user_id, updated_at, ...cfg } = configRes.data;
-          // Strip null values so they don't override DEFAULT_CONFIG fallbacks.
-          // e.g. quick_tasks column is NULL for existing users after migration →
-          // without this, null would overwrite the default template list.
-          const cleanCfg = Object.fromEntries(
-            Object.entries(cfg).filter(([, v]) => v !== null)
-          );
-          set({ config: { ...DEFAULT_CONFIG, ...cleanCfg } });
-        }
-        {
-          const remoteStats: DayStats[] = (statsRes.data ?? []).map(r => ({
-            date: r.date,
-            total_count: r.total_count,
-            done_count: r.done_count,
-            total_minutes: r.total_minutes,
-            done_minutes: r.done_minutes,
-            tasks: r.tasks || [],
-          }));
-          // For same user: merge (remote wins same date). For new user: only remote.
-          const isSameUser = get().lastLoadedUserId === userId;
-          if (isSameUser && remoteStats.length > 0) {
-            const { dayHistory } = get();
-            const merged = new Map<string, DayStats>(dayHistory.map(d => [d.date, d]));
-            for (const r of remoteStats) merged.set(r.date, r);
-            set({ dayHistory: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30) });
-          } else {
-            // Different (or new) user — use only what Supabase returned
-            set({ dayHistory: remoteStats.sort((a, b) => a.date.localeCompare(b.date)) });
+          if (configRes.data) {
+            const { user_id, updated_at, ...cfg } = configRes.data;
+            // Strip null values so they don't override DEFAULT_CONFIG fallbacks.
+            // e.g. quick_tasks column is NULL for existing users after migration →
+            // without this, null would overwrite the default template list.
+            const cleanCfg = Object.fromEntries(
+              Object.entries(cfg).filter(([, v]) => v !== null)
+            );
+            set({ config: { ...DEFAULT_CONFIG, ...cleanCfg } });
           }
+          {
+            const remoteStats: DayStats[] = (statsRes.data ?? []).map(r => ({
+              date: r.date,
+              total_count: r.total_count,
+              done_count: r.done_count,
+              total_minutes: r.total_minutes,
+              done_minutes: r.done_minutes,
+              tasks: r.tasks || [],
+            }));
+            // For same user: merge (remote wins same date). For new user: only remote.
+            const isSameUser = get().lastLoadedUserId === userId;
+            if (isSameUser && remoteStats.length > 0) {
+              const { dayHistory } = get();
+              const merged = new Map<string, DayStats>(dayHistory.map(d => [d.date, d]));
+              for (const r of remoteStats) merged.set(r.date, r);
+              set({ dayHistory: [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-30) });
+            } else {
+              // Different (or new) user — use only what Supabase returned
+              set({ dayHistory: remoteStats.sort((a, b) => a.date.localeCompare(b.date)) });
+            }
+          }
+        } catch (e) {
+          console.error('[loadFromSupabase] fetch failed — rollover will still run', e);
+        } finally {
+          // CRITICAL: always clear isLoading. If this stays true, checkAndRollover
+          // is blocked forever and tomorrow's tasks never roll over to today.
+          set({ isLoading: false, lastLoadedUserId: userId });
         }
-        set({ isLoading: false, lastLoadedUserId: userId });
         get().checkAndRollover();
       },
 
