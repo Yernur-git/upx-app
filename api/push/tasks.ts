@@ -17,9 +17,16 @@ const REMIND_BEFORE = 10;
 const WINDOW = 5;
 
 export default async function handler(req: Request) {
+  // FAIL CLOSED: refuse if CRON_SECRET is missing. Otherwise this cron endpoint
+  // is wide open and an attacker can scrape every user's upcoming task titles
+  // through the push payloads it generates.
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error('[push/tasks] CRON_SECRET not configured — refusing');
+    return new Response('Server not configured', { status: 503 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 

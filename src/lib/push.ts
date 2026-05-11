@@ -55,9 +55,16 @@ export async function subscribeToPush(userId: string): Promise<'subscribed' | 'd
 
     // Save to server (include timezone offset so cron can compute local time)
     const tzOffset = -new Date().getTimezoneOffset(); // minutes east of UTC
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      const { supabase } = await import('./supabase');
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch { /* will fail with 401 below if no session */ }
     const res = await fetch('/api/push/subscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ subscription: sub.toJSON(), userId, tzOffset }),
     });
 
@@ -79,9 +86,16 @@ export async function unsubscribeFromPush(userId: string): Promise<void> {
     const endpoint = sub.endpoint;
     await sub.unsubscribe();
     // Tell server to remove it
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      const { supabase } = await import('./supabase');
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch { /* will fail with 401 below if no session */ }
     await fetch('/api/push/unsubscribe', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ endpoint, userId }),
     });
   } catch (err) {
