@@ -20,10 +20,16 @@ import { createClient } from '@supabase/supabase-js';
 
 // Node.js runtime (default when edge config is absent)
 export default async function handler(req: Request) {
-  // Vercel passes CRON_SECRET automatically for cron routes; verify it
+  // Vercel passes CRON_SECRET automatically for cron routes; verify it.
+  // FAIL CLOSED: if CRON_SECRET is unset, refuse the request — otherwise anyone
+  // who finds /api/push/morning can broadcast pushes to every subscribed user.
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    console.error('[push/morning] CRON_SECRET not configured — refusing');
+    return new Response('Server not configured', { status: 503 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 
