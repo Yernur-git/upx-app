@@ -19,8 +19,11 @@ ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Users can only read/write their own subscription rows. The Vercel cron and
 -- the /api/push/* endpoints use the service-role key which bypasses RLS.
+-- Cast both sides to text so the policy works regardless of whether the
+-- existing user_id column is uuid or text (older deployments created it
+-- as text, which would otherwise blow up with "uuid = text" operator error).
 DROP POLICY IF EXISTS "Users manage own push subscriptions" ON public.push_subscriptions;
 CREATE POLICY "Users manage own push subscriptions"
   ON public.push_subscriptions FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING (auth.uid()::text = user_id::text)
+  WITH CHECK (auth.uid()::text = user_id::text);
