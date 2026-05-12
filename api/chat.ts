@@ -15,6 +15,29 @@ const MAX_SYSTEM_PROMPT_LEN = 32000;     // ~8k tokens — generous but bounded
 const MAX_USER_MESSAGE_LEN  = 8000;
 const MAX_HISTORY_MESSAGES  = 30;
 
+// Per-provider model allowlist. Without this, a client can demand
+// `claude-opus-4` or `gpt-4o` on every request and drain the budget — the
+// proxy uses the server's API key. Prefixes match families (minor versions OK).
+const ALLOWED_MODEL_PREFIXES: Record<string, string[]> = {
+  anthropic:  ['claude-haiku-', 'claude-3-5-haiku', 'claude-3-haiku', 'claude-sonnet-', 'claude-3-5-sonnet'],
+  openai:     ['gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4.1-nano', 'o4-mini'],
+  groq:       ['llama-3.1-8b', 'llama-3.3-70b', 'llama-3.1-70b', 'mixtral-', 'gemma'],
+  openrouter: ['anthropic/claude-haiku', 'anthropic/claude-3-5-haiku', 'anthropic/claude-sonnet', 'openai/gpt-4o-mini', 'openai/gpt-4.1-mini', 'meta-llama/'],
+};
+const DEFAULT_MODEL: Record<string, string> = {
+  anthropic:  'claude-3-5-haiku-20241022',
+  openai:     'gpt-4o-mini',
+  groq:       'llama-3.3-70b-versatile',
+  openrouter: 'anthropic/claude-3-5-haiku',
+};
+function pickModel(provider: string, requested: unknown): string | null {
+  const allow = ALLOWED_MODEL_PREFIXES[provider];
+  const def   = DEFAULT_MODEL[provider];
+  if (!allow || !def) return null;
+  if (typeof requested !== 'string' || !requested.trim()) return def;
+  return allow.some(p => requested.startsWith(p)) ? requested : def;
+}
+
 // Naive in-memory rate limit. Edge functions have warm instances so this works
 // for short bursts; for global throttling use Upstash KV.
 //   key = userId-or-ip → { count, windowStart }
@@ -139,6 +162,12 @@ export default async function handler(req: Request) {
     }, 500);
   }
 
+  // Enforce model allowlist — unknown / expensive models silently fall back to the cheap default.
+  const safeModel = pickModel(provider, model);
+  if (!safeModel) {
+    return json({ error: 'BAD_PROVIDER', message: `Unknown provider: ${provider}` }, 400);
+  }
+
   let upstream: Response;
 
   try {
@@ -150,7 +179,7 @@ export default async function handler(req: Request) {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
-        body: JSON.stringify({ model, system, messages, max_tokens }),
+        body: JSON.stringify({ model: safeModel, system, messages, max_tokens }),
       });
     } else {
       const fullMessages = system
@@ -169,7 +198,7 @@ export default async function handler(req: Request) {
       upstream = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ model, max_tokens, messages: fullMessages }),
+        body: JSON.stringify({ model: safeModel, max_tokens, messages: fullMessages }),
       });
     }
   } catch (e: any) {

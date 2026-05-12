@@ -609,6 +609,14 @@ export const useStore = create<Store>()(
         set({ aiUndoSnapshot: get().tasks });
         let applied = 0;
 
+        // Cap actions per turn — without this, a single AI turn can create
+        // hundreds of garbage tasks and inflate Supabase storage quota.
+        const MAX_ACTIONS_PER_TURN = 20;
+        if (Array.isArray(actions) && actions.length > MAX_ACTIONS_PER_TURN) {
+          console.warn(`applyActions: truncating ${actions.length} actions to ${MAX_ACTIONS_PER_TURN}`);
+          actions = actions.slice(0, MAX_ACTIONS_PER_TURN);
+        }
+
         // Resolve an AI-supplied id to an actual task. Accept either a full UUID
         // (exact match) or a short prefix of length >= 8 (matches first 8 chars).
         // Anything shorter is rejected — a 4-char prefix could match many tasks
@@ -631,8 +639,35 @@ export const useStore = create<Store>()(
           return null;
         };
 
-        // Allowlist of fields the AI is allowed to update. Without this, the AI
-        // could overwrite user_id, created_at, is_done, actual_duration_minutes etc.
+        // ── Per-field clamps so the AI can't write garbage values that
+        // corrupt the scheduler or bloat the DB.
+        const PRIORITY_VALUES = new Set(['low', 'medium', 'high']);
+        const RECURRENCE_VALUES = new Set(['none', 'daily', 'weekdays', 'weekly', 'custom']);
+        const DAY_VALUES = new Set(['today', 'tomorrow']);
+        const clampStr = (v: unknown, max: number): string | undefined => {
+          if (typeof v !== 'string') return undefined;
+          const s = v.trim();
+          if (!s) return undefined;
+          return s.slice(0, max);
+        };
+        const clampInt = (v: unknown, min: number, max: number): number | undefined => {
+          if (typeof v !== 'number' || !Number.isFinite(v)) return undefined;
+          return Math.max(min, Math.min(max, Math.trunc(v)));
+        };
+        const clampPlannedDate = (v: unknown): string | null | undefined => {
+          if (v === null) return null;
+          if (typeof v !== 'string') return undefined;
+          return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
+        };
+        const clampFixedTime = (v: unknown): string | null | undefined => {
+          if (v === null) return null;
+          if (typeof v !== 'string') return undefined;
+          return /^\d{2}:\d{2}$/.test(v) ? v : undefined;
+        };
+
+        // Allowlist + clamp every AI-supplied field. Without this the AI could
+        // overwrite user_id/created_at/is_done OR write multi-MB titles / negative
+        // durations / future-decade dates that break scheduler arithmetic.
         const UPDATABLE_FIELDS = new Set<keyof Task>([
           'title', 'duration_minutes', 'break_after', 'travel_minutes',
           'priority', 'category', 'is_starred',
@@ -642,7 +677,24 @@ export const useStore = create<Store>()(
         const sanitizeUpdates = (raw: Record<string, unknown>): Partial<Task> => {
           const out: Record<string, unknown> = {};
           for (const k of Object.keys(raw)) {
-            if (UPDATABLE_FIELDS.has(k as keyof Task)) out[k] = raw[k];
+            if (!UPDATABLE_FIELDS.has(k as keyof Task)) continue;
+            const v = raw[k];
+            switch (k) {
+              case 'title':            { const s = clampStr(v, 200);  if (s !== undefined) out[k] = s; break; }
+              case 'notes':            { const s = clampStr(v, 2000); if (s !== undefined) out[k] = s; break; }
+              case 'category':         { const s = clampStr(v, 40);   if (s !== undefined) out[k] = s; break; }
+              case 'duration_minutes': { const n = clampInt(v, 1, 1440); if (n !== undefined) out[k] = n; break; }
+              case 'break_after':      { const n = clampInt(v, 0, 240);  if (n !== undefined) out[k] = n; break; }
+              case 'travel_minutes':   { const n = clampInt(v, 0, 240);  if (n !== undefined) out[k] = n; break; }
+              case 'sort_order':       { const n = clampInt(v, 0, 10000); if (n !== undefined) out[k] = n; break; }
+              case 'priority':         if (typeof v === 'string' && PRIORITY_VALUES.has(v)) out[k] = v; break;
+              case 'recurrence':       if (typeof v === 'string' && RECURRENCE_VALUES.has(v)) out[k] = v; break;
+              case 'day':              if (typeof v === 'string' && DAY_VALUES.has(v)) out[k] = v; break;
+              case 'is_starred':       if (typeof v === 'boolean') out[k] = v; break;
+              case 'fixed_time':       { const f = clampFixedTime(v); if (f !== undefined) out[k] = f; break; }
+              case 'planned_date':     { const p = clampPlannedDate(v); if (p !== undefined) out[k] = p; break; }
+              case 'recurrence_days':  if (Array.isArray(v)) out[k] = v.filter(d => typeof d === 'number' && d >= 0 && d <= 6).slice(0, 7); break;
+            }
           }
           return out as Partial<Task>;
         };
@@ -653,27 +705,31 @@ export const useStore = create<Store>()(
           try {
             switch (action.type) {
               case 'create_task': {
-                const p = action.payload as Partial<Omit<Task, 'id' | 'created_at'>>;
-                if (!p?.title || typeof p.title !== 'string' || !p.title.trim()) {
-                  console.warn('create_task: missing title', p);
+                const raw = action.payload as Record<string, unknown>;
+                const title = clampStr(raw.title, 200);
+                if (!title) {
+                  console.warn('create_task: missing/invalid title', raw);
                   break;
                 }
+                // Clamp every field through the same validators as update — keeps
+                // negative durations, runaway notes, and bogus dates out of the DB.
+                const clamped = sanitizeUpdates(raw);
                 await addTask({
-                  title: p.title.trim(),
-                  duration_minutes: p.duration_minutes ?? 30,
-                  break_after: p.break_after ?? get().config.buffer,
-                  travel_minutes: p.travel_minutes ?? 0,
-                  priority: p.priority ?? 'medium',
-                  category: p.category ?? 'general',
-                  is_starred: p.is_starred ?? false,
-                  is_done: false,
+                  title,
+                  duration_minutes: clamped.duration_minutes ?? 30,
+                  break_after:      clamped.break_after ?? get().config.buffer,
+                  travel_minutes:   clamped.travel_minutes ?? 0,
+                  priority:         (clamped.priority as 'low' | 'medium' | 'high') ?? 'medium',
+                  category:         clamped.category ?? 'general',
+                  is_starred:       clamped.is_starred ?? false,
+                  is_done:          false,
                   // If planned_date is provided for a future weekday, keep day='tomorrow'
-                  day: p.day ?? (p.planned_date ? 'tomorrow' : 'today'),
-                  recurrence: p.recurrence ?? 'none',
-                  sort_order: p.sort_order ?? 0,
-                  fixed_time: p.fixed_time ?? undefined,
-                  notes: p.notes ?? undefined,
-                  planned_date: p.planned_date ?? undefined,
+                  day:              (clamped.day as 'today' | 'tomorrow') ?? (clamped.planned_date ? 'tomorrow' : 'today'),
+                  recurrence:       (clamped.recurrence as 'none' | 'daily' | 'weekdays' | 'weekly' | 'custom') ?? 'none',
+                  sort_order:       clamped.sort_order ?? 0,
+                  fixed_time:       clamped.fixed_time ?? undefined,
+                  notes:            clamped.notes ?? undefined,
+                  planned_date:     clamped.planned_date ?? undefined,
                 });
                 applied++;
                 break;

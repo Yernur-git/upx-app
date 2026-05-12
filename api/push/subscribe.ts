@@ -48,8 +48,25 @@ export default async function handler(req: Request) {
   if (!sub.endpoint || typeof sub.endpoint !== 'string') {
     return new Response('Missing subscription.endpoint', { status: 400 });
   }
-  if (typeof tzOffset !== 'undefined' && (typeof tzOffset !== 'number' || !Number.isFinite(tzOffset))) {
-    return new Response('Invalid tzOffset', { status: 400 });
+
+  // Bound tz_offset to a realistic timezone range (±14h in minutes). Otherwise
+  // a crafted offset (e.g. 1e15) would corrupt the cron's local-time math.
+  const safeTzOffset = (() => {
+    if (typeof tzOffset !== 'number' || !Number.isFinite(tzOffset)) return 0;
+    const i = Math.trunc(tzOffset);
+    return Math.max(-840, Math.min(840, i));
+  })();
+
+  // Hijack protection: if a row for this endpoint already exists under a
+  // DIFFERENT user_id, refuse — otherwise an attacker who learned a victim's
+  // endpoint URL (e.g. from a log dump) could overwrite the row and either
+  // silence the victim's pushes or receive their task-title notifications.
+  const { data: existing } = await admin.from('push_subscriptions')
+    .select('user_id')
+    .eq('endpoint', sub.endpoint)
+    .maybeSingle();
+  if (existing && existing.user_id && existing.user_id !== authedUserId) {
+    return new Response('endpoint owned by another user', { status: 409 });
   }
 
   const { error } = await admin.from('push_subscriptions').upsert(
@@ -57,7 +74,7 @@ export default async function handler(req: Request) {
       user_id: authedUserId,
       endpoint: sub.endpoint,
       subscription,
-      tz_offset: tzOffset ?? 0,
+      tz_offset: safeTzOffset,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'endpoint' }
