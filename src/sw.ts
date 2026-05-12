@@ -89,9 +89,22 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title, opts));
 });
 
+// Hardening: only allow same-origin relative paths in push payload `data.url`.
+// Without this, a future push sender (or compromised cron) could redirect users
+// to attacker-controlled sites (phishing) by setting url to "https://evil/" or
+// "//evil/" or "javascript:..." — all of which `openWindow` would dutifully open.
+function safeNotificationUrl(raw: unknown): string {
+  if (typeof raw !== 'string') return '/';
+  // Reject protocol-relative ("//evil"), absolute ("https://..."), and any
+  // scheme-bearing URL ("javascript:", "data:", "file:", etc.).
+  if (!raw.startsWith('/')) return '/';
+  if (raw.startsWith('//')) return '/';
+  return raw;
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data as { url: string })?.url || '/';
+  const url = safeNotificationUrl((event.notification.data as { url?: unknown })?.url);
 
   event.waitUntil(
     self.clients
@@ -103,8 +116,8 @@ self.addEventListener('notificationclick', (event) => {
             return (client as WindowClient).focus();
           }
         }
-        // Otherwise open new tab
-        return self.clients.openWindow(url);
+        // Otherwise open new tab — always under our origin
+        return self.clients.openWindow(self.location.origin + url);
       })
   );
 });
