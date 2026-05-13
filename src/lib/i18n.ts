@@ -91,6 +91,10 @@ const DICT = {
     'stats.close':         'Close',
     'stats.notEnoughData': 'Not enough data yet — use the app for a few days first.',
     'stats.aiError':       'AI request failed. Check your provider settings.',
+    'stats.empty.title':   'Your stats will appear here',
+    'stats.empty.desc':    'Add tasks and start completing them — by tomorrow you\'ll see your streak, focus minutes, and weekly review.',
+    'timeline.empty.title':'Free day',
+    'timeline.empty.desc': 'No tasks scheduled. Add one to see the timeline come alive.',
 
     // Profile
     'profile.account':         'Account',
@@ -270,6 +274,10 @@ const DICT = {
     'stats.close':         'Закрыть',
     'stats.notEnoughData': 'Мало данных — попользуйтесь приложением несколько дней.',
     'stats.aiError':       'Запрос к ИИ не прошёл. Проверьте настройки провайдера.',
+    'stats.empty.title':   'Здесь появится ваша статистика',
+    'stats.empty.desc':    'Добавляйте задачи и закрывайте их — уже завтра здесь будут стрик, минуты фокуса и обзор недели.',
+    'timeline.empty.title':'Свободный день',
+    'timeline.empty.desc': 'Задач пока нет. Добавьте — и расписание оживёт.',
 
     // Profile
     'profile.account':         'Аккаунт',

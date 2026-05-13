@@ -153,10 +153,24 @@ export function StatsPanel() {
   };
 
   const hasAnyData = weekStats.some(d => d.totalCount > 0);
+  // Brand-new user — no tasks today and no history yet. Show a friendly
+  // explainer instead of a stats panel full of zeros and empty charts.
+  const isBrandNew = !hasAnyData && todayTasks.length === 0;
 
   return (
     <div className="panel-scroll">
 
+      {isBrandNew && (
+        <div className="empty-state" style={{ marginTop: 32 }}>
+          <div className="empty-icon">
+            <Sparkles size={32} strokeWidth={1.5} color="var(--ind)" />
+          </div>
+          <h3>{t('stats.empty.title')}</h3>
+          <p style={{ maxWidth: 280 }}>{t('stats.empty.desc')}</p>
+        </div>
+      )}
+
+      {!isBrandNew && <>
       {/* ── AI Weekly Review — hero card ─────────────────────── */}
       <div style={{
         marginTop: 16,
@@ -424,6 +438,7 @@ export function StatsPanel() {
       {selectedDay && (
         <DayDetailModal day={selectedDay} onClose={() => setSelectedDate(null)} />
       )}
+      </>}
     </div>
   );
 }

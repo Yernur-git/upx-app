@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useRef } from 'react';
-import { Coffee } from 'lucide-react';
+import { Coffee, CalendarDays } from 'lucide-react';
 import { TaskIcon } from '../ui/TaskIcon';
 import { useStore } from '../../store';
 import { buildSchedule, getNowMinutes, minutesToTime, formatDuration, isBreakBlock } from '../../lib/scheduler';
@@ -156,6 +156,19 @@ export function Timeline() {
           </div>
         )}
       </div>
+
+      {/* Empty state — no task blocks at all on the day. Show a friendly
+          card so the user doesn't see an empty hour grid and wonder if
+          the schedule is broken. */}
+      {blocks.filter(b => !isBreakBlock(b)).length === 0 && overflow.length === 0 && (
+        <div className="empty-state" style={{ marginTop: 24 }}>
+          <div className="empty-icon">
+            <CalendarDays size={28} strokeWidth={1.5} color="var(--ind)" />
+          </div>
+          <h3>{t('timeline.empty.title')}</h3>
+          <p style={{ maxWidth: 280 }}>{t('timeline.empty.desc')}</p>
+        </div>
+      )}
 
       {/* Timeline body */}
       <div
