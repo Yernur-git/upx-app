@@ -17,11 +17,6 @@ export function identifyUser(userId: string, email?: string) {
   posthog.identify(userId, email ? { email } : undefined);
 }
 
-export function resetAnalyticsUser() {
-  if (!KEY) return;
-  posthog.reset();
-}
-
 export function track(event: string, props?: Record<string, unknown>) {
   if (!KEY) return;
   posthog.capture(event, props);

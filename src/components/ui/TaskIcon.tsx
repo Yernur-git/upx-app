@@ -33,4 +33,3 @@ export function TaskIcon({ name, size = 18, color = 'currentColor', strokeWidth 
   return <span style={{ fontSize: size * 0.9, lineHeight: 1 }}>{name}</span>;
 }
 
-export const LUCIDE_ICON_NAMES = Object.keys(ICON_MAP);

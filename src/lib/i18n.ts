@@ -415,20 +415,3 @@ export function pluralRu(n: number, one: string, few: string, many: string): str
   return many;
 }
 
-/**
- * Format a duration with correct Russian or English grammar.
- * Unlike the scheduler's formatDuration (which uses abbreviated ч/м),
- * this returns full words: "2 часа", "1 час", "45 минут", "1 час 30 минут".
- */
-export function formatDurationWords(minutes: number, lang: 'en' | 'ru' = 'en'): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (lang === 'ru') {
-    const hStr = h > 0 ? `${h} ${pluralRu(h, 'час', 'часа', 'часов')}` : '';
-    const mStr = m > 0 ? `${m} ${pluralRu(m, 'минута', 'минуты', 'минут')}` : '';
-    return [hStr, mStr].filter(Boolean).join(' ') || '0 минут';
-  }
-  const hStr = h > 0 ? `${h}h` : '';
-  const mStr = m > 0 ? `${m}m` : '';
-  return [hStr, mStr].filter(Boolean).join(' ') || '0m';
-}

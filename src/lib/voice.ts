@@ -171,7 +171,7 @@ export function unlockSpeechSynthesis(): void {
   setTimeout(() => window.speechSynthesis.cancel(), 0);
 }
 
-export function speak(
+function speak(
   text: string,
   lang: 'en' | 'ru',
   onEnd?: () => void,

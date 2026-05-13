@@ -11,6 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../../store';
 import { detectCategory, getAllCategories } from '../../lib/categories';
+import { humanizeError } from '../../lib/errors';
 import { useT } from '../../lib/i18n';
 import type { Task, Priority, Recurrence, QuickTask } from '../../types';
 import { TaskIcon } from '../ui/TaskIcon';
@@ -1079,6 +1080,7 @@ function EditTaskForm({ task, onDone }: { task: Task; onDone: () => void }) {
 function AddTaskForm({ day, onDone, plannedDate }: { day: 'today' | 'tomorrow'; onDone: () => void; plannedDate?: string }) {
   const t = useT();
   const { addTask, config } = useStore();
+  const lang = config.language ?? 'en';
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('30');
   const [priority, setPriority] = useState<Priority>('medium');
@@ -1126,7 +1128,7 @@ function AddTaskForm({ day, onDone, plannedDate }: { day: 'today' | 'tomorrow'; 
       });
       onDone();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to add task');
+      setError(humanizeError(e, lang as 'en' | 'ru'));
       setLoading(false);
     }
   };
