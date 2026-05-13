@@ -32,7 +32,7 @@ export default async function handler(req: Request) {
 
   const vapidPublic  = process.env.VAPID_PUBLIC_KEY;
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-  const vapidContact = process.env.VAPID_CONTACT || 'mailto:hello@upx.app';
+  const vapidContact = process.env.VAPID_CONTACT || 'mailto:hurah492@gmail.com';
   if (!vapidPublic || !vapidPrivate) {
     return new Response('VAPID keys not configured', { status: 500 });
   }

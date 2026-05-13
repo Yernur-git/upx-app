@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, CheckCircle, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { humanizeError } from '../../lib/errors';
 
 export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: string) => void }) {
   const [password, setPassword] = useState('');
@@ -12,8 +13,9 @@ export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: st
 
   const handleSubmit = async () => {
     setError('');
-    if (password.length < 6) { setError('Minimum 6 characters'); return; }
-    if (password !== confirm) { setError('Passwords do not match'); return; }
+    const isRu = /^ru\b/i.test(navigator.language ?? '');
+    if (password.length < 8) { setError(isRu ? 'Минимум 8 символов' : 'Minimum 8 characters'); return; }
+    if (password !== confirm) { setError(isRu ? 'Пароли не совпадают' : 'Passwords do not match'); return; }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.updateUser({ password });
@@ -25,7 +27,7 @@ export function PasswordResetScreen({ onDone }: { onDone: (id: string, email: st
         if (user) onDone(user.id, user.email ?? 'local');
       }, 1500);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      setError(humanizeError(e));
     } finally {
       setLoading(false);
     }

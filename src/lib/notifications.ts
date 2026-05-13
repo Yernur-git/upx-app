@@ -1,13 +1,4 @@
 import type { Task } from '../types';
-import { timeToMinutes } from './scheduler';
-
-// Request permission
-export async function requestNotificationPermission(): Promise<boolean> {
-  if (!('Notification' in window)) return false;
-  if (Notification.permission === 'granted') return true;
-  const result = await Notification.requestPermission();
-  return result === 'granted';
-}
 
 export function canNotify(): boolean {
   return 'Notification' in window && Notification.permission === 'granted';
@@ -40,7 +31,7 @@ function scheduleAt(minutesFromMidnight: number, title: string, body: string) {
 // Track scheduled timers so we can cancel them
 const activeTimers = new Set<number>();
 
-export function clearAllNotifications() {
+function clearAllNotifications() {
   activeTimers.forEach(id => window.clearTimeout(id));
   activeTimers.clear();
 }
@@ -79,14 +70,3 @@ export function scheduleTaskNotifications(
   }
 }
 
-// Morning briefing notification
-export function scheduleMorningBriefing(wakeTime: string, taskCount: number) {
-  if (!canNotify()) return;
-  const wakeMin = timeToMinutes(wakeTime);
-  const id = scheduleAt(
-    wakeMin + 1,
-    'Good morning',
-    taskCount > 0 ? `You have ${taskCount} tasks planned today` : 'No tasks yet — open UpX to plan your day'
-  );
-  if (id) activeTimers.add(id);
-}

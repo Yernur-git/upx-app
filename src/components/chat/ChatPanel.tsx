@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, X, Bot, Undo2, Settings2, Sparkles, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { useStore } from '../../store';
 import { sendChatMessage } from '../../lib/ai';
+import { humanizeError } from '../../lib/errors';
 import { useT } from '../../lib/i18n';
 import { track } from '../../lib/analytics';
 import {
@@ -155,7 +156,7 @@ export function ChatPanel() {
     } catch (err) {
       addChatMessage({
         role: 'assistant',
-        content: t('chat.error', { err: err instanceof Error ? err.message : 'Unknown error' }),
+        content: t('chat.error', { err: humanizeError(err, lang as 'en' | 'ru') }),
         actions: [],
       });
     } finally {

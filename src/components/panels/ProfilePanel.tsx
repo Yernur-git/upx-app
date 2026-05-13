@@ -4,6 +4,7 @@ import { useStore } from '../../store';
 import { detectProvider, providerLabel } from '../../lib/ai';
 import { useT } from '../../lib/i18n';
 import { supportsPush, getPushSubscription, subscribeToPush, unsubscribeFromPush } from '../../lib/push';
+import { LegalScreen } from '../legal/LegalScreen';
 import type { CategoryGoal, Lang, PeakFocusTime } from '../../types';
 
 const COLORS = ['#5C6B9C', '#5FA35F', '#F07070', '#F5C842', '#8B5CF6', '#06B6D4', '#F97316'];
@@ -35,6 +36,7 @@ export function ProfilePanel() {
   const [pushStatus, setPushStatus] = useState<'loading' | 'subscribed' | 'unsubscribed' | 'unsupported'>('loading');
   const [pushWorking, setPushWorking] = useState(false);
   const [confirm, setConfirm] = useState<null | { message: string; onConfirm: () => void }>(null);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | null>(null);
 
   // Detect current push subscription state on mount
   useEffect(() => {
@@ -421,6 +423,27 @@ export function ProfilePanel() {
           {t('profile.deleteAll')}
         </button>
       </Card>
+
+      {/* ── LEGAL ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 8,
+        padding: '20px 0 4px',
+        fontSize: 11, color: 'var(--tx3)',
+      }}>
+        <button
+          onClick={() => setLegalTab('privacy')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tx3)', fontSize: 11, padding: 4, fontFamily: 'inherit', textDecoration: 'underline' }}>
+          {config.language === 'ru' ? 'Конфиденциальность' : 'Privacy'}
+        </button>
+        <span>·</span>
+        <button
+          onClick={() => setLegalTab('terms')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tx3)', fontSize: 11, padding: 4, fontFamily: 'inherit', textDecoration: 'underline' }}>
+          {config.language === 'ru' ? 'Условия' : 'Terms'}
+        </button>
+      </div>
+
+      {legalTab && <LegalScreen initial={legalTab} onClose={() => setLegalTab(null)} />}
 
       <div style={{ height: 32 }} />
     </div>

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Mail, Send } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { humanizeError } from '../../lib/errors';
+import { LegalScreen } from '../legal/LegalScreen';
 
 type Mode = 'login' | 'register' | 'forgot' | 'verify' | 'forgot-sent';
 
@@ -14,16 +16,18 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms' | null>(null);
+  const isRu = /^ru\b/i.test(typeof navigator !== 'undefined' ? (navigator.language ?? '') : '');
 
   const reset = (next: Mode) => { setError(''); setMode(next); };
 
   const handleSubmit = async () => {
     setError('');
     if (mode === 'register' && password !== confirmPassword) {
-      setError('Passwords do not match'); return;
+      setError(isRu ? 'Пароли не совпадают' : 'Passwords do not match'); return;
     }
-    if (mode === 'register' && password.length < 6) {
-      setError('Password must be at least 6 characters'); return;
+    if (mode === 'register' && password.length < 8) {
+      setError(isRu ? 'Пароль должен быть минимум 8 символов' : 'Password must be at least 8 characters'); return;
     }
     setLoading(true);
     try {
@@ -46,7 +50,7 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
         setMode('forgot-sent');
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
+      setError(humanizeError(e));
     } finally {
       setLoading(false);
     }
@@ -182,7 +186,23 @@ export function AuthScreen({ onAuth }: { onAuth: (id: string, email: string) => 
         <p style={{ fontSize: 11, color: 'var(--tx3)', textAlign: 'center', lineHeight: 1.5, marginTop: -4 }}>
           Data saved locally only · No sync
         </p>
+
+        {/* Legal footer */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 18, fontSize: 11, color: 'var(--tx3)' }}>
+          <button
+            onClick={() => setLegalTab('privacy')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tx3)', fontSize: 11, padding: 4, fontFamily: 'inherit', textDecoration: 'underline' }}>
+            {isRu ? 'Конфиденциальность' : 'Privacy'}
+          </button>
+          <span>·</span>
+          <button
+            onClick={() => setLegalTab('terms')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--tx3)', fontSize: 11, padding: 4, fontFamily: 'inherit', textDecoration: 'underline' }}>
+            {isRu ? 'Условия' : 'Terms'}
+          </button>
+        </div>
       </div>
+      {legalTab && <LegalScreen initial={legalTab} onClose={() => setLegalTab(null)} />}
     </Screen>
   );
 }

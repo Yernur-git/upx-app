@@ -91,6 +91,10 @@ const DICT = {
     'stats.close':         'Close',
     'stats.notEnoughData': 'Not enough data yet — use the app for a few days first.',
     'stats.aiError':       'AI request failed. Check your provider settings.',
+    'stats.empty.title':   'Your stats will appear here',
+    'stats.empty.desc':    'Add tasks and start completing them — by tomorrow you\'ll see your streak, focus minutes, and weekly review.',
+    'timeline.empty.title':'Free day',
+    'timeline.empty.desc': 'No tasks scheduled. Add one to see the timeline come alive.',
 
     // Profile
     'profile.account':         'Account',
@@ -270,6 +274,10 @@ const DICT = {
     'stats.close':         'Закрыть',
     'stats.notEnoughData': 'Мало данных — попользуйтесь приложением несколько дней.',
     'stats.aiError':       'Запрос к ИИ не прошёл. Проверьте настройки провайдера.',
+    'stats.empty.title':   'Здесь появится ваша статистика',
+    'stats.empty.desc':    'Добавляйте задачи и закрывайте их — уже завтра здесь будут стрик, минуты фокуса и обзор недели.',
+    'timeline.empty.title':'Свободный день',
+    'timeline.empty.desc': 'Задач пока нет. Добавьте — и расписание оживёт.',
 
     // Profile
     'profile.account':         'Аккаунт',
@@ -407,20 +415,3 @@ export function pluralRu(n: number, one: string, few: string, many: string): str
   return many;
 }
 
-/**
- * Format a duration with correct Russian or English grammar.
- * Unlike the scheduler's formatDuration (which uses abbreviated ч/м),
- * this returns full words: "2 часа", "1 час", "45 минут", "1 час 30 минут".
- */
-export function formatDurationWords(minutes: number, lang: 'en' | 'ru' = 'en'): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (lang === 'ru') {
-    const hStr = h > 0 ? `${h} ${pluralRu(h, 'час', 'часа', 'часов')}` : '';
-    const mStr = m > 0 ? `${m} ${pluralRu(m, 'минута', 'минуты', 'минут')}` : '';
-    return [hStr, mStr].filter(Boolean).join(' ') || '0 минут';
-  }
-  const hStr = h > 0 ? `${h}h` : '';
-  const mStr = m > 0 ? `${m}m` : '';
-  return [hStr, mStr].filter(Boolean).join(' ') || '0m';
-}
