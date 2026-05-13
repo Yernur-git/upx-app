@@ -54,6 +54,57 @@ function TaskListSkeleton() {
   );
 }
 
+/** Skeleton for the Stats panel — matches the live layout (AI hero card,
+ *  today stats grid, streak card, weekly bars) so the transition to real
+ *  content doesn't shift the viewport. */
+function StatsPanelSkeleton() {
+  return (
+    <div className="panel-scroll">
+      {/* AI hero */}
+      <div className="skeleton-line" style={{ marginTop: 16, height: 84, borderRadius: 18 }} />
+      {/* Today section */}
+      <div className="skeleton-line" style={{ marginTop: 22, height: 11, width: 60, borderRadius: 6 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 8 }}>
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="skeleton-line" style={{ height: 58, borderRadius: 12 }} />
+        ))}
+      </div>
+      <div className="skeleton-line" style={{ marginTop: 12, height: 6, borderRadius: 6 }} />
+      {/* Streak */}
+      <div className="skeleton-line" style={{ marginTop: 22, height: 11, width: 80, borderRadius: 6 }} />
+      <div className="skeleton-line" style={{ marginTop: 8, height: 76, borderRadius: 12 }} />
+      {/* Weekly bar chart */}
+      <div className="skeleton-line" style={{ marginTop: 22, height: 11, width: 90, borderRadius: 6 }} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 64, marginTop: 8 }}>
+        {[28, 44, 18, 60, 36, 52, 40].map((h, i) => (
+          <div key={i} className="skeleton-line" style={{ flex: 1, height: h, borderRadius: 6 }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Skeleton for the Timeline — header bar + a few rectangular blocks at
+ *  realistic gaps so the user sees structure forming rather than a blank
+ *  hour grid. */
+function TimelineSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 24px 12px', borderBottom: '1px solid var(--bdr)' }}>
+        <div className="skeleton-line" style={{ height: 13, width: 120, borderRadius: 6 }} />
+        <div className="skeleton-line" style={{ marginTop: 10, height: 4, borderRadius: 4 }} />
+      </div>
+      <div style={{ flex: 1, padding: '16px 12px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {[64, 48, 96, 40, 72].map((h, i) => (
+          <div key={i} style={{ marginLeft: 48, marginRight: 4 }}>
+            <div className="skeleton-line" style={{ height: h, borderRadius: 10 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 function greeting() {
   const h = new Date().getHours();
@@ -496,7 +547,7 @@ export default function App() {
                   ← Tasks
                 </button>
               </div>
-              <Timeline />
+              {isLoading ? <TimelineSkeleton /> : <Timeline />}
             </main>
           </div>
         )}
@@ -505,7 +556,7 @@ export default function App() {
         {activePanel === 'stats' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <PanelHeader title={tr('nav.stats')} />
-            <StatsPanel />
+            {isLoading ? <StatsPanelSkeleton /> : <StatsPanel />}
           </div>
         )}
 
