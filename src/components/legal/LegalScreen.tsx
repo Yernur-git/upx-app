@@ -131,7 +131,7 @@ function PrivacyEn() {
       <p style={pStyle}>UpX is not directed to children under 13. We don't knowingly collect their data.</p>
 
       <h2 style={h2Style}>Contact</h2>
-      <p style={pStyle}>Questions? Bug reports? Email <a href="mailto:hello@upx.app" style={{ color: 'var(--ind)' }}>hello@upx.app</a>.</p>
+      <p style={pStyle}>Questions? Bug reports? Email <a href="mailto:hurah492@gmail.com" style={{ color: 'var(--ind)' }}>hurah492@gmail.com</a>.</p>
     </div>
   );
 }
@@ -186,7 +186,7 @@ function PrivacyRu() {
       <p style={pStyle}>UpX не предназначен для детей младше 13 лет. Мы не собираем их данные сознательно.</p>
 
       <h2 style={h2Style}>Контакты</h2>
-      <p style={pStyle}>Вопросы или баги? Пишите <a href="mailto:hello@upx.app" style={{ color: 'var(--ind)' }}>hello@upx.app</a>.</p>
+      <p style={pStyle}>Вопросы или баги? Пишите <a href="mailto:hurah492@gmail.com" style={{ color: 'var(--ind)' }}>hurah492@gmail.com</a>.</p>
     </div>
   );
 }
@@ -229,7 +229,7 @@ function TermsEn() {
       </p>
 
       <h2 style={h2Style}>Contact</h2>
-      <p style={pStyle}><a href="mailto:hello@upx.app" style={{ color: 'var(--ind)' }}>hello@upx.app</a></p>
+      <p style={pStyle}><a href="mailto:hurah492@gmail.com" style={{ color: 'var(--ind)' }}>hurah492@gmail.com</a></p>
     </div>
   );
 }
@@ -272,7 +272,7 @@ function TermsRu() {
       </p>
 
       <h2 style={h2Style}>Контакты</h2>
-      <p style={pStyle}><a href="mailto:hello@upx.app" style={{ color: 'var(--ind)' }}>hello@upx.app</a></p>
+      <p style={pStyle}><a href="mailto:hurah492@gmail.com" style={{ color: 'var(--ind)' }}>hurah492@gmail.com</a></p>
     </div>
   );
 }
