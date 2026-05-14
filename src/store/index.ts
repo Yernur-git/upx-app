@@ -97,7 +97,7 @@ interface Store {
   deleteTask: (id: string) => Promise<void>;
   toggleDone: (id: string) => Promise<void>;
   reorderTasks: (ids: string[]) => Promise<void>;
-  moveTask: (id: string, day: 'today' | 'tomorrow') => Promise<void>;
+  moveTask: (id: string, day: 'today' | 'tomorrow', plannedDate?: string | null) => Promise<void>;
 
   updateConfig: (updates: Partial<UserConfig>) => Promise<void>;
   addChatMessage: (msg: Omit<ChatMessage, 'id' | 'created_at'>) => void;
@@ -580,8 +580,36 @@ export const useStore = create<Store>()(
         }
       },
 
-      moveTask: async (id, day) => {
-        await get().updateTask(id, { day });
+      moveTask: async (id, day, plannedDate?: string | null) => {
+        // When moving to today/tomorrow, clear planned_date so getTaskDate
+        // resolves correctly (planned_date takes priority over day field).
+        //
+        // We set planned_date locally AND send null to Supabase to clear the
+        // DB column (updateTask strips undefined but keeps null).
+        const prev = get().tasks.find(t => t.id === id);
+        if (!prev) return;
+
+        // Local state: remove planned_date by spreading undefined
+        const localUpdates: Partial<Task> = { day };
+        if (plannedDate === null || plannedDate === undefined) {
+          localUpdates.planned_date = undefined;
+        } else {
+          localUpdates.planned_date = plannedDate;
+        }
+        set(s => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, ...localUpdates } : t) }));
+
+        // DB: use null (not undefined) to actually clear the column
+        const { userId } = get();
+        if (userId && userId !== 'local-user') {
+          const dbUpdates: Record<string, unknown> = { day };
+          dbUpdates.planned_date = plannedDate ?? null; // null clears the column
+          const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id).eq('user_id', userId);
+          if (error) {
+            // Rollback
+            set(s => ({ tasks: s.tasks.map(t => t.id === id ? prev : t) }));
+            throw new Error(error.message);
+          }
+        }
       },
 
       updateConfig: async (updates) => {
@@ -780,14 +808,14 @@ export const useStore = create<Store>()(
                 if (!mtask) { console.warn('move_task: unknown / ambiguous id', pl?.id); break; }
                 // Specific weekday → set planned_date, day stays 'tomorrow'
                 if (typeof pl.planned_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pl.planned_date)) {
-                  await get().updateTask(mtask.id, { day: 'tomorrow', planned_date: pl.planned_date });
+                  await get().moveTask(mtask.id, 'tomorrow', pl.planned_date);
                   applied++;
                   break;
                 }
                 // Explicit clear of planned_date (move "back" to today/tomorrow)
                 if (pl.planned_date === null || pl.day) {
                   const day = (pl.day as 'today' | 'tomorrow') ?? 'today';
-                  await get().updateTask(mtask.id, { day, planned_date: undefined });
+                  await get().moveTask(mtask.id, day, null);
                   applied++;
                   break;
                 }
