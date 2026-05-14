@@ -1,0 +1,29 @@
+name: Task Reminders
+
+# Runs every 5 minutes — calls the Vercel push/tasks endpoint
+# which sends Web Push notifications for tasks starting in ~10 min.
+# Free on GitHub Actions (uses ~9 min/month of the 2000 min quota).
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {} # Allow manual trigger for testing
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Send task reminders
+        env:
+          APP_URL: ${{ vars.APP_URL || 'https://upx-app.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::CRON_SECRET not set — skipping"
+            exit 0
+          fi
+          curl -sf -m 30 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/push/tasks" \
+          && echo "OK" || echo "::warning::Push endpoint returned error"
