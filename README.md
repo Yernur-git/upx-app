@@ -1,112 +1,121 @@
 # UpX — AI Daily Planner
 
-Smart daily planner with an AI assistant that understands natural language tasks and builds your schedule automatically.
+A personal daily planner PWA with AI assistant, focus timer, and smart scheduling.
 
 ## Features
 
-- 📝 **Natural language tasks** — type "edit video 60min" and AI creates the task
-- 🗓️ **Auto-scheduling** — AI builds your day considering travel, breaks, priorities
-- 💬 **AI chat advisor** — ask for help, reschedule, get productivity advice
-- ⏱️ **Live timeline** — visual schedule with current time indicator
-- 🌙 **Dark mode** — full light/dark theme support
-- ☁️ **Supabase sync** — data syncs across all your devices (when configured)
+- **Tasks & Schedule** — Add tasks by text or voice. AI builds your daily timeline with breaks.
+- **AI Assistant** — Chat with AI to plan your day, get suggestions, and review progress.
+- **Focus Timer** — Pomodoro timer with per-task time tracking.
+- **Morning & Evening Rituals** — Mood check-ins, morning briefing, evening day review.
+- **Weekly Stats** — Track completion rates, streaks, and category balance.
+- **Push Notifications** — Morning briefing and task reminders via Web Push.
+- **Offline Support** — Works without an account using local storage.
+- **Dark Mode** — Full light/dark theme support.
+- **Bilingual** — English and Russian.
 
----
+## Tech Stack
 
-## Quick Start
+| Layer       | Technology                          |
+|-------------|-------------------------------------|
+| Frontend    | React 19, TypeScript, Zustand       |
+| Styling     | CSS variables, inline styles        |
+| Backend     | Vercel Serverless Functions          |
+| Database    | Supabase (Postgres + Row-Level Security) |
+| AI          | Anthropic, OpenAI, OpenRouter, Groq |
+| Voice       | ElevenLabs TTS, Web Speech API      |
+| Analytics   | PostHog (anonymous)                 |
+| PWA         | Vite PWA + Workbox                  |
 
-### 1. Install
+## Getting Started
+
 ```bash
+# Install dependencies
 npm install
-```
 
-### 2. Set up Supabase (optional for cloud sync)
-1. Go to supabase.com → New project
-2. Run the SQL from `src/lib/supabase.ts` in SQL Editor
-3. Copy your Project URL and anon key
-
-```bash
-cp .env.example .env
-# Fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-```
-
-### 3. Run
-```bash
+# Start dev server
 npm run dev
+
+# Run tests
+npm test
+
+# Build for production
+npm run build
 ```
 
-### 4. Add Anthropic API Key
-In the app → Settings (gear icon) → paste your `sk-ant-...` key.
-Get one at console.anthropic.com
+## Environment Variables
 
----
+### Client-side (`.env`)
 
-## Deploy to Vercel
-
-```bash
-npm i -g vercel
-vercel
 ```
-Then add env vars in Vercel dashboard. Auto-deploys on every GitHub push.
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_POSTHOG_KEY=your-posthog-key     # optional
+```
 
----
+### Server-side (Vercel env vars)
+
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# AI providers (at least one)
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+GROQ_API_KEY=gsk_...
+
+# Push notifications
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY=...
+VAPID_CONTACT=mailto:you@example.com
+CRON_SECRET=any-random-string
+
+# Voice (optional)
+ELEVENLABS_API_KEY=...
+```
 
 ## Project Structure
 
 ```
 src/
-├── components/
-│   ├── layout/       SidebarHeader (greeting, settings, theme toggle)
-│   ├── tasks/        TaskList, TaskCard, AddTaskForm
-│   ├── timeline/     Timeline with hour markers & task blocks
-│   └── chat/         ChatPanel — floating AI assistant
-├── lib/
-│   ├── ai.ts         Claude API integration + system prompt
-│   ├── scheduler.ts  Core scheduling algorithm
-│   └── supabase.ts   Supabase client + SQL schema comments
-├── store/
-│   └── index.ts      Zustand global state (persists to localStorage)
-├── types/
-│   └── index.ts      All TypeScript types
-└── styles/
-    └── globals.css   Design tokens (light/dark) + global styles
+  components/       # React components
+    auth/           # Auth screens
+    chat/           # AI chat panel
+    focus/          # Focus timer
+    legal/          # Privacy & Terms
+    panels/         # Stats, Profile panels
+    tasks/          # Task list, cards, quick-add
+    timeline/       # Daily schedule timeline
+  lib/              # Core logic
+    ai.ts           # AI chat + response parser
+    scheduler.ts    # Schedule builder
+    errors.ts       # Humanized error messages
+    push.ts         # Push notification client
+    notifications.ts # Local notifications
+    analytics.ts    # PostHog wrapper
+    i18n.ts         # Translations
+    supabase.ts     # Supabase client
+    voice.ts        # TTS
+  store/            # Zustand state management
+  types/            # TypeScript types
+  sw.ts             # Service worker
+api/                # Vercel serverless functions
+  chat.ts           # AI proxy with auth + rate limiting
+  tts.ts            # ElevenLabs proxy
+  push/             # Push notification endpoints
+supabase/           # Database migrations
 ```
 
----
+## Scripts
 
-## How AI Works
+| Command          | Description               |
+|------------------|---------------------------|
+| `npm run dev`    | Start dev server          |
+| `npm run build`  | Typecheck + production build |
+| `npm test`       | Run tests (vitest)        |
+| `npm run lint`   | ESLint check              |
 
-The AI chat receives a full context with:
-- All your tasks (titles, durations, travel times, priorities)
-- Your wake/sleep times and break preferences
-- Current time
+## License
 
-It can:
-- **Parse tasks** from natural language → returns JSON → task is created instantly
-- **Build schedule** → arranges tasks optimally with breaks and travel
-- **Advise** → suggest what to move, how to prioritize, reschedule overloaded days
-
----
-
-## Roadmap
-
-- [x] Phase 0 — React + TypeScript + Vite + Zustand
-- [x] Phase 1 — Task list + Timeline
-- [x] Phase 2 — AI Chat (Claude API)
-- [ ] Phase 3 — Supabase auth + cloud sync
-- [ ] Phase 4 — Recurring tasks, PWA, browser notifications
-- [ ] Phase 5 — React Native (iOS + Android)
-
----
-
-## Tech Stack
-
-| Layer | Tech |
-|-------|------|
-| Frontend | React 18 + TypeScript + Vite |
-| State | Zustand + localStorage persist |
-| Database | Supabase (PostgreSQL + RLS) |
-| AI | Anthropic Claude API (claude-sonnet-4) |
-| Icons | Lucide React |
-| Hosting | Vercel |
-| Mobile (future) | React Native + Expo |
+Private project.
