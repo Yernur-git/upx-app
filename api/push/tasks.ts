@@ -45,7 +45,7 @@ export default async function handler(req: Request) {
   }
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // Current UTC time in minutes since midnight
+  // Current UTC time
   const now = new Date();
   const nowUtcMins = now.getUTCHours() * 60 + now.getUTCMinutes();
 
@@ -64,18 +64,23 @@ export default async function handler(req: Request) {
     // User's local time in minutes since midnight
     const localMins = ((nowUtcMins + tzOffset) % (24 * 60) + 24 * 60) % (24 * 60);
 
+    // Compute the user's local date (YYYY-MM-DD) for planned_date matching
+    const userNow = new Date(now.getTime() + tzOffset * 60_000);
+    const userToday = userNow.toISOString().slice(0, 10);
+
     // Target window: tasks starting in [REMIND_BEFORE, REMIND_BEFORE + WINDOW) minutes
     const windowStart = localMins + REMIND_BEFORE;
     const windowEnd   = windowStart + WINDOW;
 
-    // Fetch today's pending tasks with a fixed_time for this user
+    // Fetch today's pending tasks with a fixed_time for this user.
+    // A task is "today" if day='today' OR planned_date matches the user's local date.
     const { data: tasks } = await supabase
       .from('tasks')
       .select('id, title, fixed_time, duration_minutes')
       .eq('user_id', row.user_id)
-      .eq('day', 'today')
       .eq('is_done', false)
-      .not('fixed_time', 'is', null);
+      .not('fixed_time', 'is', null)
+      .or(`day.eq.today,planned_date.eq.${userToday}`);
 
     if (!tasks?.length) continue;
 

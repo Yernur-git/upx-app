@@ -67,12 +67,13 @@ export default async function handler(req: Request) {
   const expired: string[] = [];
 
   for (const row of subs) {
-    // Count today's tasks for this user
+    // Count today's tasks for this user.
+    // A task is "today" if day='today' OR planned_date matches today.
     const { data: tasks } = await supabase
       .from('tasks')
       .select('id, title, is_done')
       .eq('user_id', row.user_id)
-      .eq('day', 'today');
+      .or(`day.eq.today,planned_date.eq.${today}`);
 
     const total = tasks?.length ?? 0;
     const done  = tasks?.filter((t: { is_done: boolean }) => t.is_done).length ?? 0;
