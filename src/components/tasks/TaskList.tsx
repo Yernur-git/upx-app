@@ -551,8 +551,17 @@ export function TaskList() {
                   isDraggingAny={isDraggingAny}
                   onToggle={() => handleToggle(task)}
                   onDelete={() => setConfirmDelete(task.id)}
-                  onMove={() => moveTask(task.id, task.day === 'today' ? 'tomorrow' : 'today')}
-                  onStar={() => updateTask(task.id, { is_starred: !task.is_starred })} />
+                  onMove={() => {
+                    if (selectedDate === todayStr) {
+                      // Today → move to tomorrow (clear planned_date)
+                      moveTask(task.id, 'tomorrow', null);
+                    } else {
+                      // Tomorrow or any future day → move to today (clear planned_date)
+                      moveTask(task.id, 'today', null);
+                    }
+                  }}
+                  onStar={() => updateTask(task.id, { is_starred: !task.is_starred })}
+                  moveLabel={selectedDate === todayStr ? t('day.tomorrow') : t('day.today')} />
               ))}
             </div>
           </SortableContext>
@@ -637,8 +646,8 @@ const SWIPE_THRESHOLD = 60;
 const MAX_SWIPE = 130;
 const ACTION_W = 64;
 
-function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, isDraggingAny }: {
-  task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean; isDraggingAny?: boolean;
+function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, isDraggingAny, moveLabel: moveLabelProp }: {
+  task: Task; onToggle: () => void; onDelete: () => void; onMove: () => void; onStar: () => void; isDone?: boolean; isDraggingAny?: boolean; moveLabel?: string;
 }) {
   const t = useT();
   const lang = useStore(s => s.config.language ?? 'en');
@@ -719,7 +728,7 @@ function SortableTaskCard({ task, onToggle, onDelete, onMove, onStar, isDone, is
   }
 
   const hasNotes = !!(task.notes && task.notes.trim());
-  const moveLabel = task.day === 'today' ? t('day.tomorrow') : t('day.today');
+  const moveLabel = moveLabelProp ?? (task.day === 'today' ? t('day.tomorrow') : t('day.today'));
 
   return (
     <div
