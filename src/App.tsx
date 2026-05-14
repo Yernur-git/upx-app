@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { BarChart2, CalendarDays, User, Sparkles, X, Plus, Sunrise, Moon } from 'lucide-react';
 import { useStore } from './store';
-import { AuthScreen } from './components/auth/AuthScreen';
 import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
+import { LandingPage } from './components/LandingPage';
 import { SplashScreen } from './components/SplashScreen';
 import { Onboarding } from './components/Onboarding';
 import { MorningCheckin } from './components/MorningCheckin';
@@ -312,7 +312,7 @@ export default function App() {
   );
 
   if (!userId && !userEmail && !showPasswordReset) return (
-    <AuthScreen onAuth={(id, email) => { setUserId(id); setUserEmail(email); }} />
+    <LandingPage onAuth={(id, email) => { setUserId(id); setUserEmail(email); }} />
   );
 
   if (showPasswordReset) return (
