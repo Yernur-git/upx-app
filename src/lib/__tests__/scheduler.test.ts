@@ -55,6 +55,8 @@ const defaultConfig: UserConfig = {
   morning_buffer: 0,
   language: 'en',
   theme: 'light',
+  road_time_minutes: 0,
+  known_contexts: {},
   category_goals: [],
 };
 
