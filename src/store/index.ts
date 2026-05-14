@@ -33,6 +33,12 @@ interface Store {
   chatMessages: ChatMessage[];
   dayHistory: DayStats[];
   isLoading: boolean;
+  // True once loadFromSupabase has finished this session. NOT persisted —
+  // resets to false on every app launch. checkAndRollover waits for this so
+  // it never runs on stale localStorage data (which would set
+  // lastRolloverDate=today on the wrong task list and block the real
+  // rollover that should run after fresh data arrives).
+  dataReady: boolean;
   userId: string | null;
   userEmail: string | null;
   apiKey: string;
@@ -224,6 +230,7 @@ export const useStore = create<Store>()(
       chatMessages: [],
       dayHistory: [],
       isLoading: false,
+      dataReady: false,
       userId: null,
       userEmail: null,
       // API keys read from sessionStorage so they're never written to localStorage
@@ -362,15 +369,26 @@ export const useStore = create<Store>()(
 
       checkAndRollover: async () => {
         const today = todayDateStr();
-        const { lastRolloverDate, tasks, userId, dayHistory, isLoading, lastLoadedUserId } = get();
+        const { lastRolloverDate, tasks, userId, dayHistory, isLoading, dataReady } = get();
         const isISO = lastRolloverDate && /^\d{4}-\d{2}-\d{2}$/.test(lastRolloverDate);
         if (isISO && lastRolloverDate === today) return;
-        // Don't run rollover while a Supabase fetch is in flight, OR before the user's
-        // data has been loaded for the first time. Otherwise we'd set lastRolloverDate
-        // to today while tasks=[], then loadFromSupabase would think rollover is done
-        // and skip rolling stale 'tomorrow' tasks pulled from the server.
+        // Don't run rollover while a Supabase fetch is in flight, OR before the
+        // user's data has been loaded fresh THIS session.
+        //
+        // The bug this prevents: on app launch, a `focus`/`visibilitychange`
+        // event can fire checkAndRollover BEFORE loadFromSupabase finishes.
+        // At that point `tasks` is whatever was persisted in localStorage —
+        // often empty or stale. Rolling that over sets lastRolloverDate=today
+        // on the wrong list, and then the real checkAndRollover (called at the
+        // end of loadFromSupabase) bails because "rollover already ran today".
+        // Net result: a week-old `is_done` task is fetched fresh but never
+        // dropped, lingering in the DONE list forever.
+        //
+        // dataReady is NOT persisted — it's false on every launch and only
+        // flips true once loadFromSupabase completes. Local-only users have
+        // no fetch step, so they're allowed through immediately.
         if (isLoading) return;
-        if (userId && userId !== 'local-user' && lastLoadedUserId !== userId) return;
+        if (userId && userId !== 'local-user' && !dataReady) return;
 
         // Snapshot the OLD day's stats under the OLD date (not today!).
         // Previous bug: saveDayStats used today's date, so the new day's slot
@@ -893,6 +911,8 @@ export const useStore = create<Store>()(
             lastRolloverDate: null,
             lastMorningBriefDate: null,
             lastEveningPromptDate: null,
+            // New user — block rollover until this fresh load completes.
+            dataReady: false,
           });
         }
 
@@ -964,9 +984,12 @@ export const useStore = create<Store>()(
         } catch (e) {
           console.error('[loadFromSupabase] fetch failed — rollover will still run', e);
         } finally {
-          // CRITICAL: always clear isLoading. If this stays true, checkAndRollover
-          // is blocked forever and tomorrow's tasks never roll over to today.
-          set({ isLoading: false, lastLoadedUserId: userId });
+          // CRITICAL: always clear isLoading AND set dataReady. If isLoading
+          // stays true, checkAndRollover is blocked forever. dataReady=true
+          // unblocks checkAndRollover now that fresh data is in place — and
+          // guarantees any earlier (racing) checkAndRollover that bailed on
+          // !dataReady didn't poison lastRolloverDate.
+          set({ isLoading: false, lastLoadedUserId: userId, dataReady: true });
         }
         get().checkAndRollover();
       },
@@ -995,6 +1018,8 @@ export const useStore = create<Store>()(
           todayMidEnergy: null,
           todayEveningMood: null,
           focusSession: null,
+          // Force the next login to wait for a fresh load before rollover.
+          dataReady: false,
         });
       },
     }),

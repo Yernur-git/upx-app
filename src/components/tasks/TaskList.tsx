@@ -90,17 +90,37 @@ function BottomSheet({ open, onClose, children, title }: {
 }
 
 // ─── Quick Action Sheet ────────────────────────────────────────────
-export function QuickActionSheet({ open, onClose, day, plannedDate }: {
+export function QuickActionSheet({ open, onClose, day: _propDay, plannedDate: _propPlannedDate }: {
   open: boolean; onClose: () => void; day: 'today' | 'tomorrow'; plannedDate?: string;
 }) {
   const t = useT();
-  const { addTask, config, updateConfig } = useStore();
+  const { addTask, config, updateConfig, activeChatDate, activeChatDay } = useStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
 
   const quickTasks: QuickTask[] = config.quick_tasks ?? [];
   const [done, setDone] = useState<string | null>(null);
+
+  // ── Single source of truth for which date a quick-tap should target.
+  // Previously the parent computed `plannedDate`/`day` from the store and
+  // passed them as props — but on a fresh mount or when the TaskList sync
+  // useEffect hadn't fired yet, the props lagged and templates landed on
+  // the wrong day. Read straight from the store and derive locally so the
+  // template ALWAYS lands on whatever the week strip is showing.
+  const resolved = (() => {
+    const today = isoDate(new Date());
+    const tomorrow = addDays(today, 1);
+    // Prefer the date the user actually picked in the week strip. Fall back
+    // to the explicit day prop (used by callers that aren't tied to the
+    // week strip — currently none, but defensive).
+    const date = activeChatDate ?? _propPlannedDate ?? (_propDay === 'tomorrow' ? tomorrow : today);
+    if (date === today)    return { day: 'today' as const,    plannedDate: undefined };
+    if (date === tomorrow) return { day: 'tomorrow' as const, plannedDate: undefined };
+    // Future date — store the planned_date, day is 'tomorrow' (the bucket
+    // for everything beyond today in the data model).
+    return { day: (activeChatDay ?? 'tomorrow') as 'today' | 'tomorrow', plannedDate: date };
+  })();
 
   // Reset "Added" state when sheet opens
   useEffect(() => {
@@ -120,11 +140,11 @@ export function QuickActionSheet({ open, onClose, day, plannedDate }: {
         category: qt.category,
         is_starred: false,
         is_done: false,
-        day,
+        day: resolved.day,
         recurrence: 'none',
         sort_order: 0,
         fixed_time: qt.fixed_time || undefined,
-        planned_date: plannedDate,
+        planned_date: resolved.plannedDate,
       });
       setDone(qt.id);
       // Reset tile back to normal after animation — don't auto-close
@@ -142,7 +162,7 @@ export function QuickActionSheet({ open, onClose, day, plannedDate }: {
   if (showAddForm) {
     return (
       <BottomSheet open={open} onClose={() => { setShowAddForm(false); onClose(); }} title={t('task.add.btn')}>
-        <AddTaskForm day={day} plannedDate={plannedDate} onDone={() => { setShowAddForm(false); onClose(); }} />
+        <AddTaskForm day={resolved.day} plannedDate={resolved.plannedDate} onDone={() => { setShowAddForm(false); onClose(); }} />
       </BottomSheet>
     );
   }
