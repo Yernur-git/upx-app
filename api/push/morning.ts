@@ -18,7 +18,8 @@
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
-// Node.js runtime (default when edge config is absent)
+// web-push requires Node.js crypto — must NOT run on Edge
+export const config = { runtime: 'nodejs' };
 export default async function handler(req: Request) {
   // Vercel passes CRON_SECRET automatically for cron routes; verify it.
   // FAIL CLOSED: if CRON_SECRET is unset, refuse the request — otherwise anyone
