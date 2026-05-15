@@ -3,30 +3,18 @@
  * 02:00 UTC = 07:00 UTC+5 (Almaty / Tashkent).
  * Sends a morning briefing push to ALL subscribed users.
  *
- * NOTE: per-timezone delivery (each user gets it at their local 7 AM) requires
- * an hourly cron — available on Vercel Pro. On Hobby, this single daily run
- * covers UTC+5 precisely; other timezones receive it within a few hours of morning.
- *
- * Env vars required (Node runtime — no VITE_ prefix needed server-side):
- *   SUPABASE_URL or VITE_SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
- *   VAPID_PUBLIC_KEY
- *   VAPID_PRIVATE_KEY
- *   VAPID_CONTACT   (mailto:you@example.com)
- *   CRON_SECRET     (any random string — add it in Vercel env vars)
+ * Uses Edge Runtime with Web Crypto API (no Node.js crypto needed).
  */
-// All imports are dynamic inside handler() to avoid Vercel bundler issues
+import { createClient } from '@supabase/supabase-js';
+import { sendWebPush, type PushSubscription } from './_webpush-edge';
 
-// web-push requires Node.js crypto — must NOT run on Edge
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'edge' };
+
 export default async function handler(req: Request) {
-  // Vercel passes CRON_SECRET automatically for cron routes; verify it.
-  // FAIL CLOSED: if CRON_SECRET is unset, refuse the request — otherwise anyone
-  // who finds /api/push/morning can broadcast pushes to every subscribed user.
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    console.error('[push/morning] CRON_SECRET not configured — refusing');
+    console.error('[push/morning] CRON_SECRET not configured');
     return new Response('Server not configured', { status: 503 });
   }
   if (authHeader !== `Bearer ${cronSecret}`) {
@@ -36,18 +24,9 @@ export default async function handler(req: Request) {
   const vapidPublic  = process.env.VAPID_PUBLIC_KEY;
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
   const vapidContact = process.env.VAPID_CONTACT || 'mailto:hurah492@gmail.com';
-
   if (!vapidPublic || !vapidPrivate) {
     return new Response('VAPID keys not configured', { status: 500 });
   }
-
-  // Dynamic import — static `import webpush from 'web-push'` crashes Vercel's
-  // ESM bundler because web-push is a CommonJS module that uses Node crypto.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wpMod = await import('web-push') as any;
-  const webpush = wpMod.default ?? wpMod;
-
-  webpush.setVapidDetails(vapidContact, vapidPublic, vapidPrivate);
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -55,10 +34,8 @@ export default async function handler(req: Request) {
     return new Response('Supabase not configured', { status: 500 });
   }
 
-  const { createClient } = await import('@supabase/supabase-js');
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // Fetch all push subscriptions (include tz_offset for timezone-aware dispatch)
   const { data: subs, error: subErr } = await supabase
     .from('push_subscriptions')
     .select('*');
@@ -67,15 +44,15 @@ export default async function handler(req: Request) {
     console.error('[push/morning] fetch subs:', subErr.message);
     return new Response('DB error', { status: 500 });
   }
-  if (!subs?.length) return new Response(JSON.stringify({ sent: 0, reason: 'no subscribers' }));
+  if (!subs?.length) {
+    return new Response(JSON.stringify({ sent: 0, reason: 'no subscribers' }));
+  }
 
   const today = new Date().toISOString().slice(0, 10);
   let sent = 0;
   const expired: string[] = [];
 
   for (const row of subs) {
-    // Count today's tasks for this user.
-    // A task is "today" if day='today' OR planned_date matches today.
     const { data: tasks } = await supabase
       .from('tasks')
       .select('id, title, is_done')
@@ -97,29 +74,30 @@ export default async function handler(req: Request) {
     const payload = JSON.stringify({
       title: '☀️ Good morning, UpX!',
       body,
-      tag:  'upx-morning',
-      url:  '/',
+      tag: 'upx-morning',
+      url: '/',
     });
 
     try {
-      await webpush.sendNotification(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        row.subscription as any,
-        payload
+      const result = await sendWebPush(
+        row.subscription as PushSubscription,
+        payload,
+        vapidPublic,
+        vapidPrivate,
+        vapidContact
       );
-      sent++;
-    } catch (err: unknown) {
-      const pushErr = err as { statusCode?: number };
-      if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
-        // Subscription expired/gone — mark for cleanup
+      if (result.success) {
+        sent++;
+      } else if (result.status === 410 || result.status === 404) {
         expired.push(row.endpoint as string);
       } else {
-        console.error('[push/morning] send error for', row.user_id, err);
+        console.error('[push/morning] send failed:', result.status, result.statusText);
       }
+    } catch (err) {
+      console.error('[push/morning] send error for', row.user_id, err);
     }
   }
 
-  // Clean up expired subscriptions
   if (expired.length) {
     await supabase.from('push_subscriptions').delete().in('endpoint', expired);
   }
