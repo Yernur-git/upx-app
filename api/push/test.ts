@@ -1,42 +1,37 @@
-// Diagnostic endpoint — remove after debugging
+// Minimal diagnostic — no external imports
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(_req: Request) {
   const out: Record<string, string> = {};
-  out.start = new Date().toISOString();
+  out.ok = 'yes';
+  out.time = new Date().toISOString();
   out.node = process.version;
+  out.cwd = process.cwd();
 
-  // Try require() — works in Node.js runtime even with "type": "module"
-  // because Vercel bundles api/ separately
+  // Check if web-push exists in node_modules
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const webpush = require('web-push');
-    out.require_wp = typeof webpush.setVapidDetails;
-  } catch (e: unknown) {
-    out.require_wp_err = String((e as Error).message).slice(0, 200);
-  }
+    const fs = require('fs');
+    const path = require('path');
+    // Check common locations
+    const locations = [
+      path.join(process.cwd(), 'node_modules', 'web-push'),
+      path.join(__dirname, '..', '..', 'node_modules', 'web-push'),
+      path.join(__dirname, 'node_modules', 'web-push'),
+    ];
+    for (const loc of locations) {
+      out[`exists_${loc.slice(-40)}`] = String(fs.existsSync(loc));
+    }
 
-  // Try createRequire
-  try {
-    const { createRequire } = await import('node:module');
-    const require2 = createRequire(import.meta.url);
-    const webpush = require2('web-push');
-    out.createRequire_wp = typeof webpush.setVapidDetails;
+    // List what's in node_modules if it exists
+    const nmPath = path.join(process.cwd(), 'node_modules');
+    if (fs.existsSync(nmPath)) {
+      const dirs = fs.readdirSync(nmPath).filter((d: string) => d.startsWith('web'));
+      out.web_modules = dirs.join(',') || 'none';
+    } else {
+      out.node_modules = 'NOT FOUND';
+    }
   } catch (e: unknown) {
-    out.createRequire_err = String((e as Error).message).slice(0, 200);
-  }
-
-  // Try dynamic import with timeout
-  try {
-    const result = await Promise.race([
-      import('web-push'),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT 5s')), 5000))
-    ]);
-    out.dynamic_import = typeof result;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    out.dynamic_keys = Object.keys(result as any).slice(0, 5).join(',');
-  } catch (e: unknown) {
-    out.dynamic_import_err = String((e as Error).message).slice(0, 200);
+    out.fs_error = String((e as Error).message).slice(0, 200);
   }
 
   return new Response(JSON.stringify(out, null, 2), {
