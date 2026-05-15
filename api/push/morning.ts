@@ -15,7 +15,7 @@
  *   VAPID_CONTACT   (mailto:you@example.com)
  *   CRON_SECRET     (any random string — add it in Vercel env vars)
  */
-import { createClient } from '@supabase/supabase-js';
+// All imports are dynamic inside handler() to avoid Vercel bundler issues
 
 // web-push requires Node.js crypto — must NOT run on Edge
 export const config = { runtime: 'nodejs' };
@@ -43,7 +43,9 @@ export default async function handler(req: Request) {
 
   // Dynamic import — static `import webpush from 'web-push'` crashes Vercel's
   // ESM bundler because web-push is a CommonJS module that uses Node crypto.
-  const webpush = (await import('web-push')).default;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wpMod = await import('web-push') as any;
+  const webpush = wpMod.default ?? wpMod;
 
   webpush.setVapidDetails(vapidContact, vapidPublic, vapidPrivate);
 
@@ -53,6 +55,7 @@ export default async function handler(req: Request) {
     return new Response('Supabase not configured', { status: 500 });
   }
 
+  const { createClient } = await import('@supabase/supabase-js');
   const supabase = createClient(supabaseUrl, serviceKey);
 
   // Fetch all push subscriptions (include tz_offset for timezone-aware dispatch)
