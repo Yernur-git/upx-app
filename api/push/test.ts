@@ -39,8 +39,8 @@ export default async function handler(req: Request) {
     const userNow = new Date(now.getTime() + tzOffset * 60_000);
     const userToday = userNow.toISOString().slice(0, 10);
 
-    const windowStart = localMins + 10;
-    const windowEnd = windowStart + 5;
+    const windowStart = localMins + 2;
+    const windowEnd = windowStart + 28;
 
     // Fetch ALL today's tasks with fixed_time
     const { data: tasks } = await supabase
