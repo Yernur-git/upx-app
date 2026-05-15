@@ -1,7 +1,12 @@
 /**
- * Vercel Cron — runs every 5 minutes (via GitHub Actions).
- * For each push subscriber, finds tasks that start in the next 5–10 minutes
- * (in the user's local timezone) and sends a push reminder.
+ * Task reminder — runs via GitHub Actions cron (every 5 min, but often delayed).
+ * For each push subscriber, finds tasks starting in the next 2–30 minutes
+ * and sends a push reminder. The wide window compensates for GitHub Actions
+ * cron unreliability (delays of 10–30+ min are common).
+ *
+ * Duplicate prevention: each notification uses tag `upx-task-{id}`, so the
+ * browser replaces any existing notification for the same task instead of
+ * showing duplicates.
  *
  * Uses Edge Runtime with Web Crypto API (no Node.js crypto needed).
  */
@@ -10,8 +15,10 @@ import { sendWebPush, type PushSubscription } from './_webpush-edge';
 
 export const config = { runtime: 'edge' };
 
-const REMIND_BEFORE = 10;
-const WINDOW = 5;
+// Wide window: notify about tasks starting 2–30 min from now.
+// Tag-based dedup prevents duplicate notifications.
+const REMIND_BEFORE = 2;
+const WINDOW = 28;
 
 export default async function handler(req: Request) {
   const authHeader = req.headers.get('authorization');
@@ -81,8 +88,12 @@ export default async function handler(req: Request) {
       if (!inWindow) continue;
 
       const minsLeft = taskMins - localMins;
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      const title = minsLeft <= 5
+        ? `⏰ Starting now — ${timeStr}`
+        : `⏰ In ${minsLeft} min — ${timeStr}`;
       const payload = JSON.stringify({
-        title: `⏰ Starting in ${minsLeft} min`,
+        title,
         body: task.title,
         tag: `upx-task-${task.id}`,
         url: '/',
