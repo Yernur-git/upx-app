@@ -3,33 +3,40 @@ export const config = { runtime: 'nodejs' };
 
 export default async function handler(_req: Request) {
   const out: Record<string, string> = {};
-  out.start = 'yes';
-  out.node_version = process.version;
+  out.start = new Date().toISOString();
+  out.node = process.version;
 
-  // 1. env vars
-  out.VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY ? 'set' : 'MISSING';
-  out.VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ? 'set' : 'MISSING';
-  out.SUPABASE_URL = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) ? 'set' : 'MISSING';
-  out.SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'MISSING';
-  out.CRON_SECRET = process.env.CRON_SECRET ? 'set' : 'MISSING';
-
-  // 2. web-push import
+  // Try require() — works in Node.js runtime even with "type": "module"
+  // because Vercel bundles api/ separately
   try {
-    const mod = await import('web-push');
-    out.wp_keys = Object.keys(mod).slice(0, 10).join(',');
-    out.wp_default_type = typeof mod.default;
-    out.wp_setVapid_direct = typeof (mod as Record<string, unknown>).setVapidDetails;
-    out.wp_setVapid_default = typeof mod.default?.setVapidDetails;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const webpush = require('web-push');
+    out.require_wp = typeof webpush.setVapidDetails;
   } catch (e: unknown) {
-    out.wp_error = String((e as Error).message).slice(0, 300);
+    out.require_wp_err = String((e as Error).message).slice(0, 200);
   }
 
-  // 3. supabase import
+  // Try createRequire
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    out.supa = typeof createClient;
+    const { createRequire } = await import('node:module');
+    const require2 = createRequire(import.meta.url);
+    const webpush = require2('web-push');
+    out.createRequire_wp = typeof webpush.setVapidDetails;
   } catch (e: unknown) {
-    out.supa_error = String((e as Error).message).slice(0, 300);
+    out.createRequire_err = String((e as Error).message).slice(0, 200);
+  }
+
+  // Try dynamic import with timeout
+  try {
+    const result = await Promise.race([
+      import('web-push'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT 5s')), 5000))
+    ]);
+    out.dynamic_import = typeof result;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    out.dynamic_keys = Object.keys(result as any).slice(0, 5).join(',');
+  } catch (e: unknown) {
+    out.dynamic_import_err = String((e as Error).message).slice(0, 200);
   }
 
   return new Response(JSON.stringify(out, null, 2), {
