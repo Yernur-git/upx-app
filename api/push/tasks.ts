@@ -11,6 +11,9 @@
 import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
+// web-push requires Node.js crypto — must NOT run on Edge
+export const config = { runtime: 'nodejs' };
+
 // Minutes before task start to send the notification
 const REMIND_BEFORE = 10;
 // Cron fires every 5 min — check a 5-min window to avoid duplicate sends
