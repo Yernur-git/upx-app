@@ -112,7 +112,8 @@ export default async function handler(req: Request) {
 
       try {
         await webpush.sendNotification(
-          row.subscription as unknown as webpush.PushSubscription,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          row.subscription as any,
           payload
         );
         sent++;
