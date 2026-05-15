@@ -8,7 +8,6 @@
  *   SUPABASE_URL (or VITE_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY
  *   CRON_SECRET
  */
-import webpush from 'web-push';
 import { createClient } from '@supabase/supabase-js';
 
 // web-push requires Node.js crypto — must NOT run on Edge
@@ -39,6 +38,10 @@ export default async function handler(req: Request) {
   if (!vapidPublic || !vapidPrivate) {
     return new Response('VAPID keys not configured', { status: 500 });
   }
+  // Dynamic import — static `import webpush from 'web-push'` crashes Vercel's
+  // ESM bundler because web-push is a CommonJS module that uses Node crypto.
+  const webpush = (await import('web-push')).default;
+
   webpush.setVapidDetails(vapidContact, vapidPublic, vapidPrivate);
 
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -109,7 +112,7 @@ export default async function handler(req: Request) {
 
       try {
         await webpush.sendNotification(
-          row.subscription as webpush.PushSubscription,
+          row.subscription as unknown as webpush.PushSubscription,
           payload
         );
         sent++;
