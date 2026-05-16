@@ -196,8 +196,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (userId && userId !== 'local-user') loadFromSupabase();
-    else checkAndRollover(); // offline mode still needs rollover
+    if (userId && userId !== 'local-user') {
+      loadFromSupabase(); // calls checkAndRollover() after fetch
+    } else if (userId === 'local-user') {
+      checkAndRollover(); // offline mode still needs rollover
+    }
+    // When userId is null (auth not resolved yet) — do nothing.
+    // Running rollover here on stale localStorage data would set
+    // lastRolloverDate=today and block the real rollover after
+    // loadFromSupabase fetches fresh data from the DB.
   }, [userId]);
 
   // Show morning check-in once per day after data loads
