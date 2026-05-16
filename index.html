@@ -35,6 +35,16 @@
     <meta name="description" content="AI-powered daily planner: tasks, schedule, focus timer, and smart assistant. Free, private, no ads." />
   </head>
   <body>
+    <!-- Instant splash — renders before any JS loads -->
+    <div id="splash" style="position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;opacity:1;transition:opacity .4s ease">
+      <img src="/logo.png" alt="" width="80" height="80" style="animation:splash-pulse 1.2s ease-in-out infinite;will-change:transform,opacity">
+      <div style="margin-top:20px;font-family:system-ui,sans-serif;font-size:24px;font-weight:700;color:#fff;letter-spacing:-.02em;opacity:0;animation:splash-fade-in .6s ease .3s forwards">UpX</div>
+    </div>
+    <style>
+      @keyframes splash-pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.08);opacity:1}}
+      @keyframes splash-fade-in{to{opacity:1}}
+    </style>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
