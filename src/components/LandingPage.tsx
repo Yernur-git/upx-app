@@ -106,29 +106,27 @@ export function LandingPage({ onAuth }: Props) {
       {/* ── SCREENSHOTS ── */}
       <section style={{
         padding: '0 20px 48px',
-        display: 'flex', justifyContent: 'center', gap: 12,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 12,
         maxWidth: 600, margin: '0 auto',
       }}>
-        <div style={{
-          flex: 1, maxWidth: 260,
-          borderRadius: 16, overflow: 'hidden',
-          border: '1px solid var(--bdr2)',
-          boxShadow: 'var(--shd2)',
-        }}>
-          <img src="/screenshot-plan.png" alt="UpX Plan view"
-            style={{ width: '100%', display: 'block' }}
-            onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
-        </div>
-        <div style={{
-          flex: 1, maxWidth: 260,
-          borderRadius: 16, overflow: 'hidden',
-          border: '1px solid var(--bdr2)',
-          boxShadow: 'var(--shd2)',
-        }}>
-          <img src="/screenshot-stats.png" alt="UpX Stats view"
-            style={{ width: '100%', display: 'block' }}
-            onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
-        </div>
+        {[
+          { src: '/screenshot-plan.png', alt: 'UpX Plan view' },
+          { src: '/screenshot-stats.png', alt: 'UpX Stats & Goals' },
+          { src: '/screenshot-goals.png', alt: 'UpX Weekly Goals setup' },
+          { src: '/screenshot-mood.png', alt: 'UpX Mood feedback' },
+        ].map(({ src, alt }) => (
+          <div key={src} style={{
+            borderRadius: 16, overflow: 'hidden',
+            border: '1px solid var(--bdr2)',
+            boxShadow: 'var(--shd2)',
+          }}>
+            <img src={src} alt={alt}
+              style={{ width: '100%', display: 'block' }}
+              onError={e => { (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
+          </div>
+        ))}
       </section>
 
       {/* ── FEATURES ── */}
