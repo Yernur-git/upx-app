@@ -3,7 +3,7 @@ import { BarChart2, CalendarDays, User, Sparkles, X, Plus, Sunrise, Moon } from 
 import { useStore } from './store';
 import { PasswordResetScreen } from './components/auth/PasswordResetScreen';
 import { LandingPage } from './components/LandingPage';
-import { SplashScreen } from './components/SplashScreen';
+// SplashScreen is now in index.html (pure CSS, renders before JS loads)
 import { Onboarding } from './components/Onboarding';
 import { MorningCheckin } from './components/MorningCheckin';
 import { TaskList, QuickActionSheet } from './components/tasks/TaskList';
@@ -148,13 +148,31 @@ export default function App() {
   const [showEveningCheckin, setShowEveningCheckin] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showCheckin, setShowCheckin] = useState(false);
-  const [showSplash, setShowSplash] = useState(() => {
-    try { return !sessionStorage.getItem('splashShown'); } catch { return true; }
-  });
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', config.theme);
   }, [config.theme]);
+
+  // Dismiss the HTML splash (from index.html) once the app is ready
+  useEffect(() => {
+    if (!authChecked) return;
+    // Minimum display time: 1.2s (enough for logo animation to feel intentional)
+    const minTime = 1200;
+    const start = performance.now?.() ?? Date.now();
+    const elapsed = (performance.now?.() ?? Date.now()) - start;
+    const delay = Math.max(0, minTime - elapsed);
+
+    const t = setTimeout(() => {
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 400);
+      }
+      setShowSplash(false);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [authChecked]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -321,7 +339,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden' }}>
-      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      {/* Splash is now in index.html — removed React SplashScreen */}
       {showOnboarding && !showSplash && (
         <Onboarding onDone={() => {
           if (userId) localStorage.setItem(`upx_onboarded_${userId}`, 'true');
